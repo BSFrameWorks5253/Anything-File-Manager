@@ -26,6 +26,7 @@ interface ExplorerTableProps {
   onSelectItem: (item: FsItem) => void;
   onOpenItem: (item: FsItem) => void;
   onQuickLook?: (item: FsItem) => void;
+  onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
 }
 
 function TableVideoDuration({ item }: { item: FsItem }) {
@@ -70,7 +71,8 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
   selectedPath,
   onSelectItem,
   onOpenItem,
-  onQuickLook
+  onQuickLook,
+  onContextMenu
 }) => {
   // Resizable table columns widths (in pixels)
   const [colWidths, setColWidths] = useState({
@@ -113,7 +115,10 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
   };
 
   return (
-    <div className="w-full overflow-x-auto select-none mac-content transition-colors duration-200">
+    <div
+      onContextMenu={e => onContextMenu?.(e, null)}
+      className="w-full overflow-x-auto select-none mac-content transition-colors duration-200"
+    >
       <table className="w-full text-sm border-collapse table-fixed">
         <thead>
           <tr className="text-[11px] text-[var(--mac-text-muted)] uppercase border-b border-[var(--mac-border)] mac-header">
@@ -206,6 +211,11 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                 key={item.fullPath}
                 onClick={() => onSelectItem(item)}
                 onDoubleClick={() => onOpenItem(item)}
+                onContextMenu={e => {
+                  e.stopPropagation();
+                  onSelectItem(item);
+                  onContextMenu?.(e, item);
+                }}
                 className={`group cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors border-b border-[var(--mac-border-subtle)] ${
                   isSelected ? 'bg-indigo-600 text-white font-medium shadow-sm' : 'text-[var(--mac-text-primary)]'
                 } ${item.isHidden && !isSelected ? 'opacity-55 hover:opacity-100' : ''}`}

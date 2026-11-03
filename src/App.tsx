@@ -18,7 +18,7 @@ import {
 import { ExplorerContextMenu, ContextMenuState } from './components/explorer/ExplorerContextMenu';
 import { FullscreenViewer } from './components/viewer';
 import { MacStandaloneMediaPlayer } from './components/viewer/MacStandaloneMediaPlayer';
-import { DefaultAppsModal, SettingsModal } from './components/modals';
+import { DefaultAppsModal, SettingsModal, PropertiesModal } from './components/modals';
 
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
@@ -60,6 +60,8 @@ export default function App() {
   const [activeItem, setActiveItem] = useState<FsItem | null>(null);
   const [isDefaultAppsModalOpen, setIsDefaultAppsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
+  const [propertiesItem, setPropertiesItem] = useState<FsItem | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     isOpen: false,
     x: 0,
@@ -100,6 +102,22 @@ export default function App() {
     setSelectedItemState(item);
     setIsQuickLookOpen(true);
   };
+
+  const handleOpenProperties = useCallback((item?: FsItem | null) => {
+    const target = item || selectedItem || (currentPath ? {
+      name: currentPath.split(/[\\/]/).filter(Boolean).pop() || currentPath,
+      isDir: true,
+      size: 0,
+      mtime: Date.now(),
+      ext: '',
+      fullPath: currentPath
+    } as FsItem : null);
+
+    if (target) {
+      setPropertiesItem(target);
+      setIsPropertiesOpen(true);
+    }
+  }, [selectedItem, currentPath]);
 
   const startSidebarResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -214,6 +232,12 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === '.' || e.key === '>')) {
         e.preventDefault();
         handleToggleShowHidden();
+      }
+
+      // Alt+Enter -> Open Full Properties Dialog
+      if (e.altKey && e.key === 'Enter') {
+        e.preventDefault();
+        handleOpenProperties(selectedItem);
       }
 
       // Alt+Up -> Parent folder
@@ -401,6 +425,7 @@ export default function App() {
                 onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
                 onQuickLook={handleQuickLook}
+                onContextMenu={handleContextMenu}
               />
             </div>
           ) : viewMode === 'columns' ? (
@@ -422,6 +447,7 @@ export default function App() {
                 selectedItem={selectedItem}
                 onSelectItem={handleSelectItem}
                 onOpenViewer={setActiveItem}
+                onContextMenu={handleContextMenu}
               />
             </div>
           )}
@@ -467,11 +493,28 @@ export default function App() {
         onCopyPath={p => navigator.clipboard.writeText(p)}
         onInspect={item => {
           handleSelectItem(item);
-          setIsInspectorOpen(true);
+          handleOpenProperties(item);
         }}
+        onOpenProperties={handleOpenProperties}
         onRefresh={refresh}
         onToggleHidden={handleToggleShowHidden}
         showHidden={showHidden}
+        currentFolderItem={currentPath ? {
+          name: currentPath.split(/[\\/]/).filter(Boolean).pop() || currentPath,
+          isDir: true,
+          size: 0,
+          mtime: Date.now(),
+          ext: '',
+          fullPath: currentPath
+        } : null}
+      />
+
+      {/* Full File / Folder Properties Modal */}
+      <PropertiesModal
+        item={propertiesItem}
+        isOpen={isPropertiesOpen}
+        onClose={() => setIsPropertiesOpen(false)}
+        onOpenPlayer={handleOpenSeparately}
       />
 
       {/* macOS Quick Look Spacebar Modal */}

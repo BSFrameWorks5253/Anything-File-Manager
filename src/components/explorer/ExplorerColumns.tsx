@@ -212,7 +212,10 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
             </div>
 
             {/* Column Items List */}
-            <div className="flex-1 overflow-y-auto p-1 space-y-0.5">
+            <div
+              onContextMenu={e => onContextMenu?.(e, null)}
+              className="flex-1 overflow-y-auto p-1 space-y-0.5"
+            >
               {col.items.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[var(--mac-text-muted)]">Empty folder</div>
               ) : (

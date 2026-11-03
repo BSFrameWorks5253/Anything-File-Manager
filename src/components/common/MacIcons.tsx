@@ -24,35 +24,35 @@ export const MacFolderIcon: React.FC<MacFolderIconProps> = ({
       className={`select-none filter drop-shadow-md ${className}`}
     >
       <defs>
-        {/* Back Tab & Body Gradient */}
+        {/* Back Tab & Body Gradient - Vibrant Emerald Teal (Image 2 style) */}
         <linearGradient id="macFolderBack" x1="60" y1="18" x2="60" y2="100" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#53bbf4" />
-          <stop offset="100%" stopColor="#1f82e2" />
+          <stop offset="0%" stopColor="#04937d" />
+          <stop offset="100%" stopColor="#026b5d" />
         </linearGradient>
 
-        {/* Front Flap Gradient */}
+        {/* Front Flap Gradient - Vivid Cyan Mint / Emerald */}
         <linearGradient id="macFolderFront" x1="60" y1="36" x2="60" y2="104" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#67c7ff" />
-          <stop offset="35%" stopColor="#3aa8f7" />
-          <stop offset="100%" stopColor="#1072de" />
+          <stop offset="0%" stopColor="#0cd9a4" />
+          <stop offset="45%" stopColor="#05ba8c" />
+          <stop offset="100%" stopColor="#028675" />
         </linearGradient>
 
         {/* Top Flap Highlight Rim */}
         <linearGradient id="macFolderRim" x1="60" y1="36" x2="60" y2="46" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.65" />
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0.1" />
         </linearGradient>
 
-        {/* Embossed Paper Sheets inside */}
+        {/* Crisp White Peeking Paper / Inner Folder Flap Slit (Image 2 signature) */}
         <linearGradient id="macFolderPaper" x1="60" y1="26" x2="60" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#f8fafc" />
-          <stop offset="100%" stopColor="#e2e8f0" />
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#f1f5f9" />
         </linearGradient>
 
         {/* Subtle Bottom Crease Shadow */}
         <radialGradient id="macFolderShadow" cx="50%" cy="100%" r="50%">
-          <stop offset="0%" stopColor="#003e8a" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#003e8a" stopOpacity="0" />
+          <stop offset="0%" stopColor="#01362e" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#01362e" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -60,15 +60,26 @@ export const MacFolderIcon: React.FC<MacFolderIconProps> = ({
       <path
         d="M12 28C12 23.5817 15.5817 20 20 20H46C49.5 20 52.8 22 55 25L61 32H100C104.418 32 108 35.5817 108 40V92C108 97.5228 103.523 102 98 102H22C16.4772 102 12 97.5228 12 92V28Z"
         fill="url(#macFolderBack)"
+        stroke="#01483e"
+        strokeWidth="1.2"
+        strokeOpacity="0.5"
       />
 
-      {/* Internal Paper Sheet Preview */}
-      <rect x="22" y="27" width="76" height="24" rx="4" fill="url(#macFolderPaper)" opacity="0.9" />
+      {/* Internal Crisp White Paper Sheet / Opening Crescent Peek */}
+      <path
+        d="M16 38C20 33 28 32 36 32H84C92 32 100 33 104 38C100 35 92 34 84 34H36C28 34 20 35 16 38Z"
+        fill="url(#macFolderPaper)"
+        opacity="0.95"
+      />
+      <rect x="20" y="28" width="80" height="18" rx="4" fill="url(#macFolderPaper)" opacity="0.95" />
 
       {/* Front Flap */}
       <path
         d="M10 44C10 39.5817 13.5817 36 18 36H102C106.418 36 110 39.5817 110 44V94C110 99.5228 105.523 104 100 104H20C14.4772 104 10 99.5228 10 94V44Z"
         fill="url(#macFolderFront)"
+        stroke="#01483e"
+        strokeWidth="1.2"
+        strokeOpacity="0.5"
       />
 
       {/* Top Edge Highlight */}

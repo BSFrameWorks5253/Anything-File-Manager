@@ -35,10 +35,12 @@ interface ExplorerContextMenuProps {
   onShowInExplorer: (fullPath: string) => void;
   onCopyPath: (fullPath: string) => void;
   onInspect: (item: FsItem) => void;
+  onOpenProperties?: (item: FsItem | null) => void;
   onRefresh?: () => void;
   onNewFolder?: () => void;
   onToggleHidden?: () => void;
   showHidden?: boolean;
+  currentFolderItem?: FsItem | null;
 }
 
 export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
@@ -50,10 +52,12 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
   onShowInExplorer,
   onCopyPath,
   onInspect,
+  onOpenProperties,
   onRefresh,
   onNewFolder,
   onToggleHidden,
-  showHidden
+  showHidden,
+  currentFolderItem
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -161,14 +165,18 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
 
           <button
             onClick={() => {
-              onInspect(item);
+              if (onOpenProperties) {
+                onOpenProperties(item);
+              } else {
+                onInspect(item);
+              }
               onClose();
             }}
             className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
           >
             <div className="flex items-center gap-2">
               <Info className="w-3.5 h-3.5 text-indigo-400 group-hover:text-white" />
-              <span>Inspect & Metadata</span>
+              <span className="font-semibold">Properties</span>
             </div>
             <span className="text-[10px] opacity-60">Alt+Enter</span>
           </button>
@@ -221,6 +229,41 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
               </div>
               <span className="text-[10px] opacity-60">Ctrl+Shift+.</span>
             </button>
+          )}
+
+          {currentFolderItem && (
+            <>
+              <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
+
+              <button
+                onClick={() => {
+                  onShowInExplorer(currentFolderItem.fullPath);
+                  onClose();
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <ExternalLink className="w-3.5 h-3.5 text-amber-500 group-hover:text-white" />
+                  <span>Show Folder in Explorer</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (onOpenProperties) {
+                    onOpenProperties(currentFolderItem);
+                  }
+                  onClose();
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <Info className="w-3.5 h-3.5 text-indigo-400 group-hover:text-white" />
+                  <span className="font-semibold">Folder Properties</span>
+                </div>
+                <span className="text-[10px] opacity-60">Alt+Enter</span>
+              </button>
+            </>
           )}
         </>
       )}

@@ -21,7 +21,7 @@ import {
   classifyFolder
 } from '../../utils/afmTaxonomy';
 import { formatBytes } from '../../utils';
-import { mediaService } from '../../services';
+import { mediaService, oneTapService } from '../../services';
 import { PremierePreflightModal } from './PremierePreflightModal';
 
 interface AfmInspectorPanelProps {
@@ -39,7 +39,8 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
   const [analytics, setAnalytics] = useState<any>(null);
   const [currentStage, setCurrentStage] = useState<ProductionStage>('stage1');
   const [isPreflightOpen, setIsPreflightOpen] = useState(false);
-  const [titleAdderFeedback, setTitleAdderFeedback] = useState<string | null>(null);
+  const [oneTapStats, setOneTapStats] = useState<any>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   const classification = classifyFolder(folderName, folderPath);
 
@@ -51,6 +52,12 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
       if (data) {
         setAnalytics(data);
         if (data.stage) setCurrentStage(data.stage);
+      }
+
+      // Fetch One Tap tracker metrics for this session/folder
+      const otRes = await oneTapService.getTaskTrackerStats(folderName);
+      if (otRes.ok && otRes.stats) {
+        setOneTapStats(otRes.stats);
       }
     } catch (err) {
       console.error('[AfmInspector] Error:', err);
@@ -71,19 +78,20 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
     } catch {}
   };
 
-  const handleSendToTitleAdder = async () => {
-    setTitleAdderFeedback('Sending to Title Adder...');
+  const handleSeparatePV = async () => {
+    setActionFeedback('Separating photos & videos...');
     try {
-      const res = await mediaService.sendToTitleAdder(folderPath);
+      const res = await oneTapService.separatePhotosAndVideos(folderPath);
       if (res.ok) {
-        setTitleAdderFeedback('Loaded in Title Adder!');
+        setActionFeedback(`Done! Moved ${res.photosMoved || 0} photos & ${res.videosMoved || 0} videos.`);
+        if (onRefresh) onRefresh();
       } else {
-        setTitleAdderFeedback(res.error || 'Title Adder offline (Port 49152)');
+        setActionFeedback(res.error || 'Failed to separate files.');
       }
-      setTimeout(() => setTitleAdderFeedback(null), 3500);
+      setTimeout(() => setActionFeedback(null), 3500);
     } catch (err: any) {
-      setTitleAdderFeedback('Connection error');
-      setTimeout(() => setTitleAdderFeedback(null), 3000);
+      setActionFeedback('Action failed.');
+      setTimeout(() => setActionFeedback(null), 3000);
     }
   };
 
@@ -310,23 +318,42 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
           </button>
         </div>
 
-        {/* ── Inter-App One Tap Ecosystem Bridges ── */}
+        {/* ── One Tap Ecosystem Integrations ── */}
         <div className="space-y-2 pt-1">
           <span className="text-[10px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider block">
-            Ecosystem Integrations
+            One Tap Ecosystem
           </span>
 
+          {oneTapStats && (
+            <div className="p-2.5 rounded-lg bg-black/5 dark:bg-white/5 border mac-border space-y-1.5 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--mac-text-muted)] text-[11px]">Tracker Stage:</span>
+                <span className="font-semibold text-emerald-400">{oneTapStats.stage || 'In Progress'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--mac-text-muted)] text-[11px]">Completed Renders:</span>
+                <span className="font-semibold text-[var(--mac-text-primary)]">{oneTapStats.rendersCount || 0}</span>
+              </div>
+              {oneTapStats.totalRenderDuration > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-[var(--mac-text-muted)] text-[11px]">Render Compute Time:</span>
+                  <span className="font-mono text-[var(--mac-text-secondary)]">{Math.round(oneTapStats.totalRenderDuration)}s</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <button
-            onClick={handleSendToTitleAdder}
+            onClick={handleSeparatePV}
             className="w-full py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border mac-border text-[var(--mac-text-primary)] rounded-lg text-xs font-medium flex items-center justify-center gap-2 transition-all"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Send Session to Title Adder</span>
+            <span>Separate Photos & Videos (PV)</span>
           </button>
 
-          {titleAdderFeedback && (
+          {actionFeedback && (
             <div className="text-center text-[10.5px] font-semibold text-emerald-400 animate-in fade-in">
-              {titleAdderFeedback}
+              {actionFeedback}
             </div>
           )}
         </div>

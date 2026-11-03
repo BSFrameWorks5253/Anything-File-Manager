@@ -1,11 +1,39 @@
-import { ipcMain, app, shell } from 'electron';
+import { ipcMain, app, shell, Notification } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import http from 'http';
+import crypto from 'crypto';
 
 const execAsync = promisify(exec);
+
+// ── ONE TAP COMPANION SYSTEM HELPERS ──
+function getOneTapDb(): any | null {
+  try {
+    const { DatabaseSync } = require('node:sqlite');
+    const appData = process.env.APPDATA || '';
+    const dbPath = path.join(appData, 'One Tap', 'tracker.db');
+    if (fs.existsSync(dbPath)) {
+      return new DatabaseSync(dbPath);
+    }
+  } catch (err) {
+    console.warn('[AFM OneTap] SQLite access note:', err);
+  }
+  return null;
+}
+
+function getOneTapPythonScript(scriptName: string): string | null {
+  const candidates = [
+    path.join('C:\\Users\\Burhanuddin\\OneDrive\\Desktop\\Anything\\Anything Apps\\One Tap\\src\\main\\python', scriptName),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'One Tap', 'resources', 'python', scriptName),
+    path.join(app.getAppPath(), '..', 'One Tap', 'src', 'main', 'python', scriptName),
+    path.join(__dirname, '../../../../One Tap/src/main/python', scriptName)
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
 
 // Supported Media Extensions
 const VIDEO_EXTS = new Set([
@@ -446,19 +474,64 @@ export function registerAfmIPC(): void {
   });
 
   /**
-   * 2. Set Production Stage Tag
+   * 2. Set Production Stage Tag & Sync with One Tap Task Tracker DB
    */
   ipcMain.handle('afm:setStage', async (_event, folderPath: string, stage: ProductionStage): Promise<boolean> => {
     try {
       if (!folderPath || !fs.existsSync(folderPath)) return false;
       const metaFile = path.join(folderPath, '.afm_meta.json');
       const existing = getOrInferMetadata(folderPath);
+      const oldStage = existing.stage || 'stage1';
+      const now = Date.now();
       const updated: AfmMetadata = {
         ...existing,
         stage,
-        lastUpdated: Date.now()
+        lastUpdated: now
       };
       fs.writeFileSync(metaFile, JSON.stringify(updated, null, 2), 'utf8');
+
+      // Inter-app sync: Record transition in One Tap's tracker.db if available
+      try {
+        const db = getOneTapDb();
+        if (db) {
+          const dateFolder = path.basename(folderPath);
+          const parentDir = path.dirname(folderPath);
+          const safarName = path.basename(parentDir);
+
+          const selectStmt = db.prepare('SELECT id FROM tracker_tasks WHERE date_folder = ? LIMIT 1');
+          const row: any = selectStmt.get(dateFolder);
+
+          let taskId: number = 0;
+          if (row && row.id) {
+            taskId = row.id;
+            const updateStmt = db.prepare('UPDATE tracker_tasks SET status = ?, updated_at = ? WHERE id = ?');
+            updateStmt.run(stage, now, taskId);
+          } else {
+            const insertStmt = db.prepare(
+              'INSERT INTO tracker_tasks (safar_name, date_folder, status, working_path, updated_at, first_seen_at) VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            const res: any = insertStmt.run(safarName, dateFolder, stage, folderPath, now, now);
+            taskId = Number(res.lastInsertRowid || 0);
+          }
+
+          const historyStmt = db.prepare(
+            'INSERT INTO tracker_history_logs (task_id, safar_name, date_folder, from_status, to_status, event_description, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          );
+          historyStmt.run(
+            taskId,
+            safarName,
+            dateFolder,
+            oldStage,
+            stage,
+            `Stage updated to ${stage} via Anything File Manager`,
+            now
+          );
+          db.close();
+        }
+      } catch (dbErr) {
+        console.warn('[afm:setStage] Note: Could not sync to One Tap tracker.db:', dbErr);
+      }
+
       return true;
     } catch (err) {
       console.error('[afm:setStage] Error:', err);
@@ -660,48 +733,228 @@ export function registerAfmIPC(): void {
   );
 
   /**
-   * 4. Inter-App Ecosystem Bridge: Send to Title Adder (Port 49152)
+   * One Tap Ecosystem Bridges (5 Core Services)
    */
-  ipcMain.handle('afm:sendToTitleAdder', async (_event, folderPath: string): Promise<{ ok: boolean; error?: string }> => {
-    return new Promise((resolve) => {
+
+  // 1. Task Tracker & Production Analytics Database
+  ipcMain.handle('afm:getTaskTrackerStats', async (_event, dateSession: string, safarName?: string) => {
+    try {
+      const db = getOneTapDb();
+      if (!db) {
+        return { ok: false, error: 'One Tap tracker database not found or offline.' };
+      }
+
+      const likeArg = `%${dateSession}%`;
+      const tasksQuery = db.prepare(
+        `SELECT * FROM tracker_tasks WHERE (date_session = ? OR folder_name LIKE ?) ORDER BY updated_at DESC LIMIT 20`
+      );
+      const tasks: any[] = tasksQuery.all(dateSession, likeArg) as any[];
+
+      let historyLogs: any[] = [];
       try {
-        const postData = JSON.stringify({ folderPath, timestamp: Date.now() });
-        const req = http.request(
-          {
-            hostname: '127.0.0.1',
-            port: 49152,
-            path: '/api/load-session',
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Content-Length': Buffer.byteLength(postData)
-            },
-            timeout: 2000
-          },
-          (res) => {
-            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-              resolve({ ok: true });
+        const histQuery = db.prepare(
+          `SELECT * FROM tracker_history_logs WHERE (session_id = ? OR details LIKE ?) ORDER BY timestamp DESC LIMIT 25`
+        );
+        historyLogs = histQuery.all(dateSession, likeArg) as any[];
+      } catch {}
+
+      let totalRenderDuration = 0;
+      let rendersCount = 0;
+      tasks.forEach((t) => {
+        if (t.render_duration_secs) totalRenderDuration += Number(t.render_duration_secs);
+        if (t.stage === 'Rendered' || t.status === 'Completed' || t.status === 'Done') rendersCount++;
+      });
+
+      return {
+        ok: true,
+        stats: {
+          sessionName: dateSession,
+          stage: tasks.length > 0 ? tasks[0].stage || tasks[0].status : 'Pending',
+          rendersCount,
+          totalRenderDuration,
+          lastUpdated: tasks.length > 0 ? tasks[0].updated_at : undefined,
+          tasks,
+          history: historyLogs
+        }
+      };
+    } catch (err: any) {
+      console.warn('[afm:getTaskTrackerStats] Error:', err);
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  // 2. DriveSync & Storage Backup Guard
+  ipcMain.handle('afm:verifyBackupSync', async (_event, sourceDir: string, backupDir: string) => {
+    try {
+      if (!fs.existsSync(sourceDir)) return { ok: false, error: 'Source directory does not exist.' };
+      if (!fs.existsSync(backupDir)) return { ok: false, error: 'Backup directory does not exist.' };
+
+      const missingInBackup: string[] = [];
+      const sizeMismatches: Array<{ file: string; sourceSize: number; backupSize: number }> = [];
+      let totalFiles = 0;
+      let syncedFiles = 0;
+
+      function compareRecursive(relPath: string) {
+        const srcFullPath = path.join(sourceDir, relPath);
+        const bkpFullPath = path.join(backupDir, relPath);
+
+        const items = fs.readdirSync(srcFullPath, { withFileTypes: true });
+        for (const item of items) {
+          if (item.name.startsWith('.') || item.name === 'node_modules' || item.name === '$RECYCLE.BIN') continue;
+          const itemRel = relPath ? path.join(relPath, item.name) : item.name;
+          const sPath = path.join(srcFullPath, item.name);
+          const bPath = path.join(bkpFullPath, item.name);
+
+          if (item.isDirectory()) {
+            if (fs.existsSync(bPath)) {
+              compareRecursive(itemRel);
             } else {
-              resolve({ ok: false, error: `Title Adder returned status ${res.statusCode}` });
+              missingInBackup.push(itemRel + '\\');
+            }
+          } else if (item.isFile()) {
+            totalFiles++;
+            if (!fs.existsSync(bPath)) {
+              missingInBackup.push(itemRel);
+            } else {
+              const srcStat = fs.statSync(sPath);
+              const bkpStat = fs.statSync(bPath);
+              if (srcStat.size !== bkpStat.size) {
+                sizeMismatches.push({ file: itemRel, sourceSize: srcStat.size, backupSize: bkpStat.size });
+              } else {
+                syncedFiles++;
+              }
             }
           }
-        );
-
-        req.on('error', () => {
-          // Fallback: Open Title Adder via deep link or shell open
-          shell.openExternal(`onetap://title-adder?path=${encodeURIComponent(folderPath)}`).then(() => {
-            resolve({ ok: true });
-          }).catch(err => {
-            resolve({ ok: false, error: 'Could not connect to Title Adder on port 49152. Is One Tap running?' });
-          });
-        });
-
-        req.write(postData);
-        req.end();
-      } catch (err: any) {
-        resolve({ ok: false, error: err.message || String(err) });
+        }
       }
-    });
+
+      compareRecursive('');
+
+      return {
+        ok: true,
+        report: {
+          totalFiles,
+          syncedFiles,
+          missingCount: missingInBackup.length,
+          mismatchCount: sizeMismatches.length,
+          missingInBackup: missingInBackup.slice(0, 50),
+          sizeMismatches: sizeMismatches.slice(0, 50),
+          isFullySynced: missingInBackup.length === 0 && sizeMismatches.length === 0
+        }
+      };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  // 3. Photo / Video (PV) Separator
+  ipcMain.handle('afm:separatePhotosAndVideos', async (_event, sourceDir: string, destDir?: string, mode: 'copy' | 'move' = 'move') => {
+    try {
+      if (!fs.existsSync(sourceDir)) return { ok: false, error: 'Source directory does not exist.' };
+      const outTarget = destDir || sourceDir;
+      const photosDir = path.join(outTarget, 'Photos');
+      const videosDir = path.join(outTarget, 'Footage');
+
+      const PHOTO_EXTS = new Set(['.cr2', '.cr3', '.nef', '.arw', '.dng', '.jpg', '.jpeg', '.png', '.heic', '.raw', '.raf', '.orf']);
+      const VIDEO_EXTS = new Set(['.mp4', '.mov', '.mkv', '.avi', '.m4v', '.mts', '.m2ts', '.braw']);
+
+      if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
+
+      const files = fs.readdirSync(sourceDir);
+      let photosCount = 0;
+      let videosCount = 0;
+
+      for (const f of files) {
+        const fullPath = path.join(sourceDir, f);
+        if (!fs.statSync(fullPath).isFile()) continue;
+        const ext = path.extname(f).toLowerCase();
+
+        if (PHOTO_EXTS.has(ext)) {
+          const destFile = path.join(photosDir, f);
+          if (mode === 'move') {
+            fs.renameSync(fullPath, destFile);
+          } else {
+            fs.copyFileSync(fullPath, destFile);
+          }
+          photosCount++;
+        } else if (VIDEO_EXTS.has(ext) && destDir) {
+          if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
+          const destFile = path.join(videosDir, f);
+          if (mode === 'move') {
+            fs.renameSync(fullPath, destFile);
+          } else {
+            fs.copyFileSync(fullPath, destFile);
+          }
+          videosCount++;
+        }
+      }
+
+      return {
+        ok: true,
+        photosMoved: photosCount,
+        videosMoved: videosCount,
+        photosPath: photosDir,
+        videosPath: videosDir
+      };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  // 4. Dynamic Island & Ambient Notification Feed
+  ipcMain.handle('afm:dispatchAmbientEvent', async (_event, title: string, message: string, sound: boolean = true) => {
+    try {
+      if (Notification.isSupported()) {
+        new Notification({
+          title,
+          body: message,
+          silent: !sound
+        }).show();
+      }
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  // 5. Disk Health & Storage Pill
+  ipcMain.handle('afm:getDiskHealth', async (_event, drivePath?: string) => {
+    try {
+      const targetDrive = drivePath || (process.platform === 'win32' ? 'C:' : '/');
+      const rootLetter = path.parse(path.resolve(targetDrive)).root;
+
+      if (process.platform === 'win32') {
+        const { execSync } = await import('child_process');
+        const driveName = rootLetter.replace(/[:\\\/]/g, '');
+        const output = execSync(
+          `powershell -NoProfile -Command "Get-PSDrive -Name '${driveName}' | Select-Object Used, Free | ConvertTo-Json"`,
+          { encoding: 'utf8', windowsHide: true }
+        );
+        const data = JSON.parse(output);
+        const freeBytes = Number(data.Free || 0);
+        const usedBytes = Number(data.Used || 0);
+        const totalBytes = freeBytes + usedBytes;
+        const freePercent = totalBytes > 0 ? (freeBytes / totalBytes) * 100 : 100;
+        const isLowSpace = freePercent < 15 || freeBytes < 100 * 1024 * 1024 * 1024;
+
+        return {
+          ok: true,
+          drive: rootLetter,
+          freeBytes,
+          usedBytes,
+          totalBytes,
+          freePercent: Math.round(freePercent * 10) / 10,
+          isLowSpace,
+          warningMessage: isLowSpace
+            ? `Drive ${rootLetter} has low storage (${Math.round(freeBytes / (1024 * 1024 * 1024))} GB / ${Math.round(freePercent)}% free)`
+            : undefined
+        };
+      }
+
+      return { ok: true, drive: rootLetter, freePercent: 100, isLowSpace: false };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
   });
 }
 

@@ -27,13 +27,15 @@ interface ExplorerGalleryProps {
   selectedItem: FsItem | null;
   onSelectItem: (item: FsItem) => void;
   onOpenViewer: (item: FsItem) => void;
+  onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
 }
 
 export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
   items,
   selectedItem,
   onSelectItem,
-  onOpenViewer
+  onOpenViewer,
+  onContextMenu
 }) => {
   const mediaItems = items.filter(i => isPhotoExtension(i.ext) || isVideoExtension(i.ext));
   const activeItem = selectedItem || mediaItems[0] || null;
@@ -129,7 +131,10 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0b0c10] select-none overflow-hidden">
+    <div
+      onContextMenu={e => onContextMenu?.(e, activeItem)}
+      className="flex flex-col h-full bg-[#0b0c10] select-none overflow-hidden"
+    >
       {/* ── Top Stage Canvas (macOS Gallery Main Viewer) ── */}
       <div
         className="flex-1 relative flex items-center justify-center bg-black overflow-hidden cursor-grab active:cursor-grabbing"
@@ -273,6 +278,11 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
               key={item.fullPath}
               onClick={() => onSelectItem(item)}
               onDoubleClick={() => onOpenViewer(item)}
+              onContextMenu={e => {
+                e.stopPropagation();
+                onSelectItem(item);
+                onContextMenu?.(e, item);
+              }}
               className={`relative h-20 aspect-video rounded-lg overflow-hidden cursor-pointer flex-shrink-0 transition-all border ${
                 isSelected
                   ? 'border-indigo-500 scale-105 shadow-lg shadow-indigo-500/25 ring-2 ring-indigo-500/40'
