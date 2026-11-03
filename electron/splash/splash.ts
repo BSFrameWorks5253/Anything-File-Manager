@@ -24,20 +24,20 @@ let splashWindow: BrowserWindow | null = null;
 let splashTimer: NodeJS.Timeout | null = null;
 
 export function resolveChildAppLoaderConfig(
-  appId = 'media-viewer',
-  fallbackAppName = 'MediaView Studio'
+  appId = 'anything-file-manager',
+  fallbackAppName = 'Anything File Manager'
 ): ChildAppLoaderConfig {
   const defaultFallback: ChildAppLoaderConfig = {
     appId,
     enabled: true,
     productName: fallbackAppName,
     versionText: `v${app && typeof app.getVersion === 'function' ? app.getVersion() : '1.0.0'}`,
-    tagline: 'Universal Photo & Video Studio with Frame Zoom & Timelapse Inspector',
+    tagline: 'High-Performance Production File Manager & Media Asset Viewer',
     artistName: 'Anything Creative Ecosystem',
-    artworkTitle: 'Master Media Viewing Edition',
-    durationMs: 2200,
-    logoText: 'MV',
-    badgeGradient: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
+    artworkTitle: 'Anything File Manager',
+    durationMs: 2000,
+    logoText: 'AFM',
+    badgeGradient: 'linear-gradient(135deg, #048C8A 0%, #07BA90 50%, #0EC798 100%)',
     artworkUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1400&q=85',
     artworkFit: 'cover',
     artworkPosition: 'center',

@@ -1,9 +1,21 @@
 {
-  "name": "media-viewer",
+  "name": "anything-file-manager",
+  "productName": "Anything File Manager",
   "version": "1.0.0",
-  "description": "MediaView Studio — Universal Photo, Video & Media Asset Viewer for Anything Apps",
+  "description": "Anything File Manager — High-performance Media & Production File Explorer",
   "main": "dist-electron/main.js",
   "author": "Burhanuddin Sounasath",
+  "build": {
+    "appId": "com.anything.filemanager",
+    "productName": "Anything File Manager",
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "directories": {
+      "output": "release"
+    }
+  },
   "scripts": {
     "dev": "concurrently -k -r \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",

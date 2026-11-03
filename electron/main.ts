@@ -91,13 +91,29 @@ function getAppIndexPath(): string {
   return candidates[0];
 }
 
+function getAppIconPath(state: 'open' | 'closed' = 'open'): string {
+  const fileName = state === 'open' ? 'icon-open.png' : 'icon-closed.png';
+  const candidates = [
+    path.join(__dirname, '../build', fileName),
+    path.join(__dirname, '../../build', fileName),
+    path.join(process.cwd(), 'build', fileName),
+    path.join(app.getAppPath(), 'build', fileName)
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return path.join(__dirname, '../build/icon.png');
+}
+
 function createWindow(showImmediately = false) {
+  const openIcon = getAppIconPath('open');
   mainWindow = new BrowserWindow({
     width: 1480,
     height: 940,
     minWidth: 1024,
     minHeight: 680,
-    title: 'MediaView Studio — Universal Media Asset Viewer',
+    title: 'Anything File Manager',
+    icon: openIcon,
     backgroundColor: '#0c0d12',
     darkTheme: true,
     autoHideMenuBar: true,
@@ -107,6 +123,28 @@ function createWindow(showImmediately = false) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
+    }
+  });
+
+  // Dynamic Taskbar Icon state management:
+  // Running / active: folder is OPEN with file revealed
+  // Minimized: folder rests in CLOSED state
+  mainWindow.on('minimize', () => {
+    const closedIcon = getAppIconPath('closed');
+    if (fs.existsSync(closedIcon) && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setIcon(closedIcon);
+    }
+  });
+  mainWindow.on('restore', () => {
+    const activeOpenIcon = getAppIconPath('open');
+    if (fs.existsSync(activeOpenIcon) && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setIcon(activeOpenIcon);
+    }
+  });
+  mainWindow.on('focus', () => {
+    const activeOpenIcon = getAppIconPath('open');
+    if (fs.existsSync(activeOpenIcon) && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setIcon(activeOpenIcon);
     }
   });
 
@@ -150,6 +188,10 @@ registerAfmIPC();
 
 // ── App Lifecycle ─────────────────────────────────────────────
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('anything.file.manager');
+  }
+
   handleLocalResourceProtocol();
 
   ipcMain.on('window:minimize', () => {
@@ -166,7 +208,7 @@ app.whenReady().then(() => {
     mainWindow?.close();
   });
 
-  const loaderConfig = resolveChildAppLoaderConfig('media-viewer', 'MediaView Studio');
+  const loaderConfig = resolveChildAppLoaderConfig('anything-file-manager', 'Anything File Manager');
 
   if (loaderConfig.enabled !== false) {
     createWindow(false);

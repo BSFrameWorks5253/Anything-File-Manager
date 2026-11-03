@@ -14,6 +14,7 @@ import {
 import { FsItem, QuickAccessItem, DriveInfo, FilterCategory } from '../../types';
 import { formatBytes } from '../../utils';
 import { MacFolderIcon } from '../common/MacIcons';
+import { AfmLogo } from '../common/AfmLogo';
 
 interface ExplorerSidebarProps {
   quickAccess: QuickAccessItem[];
@@ -67,6 +68,11 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
       style={{ width: `${width}px` }}
       className="flex-shrink-0 border-r mac-sidebar overflow-y-auto flex flex-col p-3 select-none text-[var(--mac-text-primary)] transition-colors duration-200"
     >
+      {/* ── App Brand Header ── */}
+      <div className="px-2 pt-1 pb-3 mb-2 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
+        <AfmLogo size={24} isOpen={true} showTitle={true} />
+      </div>
+
       {/* ── Section 1: Favorites / Quick Access (Mac Finder & Win Explorer) ── */}
       <div className="px-2 pb-1 text-[10px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
         <span>Favorites</span>
