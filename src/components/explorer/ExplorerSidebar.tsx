@@ -22,6 +22,7 @@ interface ExplorerSidebarProps {
   filterCategory: FilterCategory;
   onSetFilterCategory: (cat: FilterCategory) => void;
   onSelectPath: (path: string) => void;
+  width?: number;
 }
 
 export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
@@ -31,7 +32,8 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   subfolders,
   filterCategory,
   onSetFilterCategory,
-  onSelectPath
+  onSelectPath,
+  width = 250
 }) => {
   const getIconForQuickAccess = (icon: string) => {
     switch (icon) {
@@ -60,7 +62,10 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   };
 
   return (
-    <div className="w-64 flex-shrink-0 border-r border-white/10 bg-[#0e1017] overflow-y-auto flex flex-col p-3 select-none text-gray-300">
+    <div
+      style={{ width: `${width}px` }}
+      className="flex-shrink-0 border-r border-white/10 bg-[#0e1017] overflow-y-auto flex flex-col p-3 select-none text-gray-300"
+    >
       {/* macOS Window Traffic Lights Header */}
       <div className="flex items-center gap-2 px-2 pt-1 pb-4 border-b border-white/5 mb-3">
         <div className="flex items-center gap-1.5">

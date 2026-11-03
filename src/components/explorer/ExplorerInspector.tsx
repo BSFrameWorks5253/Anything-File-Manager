@@ -10,7 +10,8 @@ import {
   FileCode,
   Film,
   Image as ImageIcon,
-  Check
+  Check,
+  Eye
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import {
@@ -27,12 +28,16 @@ interface ExplorerInspectorProps {
   item: FsItem | null;
   onClose: () => void;
   onOpenViewer: (item: FsItem) => void;
+  onQuickLook?: (item: FsItem) => void;
+  width?: number;
 }
 
 export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
   item,
   onClose,
-  onOpenViewer
+  onOpenViewer,
+  onQuickLook,
+  width = 320
 }) => {
   const [copied, setCopied] = useState(false);
   const [thumb, setThumb] = useState<string | null>(null);
@@ -63,7 +68,10 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
 
   if (!item) {
     return (
-      <div className="w-72 flex-shrink-0 border-l border-white/10 bg-[#0e1017] p-4 flex flex-col items-center justify-center text-center text-gray-500 select-none">
+      <div
+        style={{ width: `${width}px` }}
+        className="flex-shrink-0 border-l border-white/10 bg-[#0e1017] p-4 flex flex-col items-center justify-center text-center text-gray-500 select-none"
+      >
         <Film className="w-10 h-10 mb-2 opacity-30" />
         <p className="text-xs font-semibold">No item selected</p>
         <p className="text-[11px] text-gray-600 mt-1">Select any photo or video to inspect details</p>
@@ -83,7 +91,10 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
   };
 
   return (
-    <div className="w-80 flex-shrink-0 border-l border-white/10 bg-[#0e1017] flex flex-col overflow-y-auto select-none text-gray-300">
+    <div
+      style={{ width: `${width}px` }}
+      className="flex-shrink-0 border-l border-white/10 bg-[#0e1017] flex flex-col overflow-y-auto select-none text-gray-300"
+    >
       {/* Inspector Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#141620]">
         <span className="text-xs font-bold text-white tracking-wide uppercase">Details & Preview</span>
@@ -140,9 +151,16 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
         )}
       </div>
 
-      {/* Primary Action Button */}
+      {/* Primary Action Buttons */}
       {(isPhoto || isVideo) && (
-        <div className="p-3 border-b border-white/5">
+        <div className="p-3 border-b border-white/5 flex flex-col gap-2">
+          <button
+            onClick={() => onQuickLook?.(item)}
+            className="w-full py-2 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-white/10 hover:border-indigo-500/50 transition-all"
+          >
+            <Eye className="w-4 h-4 text-indigo-400" />
+            <span>Quick Look Preview (Space)</span>
+          </button>
           <button
             onClick={() => onOpenViewer(item)}
             className="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"

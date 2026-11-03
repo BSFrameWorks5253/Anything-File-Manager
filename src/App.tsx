@@ -39,6 +39,7 @@ export default function App() {
 
   const [search, setSearch] = useState('');
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedItemState, setSelectedItemState] = useState<FsItem | null>(null);
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [sortField, setSortField] = useState<SortField>('name');
@@ -48,10 +49,60 @@ export default function App() {
   const [activeItem, setActiveItem] = useState<FsItem | null>(null);
   const [isDefaultAppsModalOpen, setIsDefaultAppsModalOpen] = useState(false);
 
-  // Selected item object
+  // Resizable sidebar and inspector widths
+  const [sidebarWidth, setSidebarWidth] = useState(250);
+  const [inspectorWidth, setInspectorWidth] = useState(320);
+
+  // Selected item object (reliable across folders and columns)
   const selectedItem = useMemo(() => {
+    if (selectedItemState && selectedItemState.fullPath === selectedPath) {
+      return selectedItemState;
+    }
     return items.find(i => i.fullPath === selectedPath) || null;
-  }, [items, selectedPath]);
+  }, [items, selectedPath, selectedItemState]);
+
+  const handleSelectItem = (item: FsItem) => {
+    setSelectedPath(item.fullPath);
+    setSelectedItemState(item);
+  };
+
+  const handleQuickLook = (item: FsItem) => {
+    setSelectedPath(item.fullPath);
+    setSelectedItemState(item);
+    setIsQuickLookOpen(true);
+  };
+
+  const startSidebarResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    const onMouseMove = (ev: MouseEvent) => {
+      const newW = Math.max(180, Math.min(450, startW + (ev.clientX - startX)));
+      setSidebarWidth(newW);
+    };
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const startInspectorResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = inspectorWidth;
+    const onMouseMove = (ev: MouseEvent) => {
+      const newW = Math.max(240, Math.min(600, startW - (ev.clientX - startX)));
+      setInspectorWidth(newW);
+    };
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
 
   // Handle external open target (from CLI argument or Windows Explorer double click)
   const handleOpenTarget = useCallback(async (target: string) => {
@@ -231,8 +282,8 @@ export default function App() {
         onOpenDefaultAppsModal={() => setIsDefaultAppsModalOpen(true)}
       />
 
-      {/* Main App Workspace */}
-      <div className="flex flex-1 min-h-0">
+      {/* Main App Workspace with Resizable Dividers */}
+      <div className="flex flex-1 min-h-0 relative">
         {/* Left Mac/Win Hybrid Sidebar */}
         <ExplorerSidebar
           quickAccess={quickAccess}
@@ -242,10 +293,18 @@ export default function App() {
           filterCategory={filterCategory}
           onSetFilterCategory={setFilterCategory}
           onSelectPath={navigate}
+          width={sidebarWidth}
+        />
+
+        {/* Resizable Divider between Sidebar and Main Content */}
+        <div
+          onMouseDown={startSidebarResize}
+          className="w-1.5 hover:w-2 bg-transparent hover:bg-indigo-500/50 active:bg-indigo-500 cursor-col-resize z-20 flex-shrink-0 transition-colors"
+          title="Drag to resize sidebar"
         />
 
         {/* Content Area — Switchable between Grid, Table, Columns & Gallery */}
-        <div className="flex-1 overflow-hidden flex flex-col bg-[#0d0f15]">
+        <div className="flex-1 overflow-hidden flex flex-col bg-[#0d0f15] min-w-0">
           {!currentPath ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Film className="w-16 h-16 mb-4 opacity-20" />
@@ -264,7 +323,7 @@ export default function App() {
               <ExplorerGrid
                 items={filteredItems}
                 selectedPath={selectedPath}
-                onSelectItem={item => setSelectedPath(item.fullPath)}
+                onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
               />
             </div>
@@ -273,8 +332,9 @@ export default function App() {
               <ExplorerTable
                 items={filteredItems}
                 selectedPath={selectedPath}
-                onSelectItem={item => setSelectedPath(item.fullPath)}
+                onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
+                onQuickLook={handleQuickLook}
               />
             </div>
           ) : viewMode === 'columns' ? (
@@ -282,8 +342,9 @@ export default function App() {
               <ExplorerColumns
                 currentPath={currentPath}
                 initialItems={filteredItems}
-                onSelectItem={item => setSelectedPath(item.fullPath)}
+                onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
+                onQuickLook={handleQuickLook}
               />
             </div>
           ) : (
@@ -291,19 +352,30 @@ export default function App() {
               <ExplorerGallery
                 items={filteredItems}
                 selectedItem={selectedItem}
-                onSelectItem={item => setSelectedPath(item.fullPath)}
+                onSelectItem={handleSelectItem}
                 onOpenViewer={setActiveItem}
               />
             </div>
           )}
         </div>
 
-        {/* Collapsible Right Inspector / Details Pane (Windows Preview Pane & Mac Finder Info) */}
+        {/* Resizable Divider between Main Content and Inspector */}
+        {isInspectorOpen && (
+          <div
+            onMouseDown={startInspectorResize}
+            className="w-1.5 hover:w-2 bg-transparent hover:bg-indigo-500/50 active:bg-indigo-500 cursor-col-resize z-20 flex-shrink-0 transition-colors"
+            title="Drag to resize inspector panel"
+          />
+        )}
+
+        {/* Collapsible Right Inspector / Details Pane */}
         {isInspectorOpen && (
           <ExplorerInspector
             item={selectedItem}
+            width={inspectorWidth}
             onClose={() => setIsInspectorOpen(false)}
             onOpenViewer={setActiveItem}
+            onQuickLook={handleQuickLook}
           />
         )}
       </div>
@@ -318,9 +390,11 @@ export default function App() {
       {/* macOS Quick Look Spacebar Modal */}
       <QuickLookModal
         item={selectedItem}
+        items={filteredItems}
         isOpen={isQuickLookOpen}
         onClose={() => setIsQuickLookOpen(false)}
         onOpenViewer={setActiveItem}
+        onNavigate={handleSelectItem}
       />
 
       {/* Fullscreen HD Media Inspection Modal */}

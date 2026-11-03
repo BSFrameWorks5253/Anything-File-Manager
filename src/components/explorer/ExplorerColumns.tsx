@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Folder,
   ChevronRight,
@@ -6,7 +6,8 @@ import {
   Image as ImageIcon,
   File,
   Clock,
-  Maximize2
+  Maximize2,
+  Eye
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import {
@@ -29,18 +30,66 @@ interface ExplorerColumnsProps {
   initialItems: FsItem[];
   onSelectItem: (item: FsItem) => void;
   onOpenItem: (item: FsItem) => void;
+  onQuickLook?: (item: FsItem) => void;
+}
+
+function ColumnVideoDuration({ item, isSelected }: { item: FsItem; isSelected: boolean }) {
+  const isVid = isVideoExtension(item.ext);
+  const cached = thumbnailService.getCached(item.fullPath);
+  const [duration, setDuration] = useState<number>(cached?.duration || 0);
+
+  useEffect(() => {
+    if (!isVid) return;
+    const c = thumbnailService.getCached(item.fullPath);
+    if (c && c.duration > 0) {
+      setDuration(c.duration);
+      return;
+    }
+    let isCurrent = true;
+    thumbnailService.extractVideoThumbnail(item.fullPath).then(res => {
+      if (isCurrent && res && res.duration > 0) {
+        setDuration(res.duration);
+      }
+    });
+    return () => {
+      isCurrent = false;
+    };
+  }, [item.fullPath, isVid]);
+
+  if (!isVid || duration <= 0) return null;
+
+  return (
+    <span
+      className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0 ${
+        isSelected
+          ? 'bg-black/40 text-amber-300 border border-amber-400/40'
+          : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+      }`}
+      title={`Duration: ${formatTimelapse(duration)}`}
+    >
+      <Clock className="w-2.5 h-2.5 text-amber-400" />
+      {formatTimelapse(duration)}
+    </span>
+  );
 }
 
 export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
   currentPath,
   initialItems,
   onSelectItem,
-  onOpenItem
+  onOpenItem,
+  onQuickLook
 }) => {
   const [columns, setColumns] = useState<ColumnLevel[]>([]);
   const [previewItem, setPreviewItem] = useState<FsItem | null>(null);
   const [previewThumb, setPreviewThumb] = useState<string | null>(null);
   const [previewDuration, setPreviewDuration] = useState<number>(0);
+
+  // Per-column resizable widths (default: 340px for comfortable reading of camera filenames)
+  const [columnWidths, setColumnWidths] = useState<Record<number, number>>({});
+  const resizingCol = useRef<number | null>(null);
+  const startX = useRef<number>(0);
+  const startWidth = useRef<number>(0);
 
   // Initialize first column
   useEffect(() => {
@@ -54,7 +103,6 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
     setPreviewItem(null);
   }, [currentPath, initialItems]);
 
-  // Handle clicking an item in a specific column index
   const handleColumnClick = async (columnIndex: number, item: FsItem) => {
     onSelectItem(item);
 
@@ -64,7 +112,6 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
 
     if (item.isDir) {
       setPreviewItem(null);
-      // Load child folder into next column
       const subItems = await mediaService.listDir(item.fullPath);
       nextCols.push({
         path: item.fullPath,
@@ -73,7 +120,6 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
       });
       setColumns(nextCols);
     } else {
-      // File selected - show preview in final pane
       setColumns(nextCols);
       setPreviewItem(item);
 
@@ -94,73 +140,153 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
     }
   };
 
+  // Draggable column resizing logic
+  const startResize = (colIdx: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingCol.current = colIdx;
+    startX.current = e.clientX;
+    startWidth.current = columnWidths[colIdx] || 340;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (resizingCol.current === null) return;
+      const delta = ev.clientX - startX.current;
+      const newWidth = Math.max(220, Math.min(800, startWidth.current + delta));
+      setColumnWidths(prev => ({ ...prev, [colIdx]: newWidth }));
+    };
+
+    const onMouseUp = () => {
+      resizingCol.current = null;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleDoubleDividerClick = (colIdx: number) => {
+    // Toggle between default 340px and wide 480px on double-click
+    setColumnWidths(prev => ({
+      ...prev,
+      [colIdx]: (prev[colIdx] || 340) > 360 ? 300 : 480
+    }));
+  };
+
   return (
     <div className="flex h-full overflow-x-auto no-scrollbar bg-[#0d0f15] select-none">
-      {columns.map((col, colIdx) => (
-        <div
-          key={col.path + colIdx}
-          className="w-64 min-w-[250px] border-r border-white/10 flex flex-col h-full bg-[#11131c]"
-        >
-          {/* Column Header */}
-          <div className="px-3 py-2 border-b border-white/5 bg-[#141622] text-[11px] font-bold text-gray-400 truncate flex items-center justify-between">
-            <span className="truncate">{col.path.split(/[\\/]/).filter(Boolean).pop() || col.path}</span>
-            <span className="text-[10px] text-gray-500 font-mono">{col.items.length} items</span>
-          </div>
+      {columns.map((col, colIdx) => {
+        const width = columnWidths[colIdx] || 340;
 
-          {/* Column Items List */}
-          <div className="flex-1 overflow-y-auto p-1 space-y-0.5">
-            {col.items.length === 0 ? (
-              <div className="p-4 text-center text-xs text-gray-600">Empty folder</div>
-            ) : (
-              col.items.map(item => {
-                const isSelected = col.selectedItem?.fullPath === item.fullPath;
-                const isPhoto = isPhotoExtension(item.ext);
-                const isVideo = isVideoExtension(item.ext);
+        return (
+          <div
+            key={col.path + colIdx}
+            style={{ width: `${width}px`, minWidth: `${width}px` }}
+            className="relative border-r border-white/10 flex flex-col h-full bg-[#11131c] flex-shrink-0"
+          >
+            {/* Column Header */}
+            <div className="px-3 py-2 border-b border-white/5 bg-[#141622] text-[11px] font-bold text-gray-400 truncate flex items-center justify-between">
+              <span className="truncate" title={col.path}>
+                {col.path.split(/[\\/]/).filter(Boolean).pop() || col.path}
+              </span>
+              <span className="text-[10px] text-gray-500 font-mono ml-2 flex-shrink-0">
+                {col.items.length} items
+              </span>
+            </div>
 
-                return (
-                  <button
-                    key={item.fullPath}
-                    onClick={() => handleColumnClick(colIdx, item)}
-                    onDoubleClick={() => onOpenItem(item)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white font-medium shadow-md'
-                        : 'text-gray-300 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate flex-1 min-w-0 mr-1">
-                      {item.isDir ? (
-                        <Folder className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-amber-400'}`} />
-                      ) : isPhoto ? (
-                        <ImageIcon className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-emerald-400'}`} />
-                      ) : isVideo ? (
-                        <Film className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-purple-400'}`} />
-                      ) : (
-                        <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      )}
-                      <span className="truncate">{item.name}</span>
-                    </div>
+            {/* Column Items List */}
+            <div className="flex-1 overflow-y-auto p-1 space-y-0.5">
+              {col.items.length === 0 ? (
+                <div className="p-4 text-center text-xs text-gray-600">Empty folder</div>
+              ) : (
+                col.items.map(item => {
+                  const isSelected = col.selectedItem?.fullPath === item.fullPath;
+                  const isRaw = isRawExtension(item.ext);
+                  const isPhoto = isPhotoExtension(item.ext);
+                  const isVideo = isVideoExtension(item.ext);
 
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {item.isDir ? (
-                        <ChevronRight className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-gray-500'}`} />
-                      ) : (
-                        <span className={`text-[10px] font-mono ${isSelected ? 'text-indigo-200' : 'text-gray-500'}`}>
-                          {formatBytes(item.size)}
+                  return (
+                    <div
+                      key={item.fullPath}
+                      onClick={() => handleColumnClick(colIdx, item)}
+                      onDoubleClick={() => onOpenItem(item)}
+                      className={`group relative w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white font-medium shadow-md'
+                          : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate flex-1 min-w-0 mr-1.5">
+                        {item.isDir ? (
+                          <Folder className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-amber-400'}`} />
+                        ) : isRaw ? (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <ImageIcon className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-rose-400'}`} />
+                            <span className="text-[9px] font-bold px-1 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 uppercase">
+                              RAW
+                            </span>
+                          </div>
+                        ) : isPhoto ? (
+                          <ImageIcon className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-emerald-400'}`} />
+                        ) : isVideo ? (
+                          <Film className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-purple-400'}`} />
+                        ) : (
+                          <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        )}
+                        <span className="truncate" title={item.name}>
+                          {item.name}
                         </span>
-                      )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {/* Video Duration / Timelapse */}
+                        {isVideo && (
+                          <ColumnVideoDuration item={item} isSelected={isSelected} />
+                        )}
+
+                        {item.isDir ? (
+                          <ChevronRight className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-gray-500'}`} />
+                        ) : (
+                          <span className={`text-[10px] font-mono ${isSelected ? 'text-indigo-200' : 'text-gray-500'}`}>
+                            {formatBytes(item.size)}
+                          </span>
+                        )}
+
+                        {/* Quick Look button on hover */}
+                        {!item.isDir && (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleColumnClick(colIdx, item);
+                              onQuickLook?.(item);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded text-gray-300 hover:text-white transition-opacity ml-1"
+                            title="Quick Look (Space)"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </button>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
+
+            {/* Draggable Resize Divider on the Right Border */}
+            <div
+              onMouseDown={e => startResize(colIdx, e)}
+              onDoubleClick={() => handleDoubleDividerClick(colIdx)}
+              className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-indigo-500/70 active:bg-indigo-500 z-20 transition-colors"
+              title="Drag to resize column (Double-click to toggle width)"
+            />
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* ── macOS Finder Style Preview Column (When file selected) ── */}
       {previewItem && (
-        <div className="w-80 min-w-[300px] border-r border-white/10 flex flex-col h-full bg-[#131622] p-4 select-none">
+        <div className="w-80 min-w-[300px] border-r border-white/10 flex flex-col h-full bg-[#131622] p-4 select-none flex-shrink-0">
           <div className="aspect-video w-full bg-black/60 rounded-xl overflow-hidden flex items-center justify-center relative shadow-lg border border-white/10 mb-4">
             {isRawExtension(previewItem.ext) ? (
               previewThumb ? (
@@ -203,37 +329,33 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
             )}
           </div>
 
-          <span className="text-sm font-bold text-white break-words mb-1">
+          <span className="text-sm font-semibold text-white truncate break-words mb-1">
             {previewItem.name}
           </span>
-          <span className="text-xs text-indigo-400 uppercase font-semibold mb-3">
-            {previewItem.ext || 'File'}
-          </span>
-
-          <div className="space-y-2 text-xs text-gray-300 border-t border-white/10 pt-3">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Size</span>
-              <span className="font-mono">{formatBytes(previewItem.size)}</span>
-            </div>
-            {isVideoExtension(previewItem.ext) && previewDuration > 0 && (
-              <div className="flex justify-between">
-                <span className="text-gray-500">Duration</span>
-                <span className="font-bold text-amber-300">{formatTimelapse(previewDuration)}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-gray-500">Kind</span>
-              <span className="uppercase">{previewItem.ext}</span>
-            </div>
+          <div className="flex items-center gap-2 text-xs text-gray-400 mb-4">
+            <span className="font-mono">{formatBytes(previewItem.size)}</span>
+            <span>•</span>
+            <span className="uppercase text-indigo-400 font-semibold">{previewItem.ext}</span>
           </div>
 
-          <button
-            onClick={() => onOpenItem(previewItem)}
-            className="mt-auto w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-105"
-          >
-            <Maximize2 className="w-4 h-4" />
-            <span>Open & Zoom</span>
-          </button>
+          {/* Quick Look & Fullscreen action buttons */}
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => onQuickLook?.(previewItem)}
+              className="w-full py-2 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-white/10 hover:border-indigo-500/50"
+            >
+              <Eye className="w-4 h-4 text-indigo-400" />
+              <span>Quick Look Preview (Space)</span>
+            </button>
+
+            <button
+              onClick={() => onOpenItem(previewItem)}
+              className="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition-all"
+            >
+              <Maximize2 className="w-4 h-4" />
+              <span>Open Studio Viewer & Zoom</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
