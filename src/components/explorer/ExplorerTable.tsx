@@ -18,6 +18,7 @@ import {
   formatTimelapse
 } from '../../utils';
 import { thumbnailService } from '../../services';
+import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
 
 interface ExplorerTableProps {
   items: FsItem[];
@@ -213,7 +214,7 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                 <td className="py-2 px-3 truncate">
                   <div className="flex items-center gap-2.5 truncate">
                     {item.isDir ? (
-                      <Folder className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <MacFolderIcon size={18} className="flex-shrink-0" />
                     ) : isRaw ? (
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <ImageIcon className="w-4 h-4 text-rose-400" />
@@ -226,7 +227,7 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                     ) : isVideo ? (
                       <Film className="w-4 h-4 text-purple-400 flex-shrink-0" />
                     ) : (
-                      <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <MacDocumentIcon size={18} ext={item.ext} className="flex-shrink-0" />
                     )}
                     <span className="truncate" title={item.name}>
                       {item.name}

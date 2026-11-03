@@ -18,6 +18,7 @@ import {
   formatTimelapse
 } from '../../utils';
 import { mediaService, thumbnailService } from '../../services';
+import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
 
 interface ColumnLevel {
   path: string;
@@ -218,7 +219,7 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
                     >
                       <div className="flex items-center gap-2 truncate flex-1 min-w-0 mr-1.5">
                         {item.isDir ? (
-                          <Folder className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-amber-400'}`} />
+                          <MacFolderIcon size={16} className="flex-shrink-0" />
                         ) : isRaw ? (
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <ImageIcon className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-rose-400'}`} />
@@ -231,7 +232,7 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
                         ) : isVideo ? (
                           <Film className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-purple-400'}`} />
                         ) : (
-                          <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <MacDocumentIcon size={16} ext={item.ext} className="flex-shrink-0" />
                         )}
                         <span className="truncate" title={item.name}>
                           {item.name}
@@ -324,8 +325,10 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
               ) : (
                 <Film className="w-12 h-12 text-indigo-500 dark:text-indigo-400 opacity-60 animate-pulse" />
               )
+            ) : previewItem.isDir ? (
+              <MacFolderIcon size={80} />
             ) : (
-              <File className="w-16 h-16 text-[var(--mac-text-muted)]" />
+              <MacDocumentIcon size={76} ext={previewItem.ext} />
             )}
 
             {isVideoExtension(previewItem.ext) && previewDuration > 0 && (

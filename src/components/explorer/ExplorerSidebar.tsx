@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { FsItem, QuickAccessItem, DriveInfo, FilterCategory } from '../../types';
 import { formatBytes } from '../../utils';
+import { MacFolderIcon } from '../common/MacIcons';
 
 interface ExplorerSidebarProps {
   quickAccess: QuickAccessItem[];
@@ -38,19 +39,19 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   const getIconForQuickAccess = (icon: string) => {
     switch (icon) {
       case 'home':
-        return <Home className="w-4 h-4 text-sky-400" />;
+        return <Home className="w-4 h-4 text-sky-500" />;
       case 'desktop':
-        return <Monitor className="w-4 h-4 text-indigo-400" />;
+        return <Monitor className="w-4 h-4 text-sky-500" />;
       case 'downloads':
-        return <Download className="w-4 h-4 text-emerald-400" />;
+        return <Download className="w-4 h-4 text-sky-500" />;
       case 'pictures':
-        return <ImageIcon className="w-4 h-4 text-rose-400" />;
+        return <ImageIcon className="w-4 h-4 text-cyan-500" />;
       case 'videos':
-        return <Film className="w-4 h-4 text-purple-400" />;
+        return <Film className="w-4 h-4 text-purple-500" />;
       case 'documents':
-        return <FileText className="w-4 h-4 text-amber-400" />;
+        return <FileText className="w-4 h-4 text-amber-500" />;
       default:
-        return <Folder className="w-4 h-4 text-gray-400" />;
+        return <MacFolderIcon size={16} />;
     }
   };
 
@@ -66,18 +67,6 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
       style={{ width: `${width}px` }}
       className="flex-shrink-0 border-r mac-sidebar overflow-y-auto flex flex-col p-3 select-none text-[var(--mac-text-primary)] transition-colors duration-200"
     >
-      {/* macOS Window Traffic Lights Header */}
-      <div className="flex items-center gap-2 px-2 pt-1 pb-3 border-b border-black/5 dark:border-white/5 mb-3">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm hover:opacity-80 transition-opacity cursor-pointer" />
-          <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm hover:opacity-80 transition-opacity cursor-pointer" />
-          <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm hover:opacity-80 transition-opacity cursor-pointer" />
-        </div>
-        <span className="text-[11px] font-semibold text-[var(--mac-text-muted)] tracking-wider ml-2 uppercase">
-          Finder
-        </span>
-      </div>
-
       {/* ── Section 1: Favorites / Quick Access (Mac Finder & Win Explorer) ── */}
       <div className="px-2 pb-1 text-[10px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
         <span>Favorites</span>
@@ -91,7 +80,7 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
               onClick={() => onSelectPath(item.path)}
               className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 active
-                  ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                  ? 'bg-[var(--mac-accent)] text-white shadow-sm font-semibold'
                   : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
               }`}
             >
@@ -226,10 +215,10 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
               <button
                 key={i.fullPath}
                 onClick={() => onSelectPath(i.fullPath)}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-all truncate text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition-all truncate text-left"
                 title={i.name}
               >
-                <Folder className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0" />
+                <MacFolderIcon size={16} className="flex-shrink-0" />
                 <span className="truncate">{i.name}</span>
               </button>
             ))}

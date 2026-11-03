@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { ViewMode, SortField, SortOrder } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import { mediaService } from '../../services';
+import { MacTrafficLights, MacFolderIcon } from '../common/MacIcons';
 
 interface ExplorerToolbarProps {
   canGoBack: boolean;
@@ -104,7 +106,16 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   return (
     <header className="flex flex-col border-b mac-header select-none transition-colors duration-200">
       {/* ── Main Native Command Bar ── */}
-      <div className="flex items-center gap-2 px-3 py-1.5 h-12">
+      <div className="flex items-center gap-2.5 px-3 py-1.5 h-12">
+        {/* macOS Window Traffic Lights */}
+        <div className="mr-1 hidden sm:flex items-center">
+          <MacTrafficLights
+            onClose={() => mediaService.closeWindow()}
+            onMinimize={() => mediaService.minimizeWindow()}
+            onMaximize={() => mediaService.maximizeWindow()}
+          />
+        </div>
+
         {/* Navigation Group (Back / Forward) */}
         <div className="flex items-center bg-black/5 dark:bg-white/[0.06] p-0.5 rounded-lg border border-black/10 dark:border-white/10">
           <button

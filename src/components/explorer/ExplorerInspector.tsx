@@ -23,6 +23,7 @@ import {
   formatTimelapse
 } from '../../utils';
 import { mediaService, thumbnailService } from '../../services';
+import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
 
 interface ExplorerInspectorProps {
   item: FsItem | null;
@@ -148,8 +149,10 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
           ) : (
             <Film className="w-12 h-12 text-indigo-400 opacity-60 animate-pulse" />
           )
+        ) : item.isDir ? (
+          <MacFolderIcon size={84} />
         ) : (
-          <FolderOpen className="w-16 h-16 text-amber-400 opacity-60" />
+          <MacDocumentIcon size={76} ext={item.ext} />
         )}
 
         {/* Video Duration Badge */}

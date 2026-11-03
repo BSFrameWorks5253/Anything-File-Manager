@@ -56,4 +56,7 @@ export interface MediaViewerAPI {
   checkDefaultStatus: () => Promise<{ isVideoDefault: boolean; isPhotoDefault: boolean }>;
   unregisterDefaultViewer: () => Promise<{ ok: boolean; error?: string }>;
   openWindowsDefaultAppsSettings: () => Promise<boolean>;
+  minimizeWindow?: () => void;
+  maximizeWindow?: () => void;
+  closeWindow?: () => void;
 }

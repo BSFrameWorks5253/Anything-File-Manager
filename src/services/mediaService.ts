@@ -66,6 +66,18 @@ export const mediaService = {
     return `local-resource:///${encodeURI(f).replace(/^\//, '')}`;
   },
 
+  minimizeWindow(): void {
+    api?.minimizeWindow?.();
+  },
+
+  maximizeWindow(): void {
+    api?.maximizeWindow?.();
+  },
+
+  closeWindow(): void {
+    api?.closeWindow?.();
+  },
+
   onOpenTarget(cb: (targetPath: string) => void): () => void {
     if (!api?.onOpenTarget) return () => {};
     return api.onOpenTarget(cb);

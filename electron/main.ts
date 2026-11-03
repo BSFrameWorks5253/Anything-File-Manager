@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeTheme } from 'electron';
+import { app, BrowserWindow, Menu, nativeTheme, ipcMain } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { registerLocalResourceProtocol, handleLocalResourceProtocol } from './protocols/localResource';
@@ -149,6 +149,20 @@ registerShellIntegrationIPC();
 // ── App Lifecycle ─────────────────────────────────────────────
 app.whenReady().then(() => {
   handleLocalResourceProtocol();
+
+  ipcMain.on('window:minimize', () => {
+    mainWindow?.minimize();
+  });
+  ipcMain.on('window:maximize', () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow?.maximize();
+    }
+  });
+  ipcMain.on('window:close', () => {
+    mainWindow?.close();
+  });
 
   const loaderConfig = resolveChildAppLoaderConfig('media-viewer', 'MediaView Studio');
 
