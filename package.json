@@ -5,9 +5,19 @@
   "description": "Anything File Manager — High-performance Media & Production File Explorer",
   "main": "dist-electron/main.js",
   "author": "Burhanuddin Sounasath",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BSFrameWorks5253/Anything-File-Manager.git"
+  },
+  "homepage": "https://github.com/BSFrameWorks5253/Anything-File-Manager",
   "build": {
     "appId": "com.anything.filemanager",
     "productName": "Anything File Manager",
+    "publish": {
+      "provider": "github",
+      "owner": "BSFrameWorks5253",
+      "repo": "Anything-File-Manager"
+    },
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico"
