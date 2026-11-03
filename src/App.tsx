@@ -398,6 +398,7 @@ export default function App() {
         {isInspectorOpen && (
           <ExplorerInspector
             item={selectedItem}
+            currentPath={currentPath}
             width={inspectorWidth}
             onClose={() => setIsInspectorOpen(false)}
             onOpenViewer={setActiveItem}

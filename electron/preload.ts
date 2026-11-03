@@ -22,12 +22,21 @@ export interface MediaViewerAPI {
   minimizeWindow?: () => void;
   maximizeWindow?: () => void;
   closeWindow?: () => void;
+  // AFM (Anything Production File Manager) APIs
+  analyzeAfmFolder?: (folderPath: string) => Promise<any>;
+  setAfmStage?: (folderPath: string, stage: string) => Promise<boolean>;
+  generatePremiereProject?: (payload: any) => Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }>;
+  sendToTitleAdder?: (folderPath: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const api: MediaViewerAPI = {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  analyzeAfmFolder: (folderPath: string) => ipcRenderer.invoke('afm:analyzeFolder', folderPath),
+  setAfmStage: (folderPath: string, stage: string) => ipcRenderer.invoke('afm:setStage', folderPath, stage),
+  generatePremiereProject: (payload: any) => ipcRenderer.invoke('afm:generatePremiereProject', payload),
+  sendToTitleAdder: (folderPath: string) => ipcRenderer.invoke('afm:sendToTitleAdder', folderPath),
   listDir: (dirPath: string) => ipcRenderer.invoke('media:listDir', dirPath),
   getDrives: () => ipcRenderer.invoke('media:getDrives'),
   getDrivesWithSpace: () => ipcRenderer.invoke('media:getDrivesWithSpace'),

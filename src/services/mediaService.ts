@@ -101,5 +101,31 @@ export const mediaService = {
   async openWindowsDefaultAppsSettings(): Promise<boolean> {
     if (!api?.openWindowsDefaultAppsSettings) return false;
     return api.openWindowsDefaultAppsSettings();
+  },
+
+  async analyzeAfmFolder(folderPath: string): Promise<any> {
+    if (!api?.analyzeAfmFolder) return null;
+    return api.analyzeAfmFolder(folderPath);
+  },
+
+  async setAfmStage(folderPath: string, stage: string): Promise<boolean> {
+    if (!api?.setAfmStage) return false;
+    return api.setAfmStage(folderPath, stage);
+  },
+
+  async generatePremiereProject(payload: {
+    folderPath: string;
+    projectName: string;
+    resolution: '1080p' | '4k';
+    fps: number;
+    openAfterCreate: boolean;
+  }): Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }> {
+    if (!api?.generatePremiereProject) return { ok: false, error: 'API not available' };
+    return api.generatePremiereProject(payload);
+  },
+
+  async sendToTitleAdder(folderPath: string): Promise<{ ok: boolean; error?: string }> {
+    if (!api?.sendToTitleAdder) return { ok: false, error: 'API not available' };
+    return api.sendToTitleAdder(folderPath);
   }
 };

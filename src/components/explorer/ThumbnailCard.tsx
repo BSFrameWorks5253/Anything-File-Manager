@@ -17,6 +17,7 @@ import {
 } from '../../utils';
 import { mediaService, thumbnailService } from '../../services';
 import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
+import { classifyFolder } from '../../utils/afmTaxonomy';
 
 interface ThumbnailCardProps {
   item: FsItem;
@@ -102,6 +103,31 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
           /* Authentic Apple macOS Aqua Blue Folder */
           <div className="relative group-hover:scale-105 transition-transform duration-200">
             <MacFolderIcon size={76} type={getFolderType(item.name)} />
+            {(() => {
+              const afm = classifyFolder(item.name, item.fullPath);
+              if (afm.type === 'slot_item_a' || afm.type === 'slot_item_b') {
+                return (
+                  <span className="absolute -top-1 -right-1 bg-indigo-600/90 text-white text-[8.5px] font-bold px-1.5 py-0.5 rounded-full shadow border border-white/20 tracking-wider">
+                    SLOT {afm.slotNumber || ''}
+                  </span>
+                );
+              }
+              if (afm.type === 'date_session') {
+                return (
+                  <span className="absolute -top-1 -right-1 bg-purple-600/90 text-white text-[8.5px] font-bold px-1.5 py-0.5 rounded-full shadow border border-white/20 tracking-wider">
+                    SESSION
+                  </span>
+                );
+              }
+              if (afm.type === 'master_safar') {
+                return (
+                  <span className="absolute -top-1 -right-1 bg-amber-600/90 text-white text-[8.5px] font-bold px-1.5 py-0.5 rounded-full shadow border border-white/20 tracking-wider">
+                    SAFAR
+                  </span>
+                );
+              }
+              return null;
+            })()}
           </div>
         ) : isRaw ? (
           /* Camera RAW (.CR3, .CR2, .NEF, .ARW, etc.) */

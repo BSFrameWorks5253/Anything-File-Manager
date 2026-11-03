@@ -59,4 +59,9 @@ export interface MediaViewerAPI {
   minimizeWindow?: () => void;
   maximizeWindow?: () => void;
   closeWindow?: () => void;
+  // AFM (Anything Production File Manager) APIs
+  analyzeAfmFolder?: (folderPath: string) => Promise<any>;
+  setAfmStage?: (folderPath: string, stage: string) => Promise<boolean>;
+  generatePremiereProject?: (payload: any) => Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }>;
+  sendToTitleAdder?: (folderPath: string) => Promise<{ ok: boolean; error?: string }>;
 }

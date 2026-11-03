@@ -24,9 +24,11 @@ import {
 } from '../../utils';
 import { mediaService, thumbnailService } from '../../services';
 import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
+import { AfmInspectorPanel } from '../afm/AfmInspectorPanel';
 
 interface ExplorerInspectorProps {
   item: FsItem | null;
+  currentPath?: string;
   onClose: () => void;
   onOpenViewer: (item: FsItem) => void;
   onQuickLook?: (item: FsItem) => void;
@@ -35,11 +37,13 @@ interface ExplorerInspectorProps {
 
 export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
   item,
+  currentPath,
   onClose,
   onOpenViewer,
   onQuickLook,
   width = 320
 }) => {
+  const [activeTab, setActiveTab] = useState<'details' | 'production'>('details');
   const [copied, setCopied] = useState(false);
   const [thumb, setThumb] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(0);
@@ -69,6 +73,31 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
     }
   }, [item?.fullPath, item?.ext]);
 
+  // When a folder is selected or no item is selected (fallback to current opened directory)
+  if (!item && currentPath) {
+    const folderName = currentPath.split(/[\\/]/).filter(Boolean).pop() || currentPath;
+    return (
+      <div
+        style={{ width: `${width}px` }}
+        className="flex-shrink-0 border-l mac-sidebar flex flex-col overflow-y-auto select-none text-[var(--mac-text-primary)] transition-colors duration-200"
+      >
+        <div className="flex items-center justify-between px-3.5 py-2.5 border-b mac-header">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-semibold tracking-wide truncate">Workspace Analytics</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
+            title="Close Inspector"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <AfmInspectorPanel folderPath={currentPath} folderName={folderName} />
+      </div>
+    );
+  }
+
   if (!item) {
     return (
       <div
@@ -77,7 +106,32 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
       >
         <Film className="w-10 h-10 mb-2 opacity-30" />
         <p className="text-xs font-semibold">No item selected</p>
-        <p className="text-[11px] mt-1">Select any photo or video to inspect details</p>
+        <p className="text-[11px] mt-1">Select any photo, video, or folder to inspect details</p>
+      </div>
+    );
+  }
+
+  // If selected item is a folder, show the AFM Production Inspector for that folder
+  if (item.isDir) {
+    return (
+      <div
+        style={{ width: `${width}px` }}
+        className="flex-shrink-0 border-l mac-sidebar flex flex-col overflow-y-auto select-none text-[var(--mac-text-primary)] transition-colors duration-200"
+      >
+        <div className="flex items-center justify-between px-3.5 py-2.5 border-b mac-header">
+          <div className="flex items-center gap-2 min-w-0">
+            <MacFolderIcon size={18} />
+            <span className="text-xs font-semibold tracking-wide truncate">{item.name}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
+            title="Close Inspector"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <AfmInspectorPanel folderPath={item.fullPath} folderName={item.name} />
       </div>
     );
   }
@@ -98,9 +152,32 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
       style={{ width: `${width}px` }}
       className="flex-shrink-0 border-l mac-sidebar flex flex-col overflow-y-auto select-none text-[var(--mac-text-primary)] transition-colors duration-200"
     >
-      {/* Inspector Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b mac-header">
-        <span className="text-xs font-semibold text-[var(--mac-text-primary)] tracking-wide">Inspector</span>
+      {/* Inspector Header with Tab Switcher */}
+      <div className="flex items-center justify-between px-3 py-2 border-b mac-header gap-2">
+        <div className="flex items-center p-0.5 rounded-lg bg-black/[0.05] dark:bg-white/[0.08] text-[11px] font-medium">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`px-2.5 py-1 rounded-md transition-all ${
+              activeTab === 'details'
+                ? 'bg-white dark:bg-neutral-800 text-[var(--mac-text-primary)] shadow-sm font-semibold'
+                : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
+            }`}
+          >
+            File Details
+          </button>
+          {currentPath && (
+            <button
+              onClick={() => setActiveTab('production')}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                activeTab === 'production'
+                  ? 'bg-white dark:bg-neutral-800 text-[var(--mac-text-primary)] shadow-sm font-semibold'
+                  : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
+              }`}
+            >
+              Folder AFM
+            </button>
+          )}
+        </div>
         <button
           onClick={onClose}
           className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
@@ -110,7 +187,14 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
         </button>
       </div>
 
-      {/* Large Preview Canvas */}
+      {activeTab === 'production' && currentPath ? (
+        <AfmInspectorPanel
+          folderPath={currentPath}
+          folderName={currentPath.split(/[\\/]/).filter(Boolean).pop() || currentPath}
+        />
+      ) : (
+        <>
+          {/* Large Preview Canvas */}
       <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden border-b border-white/10">
         {isRaw ? (
           thumb ? (
@@ -253,6 +337,8 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
           <span>Show in Explorer</span>
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 };
