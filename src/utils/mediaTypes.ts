@@ -27,6 +27,21 @@ export const ARCHIVE_EXTENSIONS = new Set([
   'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso', 'cab'
 ]);
 
+export const CODE_TEXT_EXTENSIONS = new Set([
+  'ts', 'tsx', 'js', 'jsx', 'json', 'py', 'html', 'css', 'scss', 'less', 'md', 'txt',
+  'bat', 'cmd', 'ps1', 'sh', 'bash', 'yml', 'yaml', 'xml', 'sql', 'c', 'cpp', 'h', 'hpp',
+  'rs', 'go', 'java', 'kt', 'cs', 'php', 'rb', 'lua', 'ini', 'cfg', 'conf', 'env', 'log', 'toml',
+  'dockerfile', 'makefile', 'gradle'
+]);
+
+export function isCodeOrTextExtension(ext: string): boolean {
+  return CODE_TEXT_EXTENSIONS.has(ext.toLowerCase());
+}
+
+export function isArchiveExtension(ext: string): boolean {
+  return ARCHIVE_EXTENSIONS.has(ext.toLowerCase());
+}
+
 export function isRawExtension(ext: string): boolean {
   return RAW_EXTENSIONS.has(ext.toLowerCase());
 }

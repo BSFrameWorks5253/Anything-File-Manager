@@ -23,6 +23,7 @@
     "build:vite": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "npm run build:vite && npm run build:electron",
+    "dist": "npm run build && electron-builder --win nsis",
     "start": "npm run build && electron dist-electron/main.js",
     "start:fast": "electron dist-electron/main.js",
     "preview": "vite preview"

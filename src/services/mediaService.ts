@@ -28,6 +28,11 @@ export const mediaService = {
     return api.readImageBase64(filePath);
   },
 
+  async readTextFile(filePath: string, maxBytes?: number): Promise<{ ok: boolean; content?: string; lineCount?: number; isTruncated?: boolean; totalBytes?: number; error?: string }> {
+    if (!api?.readTextFile) return { ok: false, error: 'API unavailable' };
+    return api.readTextFile(filePath, maxBytes);
+  },
+
   async selectFolder(): Promise<string | null> {
     if (!api?.selectFolder) return null;
     return api.selectFolder();

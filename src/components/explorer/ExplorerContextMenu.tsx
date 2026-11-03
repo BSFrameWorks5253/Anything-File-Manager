@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import { isVideoExtension } from '../../utils';
+import { oneTapService } from '../../services';
 
 export interface ContextMenuState {
   x: number;
@@ -115,6 +116,37 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
             </div>
             <span className="text-[10px] opacity-60">Enter</span>
           </button>
+
+          {item.isDir && (
+            <>
+              <button
+                onClick={() => {
+                  onInspect(item);
+                  onClose();
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <Film className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
+                  <span>Inspect Production Session</span>
+                </div>
+              </button>
+
+              <button
+                onClick={async () => {
+                  onClose();
+                  await oneTapService.separatePhotosAndVideos(item.fullPath);
+                  if (onRefresh) onRefresh();
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:text-white" />
+                  <span>Separate Photos & Videos (PV)</span>
+                </div>
+              </button>
+            </>
+          )}
 
           {!item.isDir && (
             <button

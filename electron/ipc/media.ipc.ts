@@ -353,6 +353,39 @@ export function registerMediaIPC(
   });
 
   /**
+   * Fast Text & Code Reader for Universal Quick Look Preview
+   */
+  ipcMain.handle('media:readTextFile', async (_event, filePath: string, maxBytes = 512 * 1024) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) {
+        return { ok: false, error: 'File not found' };
+      }
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) return { ok: false, error: 'Target is a directory' };
+
+      const readSize = Math.min(stat.size, maxBytes);
+      const buf = Buffer.alloc(readSize);
+      const fd = fs.openSync(filePath, 'r');
+      fs.readSync(fd, buf, 0, readSize, 0);
+      fs.closeSync(fd);
+
+      const content = buf.toString('utf-8');
+      const isTruncated = stat.size > maxBytes;
+      const lineCount = content.split('\n').length;
+
+      return {
+        ok: true,
+        content,
+        lineCount,
+        isTruncated,
+        totalBytes: stat.size
+      };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  /**
    * Fast Universal Thumbnail & Metadata Extractor for ALL files with persistent disk caching.
    * Supports:
    * 1. Photos & Camera RAW (.CR3, .CR2, .NEF, .ARW, .DNG, etc.)

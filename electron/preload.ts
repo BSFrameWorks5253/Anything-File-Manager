@@ -32,9 +32,11 @@ export interface MediaViewerAPI {
   separatePhotosAndVideos?: (sourceDir: string, destDir?: string, mode?: 'copy' | 'move') => Promise<any>;
   dispatchAmbientEvent?: (payload: { title: string; message: string; sound?: boolean }) => Promise<{ ok: boolean }>;
   getDiskHealth?: (drivePath: string) => Promise<any>;
+  readTextFile?: (filePath: string, maxBytes?: number) => Promise<{ ok: boolean; content?: string; lineCount?: number; isTruncated?: boolean; totalBytes?: number; error?: string }>;
 }
 
 const api: MediaViewerAPI = {
+  readTextFile: (filePath: string, maxBytes?: number) => ipcRenderer.invoke('media:readTextFile', filePath, maxBytes),
   openSeparatePlayer: (filePath: string) => ipcRenderer.invoke('media:openSeparatePlayer', filePath),
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
