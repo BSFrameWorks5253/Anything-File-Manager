@@ -12,7 +12,7 @@ export const PHOTO_EXTENSIONS = new Set([
 ]);
 
 export const VIDEO_EXTENSIONS = new Set([
-  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'ts', 'wmv', 'flv', 'm2ts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv'
+  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'wmv', 'flv', 'm2ts', 'mts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv'
 ]);
 
 export const AUDIO_EXTENSIONS = new Set([

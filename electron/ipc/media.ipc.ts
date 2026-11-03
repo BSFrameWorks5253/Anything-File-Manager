@@ -13,7 +13,7 @@ const RAW_EXTS = new Set([
 ]);
 
 const VIDEO_EXTS = new Set([
-  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'ts', 'wmv', 'flv', 'm2ts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv'
+  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'wmv', 'flv', 'm2ts', 'mts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv'
 ]);
 
 const AUDIO_EXTS = new Set([
@@ -360,6 +360,16 @@ export function registerMediaIPC(
         } catch {}
       }
 
+      // 2.5 Folders / Directories: Extract authentic native OS folder icon
+      if (stat.isDirectory()) {
+        try {
+          const icon = await app.getFileIcon(filePath, { size: 'large' });
+          const folderThumb = icon.toDataURL();
+          memThumbCache.set(cacheKey, { thumb: folderThumb, duration: 0 });
+          return { ok: true, duration: 0, thumb: folderThumb };
+        } catch {}
+      }
+
       const ext = path.extname(filePath).toLowerCase().replace('.', '');
 
       // 3. Camera RAW files (.CR3, .CR2, .NEF, .ARW, .DNG, etc.)
@@ -387,6 +397,12 @@ export function registerMediaIPC(
             fs.writeFileSync(metaCacheFile, JSON.stringify({ duration }));
           } catch {}
           thumb = `data:image/jpeg;base64,${frameBuf.toString('base64')}`;
+        } else {
+          // Fallback to native Windows media file icon if ffmpeg didn't produce a frame
+          try {
+            const icon = await app.getFileIcon(filePath, { size: 'large' });
+            thumb = icon.toDataURL();
+          } catch {}
         }
 
         const result = { duration, thumb };

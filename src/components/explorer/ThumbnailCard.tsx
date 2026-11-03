@@ -38,12 +38,12 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
   const cached = thumbnailService.getCached(item.fullPath);
   const [thumb, setThumb] = useState<string | null>(cached?.thumb || null);
   const [duration, setDuration] = useState<number>(cached?.duration || 0);
-  const [loadingMeta, setLoadingMeta] = useState<boolean>(!cached && !isDirectBrowserPhoto && !item.isDir);
+  const [loadingMeta, setLoadingMeta] = useState<boolean>(!cached && !isDirectBrowserPhoto);
   const [imgError, setImgError] = useState(false);
 
-  // ALL non-direct photos extract thumbnail & metadata from backend!
+  // ALL non-direct photos extract authentic Windows thumbnail / icon from backend!
   useEffect(() => {
-    if (isDirectBrowserPhoto || item.isDir) return;
+    if (isDirectBrowserPhoto) return;
 
     const currentCached = thumbnailService.getCached(item.fullPath);
     if (currentCached && currentCached.thumb) {
@@ -69,7 +69,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
     return () => {
       isCurrent = false;
     };
-  }, [item.fullPath, isDirectBrowserPhoto, item.isDir]);
+  }, [item.fullPath, isDirectBrowserPhoto]);
 
   // Standard photos load directly via fast local-resource URL; RAW & all other files use extracted thumbnail
   const directPhotoUrl = isDirectBrowserPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
@@ -157,18 +157,18 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : thumb ? (
-          /* ALL OTHER FILES (Audio, PDF, Documents, Code, Archives, Executables, etc.) with Windows Shell Icon/Thumbnail! */
-          <div className="w-full h-full flex items-center justify-center p-3 bg-gradient-to-b from-black/[0.02] to-black/[0.1] dark:from-white/[0.04] dark:to-black/60">
+          /* ALL OTHER FILES & FOLDERS (Shortcuts, Batch, Excel, Zip, TypeScript, Documents, Folders) with Real Windows Shell Icon! */
+          <div className="w-full h-full flex items-center justify-center p-3">
             <img
               src={thumb}
               alt={item.name}
-              className="max-h-full max-w-full object-contain filter drop-shadow-xl transition-transform duration-300 group-hover:scale-110"
+              className="w-14 h-14 sm:w-16 sm:h-16 object-contain filter drop-shadow-md transition-transform duration-200 group-hover:scale-110"
             />
           </div>
         ) : item.isDir ? (
-          <Folder className="w-12 h-12 text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform" />
+          <Folder className="w-14 h-14 text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform" />
         ) : (
-          <File className="w-10 h-10 text-[var(--mac-text-muted)] group-hover:scale-110 transition-transform" />
+          <File className="w-12 h-12 text-[var(--mac-text-muted)] group-hover:scale-110 transition-transform" />
         )}
 
         {/* Video Duration / Timelapse Badge (e.g. 10s, 1m 20s) */}
@@ -193,13 +193,6 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
         {isRaw && (
           <span className="absolute bottom-2 right-2 bg-rose-950/80 backdrop-blur-md text-rose-300 border border-rose-500/40 text-[10px] font-black px-1.5 py-0.5 rounded shadow-lg uppercase z-10 pointer-events-none tracking-wider">
             RAW
-          </span>
-        )}
-
-        {/* Extension Pill */}
-        {!item.isDir && item.ext && (
-          <span className="absolute top-2 left-2 bg-black/75 backdrop-blur-md text-gray-200 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded border border-white/10 z-10">
-            {item.ext}
           </span>
         )}
 
