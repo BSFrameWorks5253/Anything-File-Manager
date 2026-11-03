@@ -29,124 +29,117 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
           viewBox="0 0 1024 1024"
           width={size}
           height={size}
-          className="drop-shadow-sm transition-all duration-300"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="drop-shadow-md transition-all duration-300"
         >
           <defs>
-            <linearGradient id="afmBgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#FFFFFF"/>
-              <stop offset="100%" stop-color="#F3F6F8"/>
-            </linearGradient>
-
             <linearGradient id="afmBackPlate" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#048C8A"/>
-              <stop offset="50%" stop-color="#06A88E"/>
-              <stop offset="100%" stop-color="#08BD93"/>
+              <stop offset="0%" stopColor="#026361"/>
+              <stop offset="45%" stopColor="#048A7B"/>
+              <stop offset="100%" stopColor="#07B38C"/>
             </linearGradient>
 
             <linearGradient id="afmFrontFlap" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#07B38C"/>
-              <stop offset="50%" stop-color="#09C496"/>
-              <stop offset="100%" stop-color="#0FDCA3"/>
+              <stop offset="0%" stopColor="#05A384"/>
+              <stop offset="40%" stopColor="#08C296"/>
+              <stop offset="100%" stopColor="#12E5A8"/>
             </linearGradient>
 
-            <linearGradient id="afmPocketCavity" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#023D3A" stop-opacity="0.8"/>
-              <stop offset="100%" stop-color="#03665F" stop-opacity="0.1"/>
+            <linearGradient id="afmCavity" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#012422" stopOpacity="0.95"/>
+              <stop offset="100%" stopColor="#024D46" stopOpacity="0.2"/>
             </linearGradient>
           </defs>
 
-          {/* Squircle App Container */}
-          <rect x="48" y="48" width="928" height="928" rx="216" fill="url(#afmBgGrad)"/>
-          <rect x="48" y="48" width="928" height="928" rx="216" fill="none" stroke="#E2E8F0" stroke-width="4" opacity="0.6"/>
-
-          {/* Back Folder Plate */}
+          {/* 1. Back Folder Plate */}
           <path d="
-            M 264 250
-            L 410 250
-            C 455 250 480 270 515 320
-            C 530 338 550 342 580 342
-            L 760 342
-            C 804 342 814 352 814 396
-            L 814 716
-            C 814 760 804 770 760 770
-            L 264 770
-            C 220 770 210 760 210 716
-            L 210 304
-            C 210 260 220 250 264 250
+            M 190 190
+            L 390 190
+            C 445 190 475 215 515 275
+            C 535 298 560 304 600 304
+            L 834 304
+            C 888 304 904 320 904 374
+            L 904 786
+            C 904 840 888 856 834 856
+            L 190 856
+            C 136 856 120 840 120 786
+            L 120 260
+            C 120 206 136 190 190 190
             Z
-          " fill="url(#afmBackPlate)"/>
+          " fill="url(#afmBackPlate)" stroke="#024744" strokeWidth="6"/>
 
           {activeOpen ? (
-            /* Open Folder State with File Sheet Peeking Out */
+            /* Open Folder State with Crisp White File Sheet */
             <>
               {/* Inner Cavity */}
-              <rect x="210" y="342" width="604" height="260" fill="url(#afmPocketCavity)"/>
+              <rect x="124" y="304" width="776" height="340" fill="url(#afmCavity)"/>
 
               {/* Peeking Document Sheet */}
-              <g transform="rotate(-3 512 400)">
+              <g transform="rotate(-3.5 512 380)">
                 <path d="
-                  M 310 210
-                  L 620 210
-                  L 714 304
-                  L 714 590
-                  C 714 606 702 618 686 618
-                  L 310 618
-                  C 294 618 282 606 282 590
-                  L 282 238
-                  C 282 222 294 210 310 210
+                  M 250 130
+                  L 640 130
+                  L 770 260
+                  L 770 660
+                  C 770 678 756 692 738 692
+                  L 250 692
+                  C 232 692 218 678 218 660
+                  L 218 162
+                  C 218 144 232 130 250 130
                   Z
-                " fill="#FFFFFF" stroke="#E2E8F0" stroke-width="4"/>
-                <path d="M 620 210 L 620 290 C 620 302 630 304 642 304 L 714 304 Z" fill="#E2E8F0"/>
-                <rect x="330" y="270" width="130" height="26" rx="13" fill="#07B38C" opacity="0.9"/>
-                <polygon points="352,278 352,288 362,283" fill="#FFFFFF"/>
-                <rect x="474" y="278" width="110" height="10" rx="5" fill="#07B38C" opacity="0.4"/>
-                <rect x="330" y="330" width="310" height="12" rx="6" fill="#94A3B8" opacity="0.45"/>
-                <rect x="330" y="360" width="270" height="10" rx="5" fill="#94A3B8" opacity="0.3"/>
+                " fill="#FFFFFF" stroke="#64748B" strokeWidth="5"/>
+                <path d="M 640 130 L 640 242 C 640 256 652 260 666 260 L 770 260 Z" fill="#CBD5E1"/>
+                <path d="M 640 130 L 770 260" stroke="#94A3B8" strokeWidth="4"/>
+                <rect x="270" y="210" width="160" height="34" rx="17" fill="#4F46E5"/>
+                <polygon points="296,220 296,234 310,227" fill="#FFFFFF"/>
+                <rect x="270" y="280" width="380" height="18" rx="9" fill="#64748B" opacity="0.65"/>
+                <rect x="270" y="318" width="300" height="16" rx="8" fill="#94A3B8" opacity="0.5"/>
               </g>
 
               {/* Angled Front Flap (Open) */}
               <path d="
-                M 230 488
-                C 230 468 244 456 268 456
-                L 756 456
-                C 780 456 794 468 794 488
-                L 820 716
-                C 824 760 804 774 760 774
-                L 264 774
-                C 220 774 200 760 204 716
+                M 150 490
+                C 150 466 168 450 200 450
+                L 824 450
+                C 856 450 874 466 874 490
+                L 908 786
+                C 912 840 888 860 834 860
+                L 190 860
+                C 136 860 112 840 116 786
                 Z
-              " fill="url(#afmFrontFlap)"/>
-              <path d="M 268 458 L 756 458" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" opacity="0.8"/>
+              " fill="url(#afmFrontFlap)" stroke="#035B54" strokeWidth="7"/>
+              <path d="M 198 454 L 826 454" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" opacity="0.9"/>
             </>
           ) : (
             /* Closed Folder State (Snug fit with crescent opening slit) */
             <>
               {/* Crescent Opening Slit */}
               <path d="
-                M 218 424
-                C 230 398 255 388 290 388
-                L 734 388
-                C 769 388 794 398 806 424
-                C 794 406 769 398 734 398
-                L 290 398
-                C 255 398 230 406 218 424
+                M 132 400
+                C 150 364 190 350 240 350
+                L 784 350
+                C 834 350 874 364 892 400
+                C 874 376 834 364 784 364
+                L 240 364
+                C 190 364 150 376 132 400
                 Z
               " fill="#FFFFFF" opacity="0.95"/>
 
               {/* Front Flap (Closed) */}
               <path d="
-                M 264 408
-                L 760 408
-                C 804 408 814 418 814 462
-                L 814 716
-                C 814 760 804 770 760 770
-                L 264 770
-                C 220 770 210 760 210 716
-                L 210 462
-                C 210 418 220 408 264 408
+                M 190 380
+                L 834 380
+                C 888 380 904 396 904 450
+                L 904 786
+                C 904 840 888 856 834 856
+                L 190 856
+                C 136 856 120 840 120 786
+                L 120 450
+                C 120 396 136 380 190 380
                 Z
-              " fill="url(#afmFrontFlap)"/>
-              <path d="M 264 410 L 760 410" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+              " fill="url(#afmFrontFlap)" stroke="#035B54" strokeWidth="7"/>
+              <path d="M 190 384 L 834 384" stroke="#FFFFFF" strokeWidth="7" strokeLinecap="round" opacity="0.8"/>
             </>
           )}
         </svg>

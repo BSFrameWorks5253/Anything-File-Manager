@@ -22,12 +22,16 @@ export interface MediaViewerAPI {
   minimizeWindow?: () => void;
   maximizeWindow?: () => void;
   closeWindow?: () => void;
-  // AFM (Anything Production File Manager) APIs
+  // AFM (Anything Production File Manager) & One Tap Ecosystem APIs
   analyzeAfmFolder?: (folderPath: string) => Promise<any>;
   setAfmStage?: (folderPath: string, stage: string) => Promise<boolean>;
   generatePremiereProject?: (payload: any) => Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }>;
-  sendToTitleAdder?: (folderPath: string) => Promise<{ ok: boolean; error?: string }>;
   openSeparatePlayer?: (filePath: string) => Promise<{ ok: boolean; error?: string }>;
+  getTaskTrackerStats?: (dateSession: string, safarName?: string) => Promise<any>;
+  verifyBackupSync?: (folderPath: string, targetBackupDir: string) => Promise<any>;
+  separatePhotosAndVideos?: (sourceDir: string, destDir?: string, mode?: 'copy' | 'move') => Promise<any>;
+  dispatchAmbientEvent?: (payload: { title: string; message: string; sound?: boolean }) => Promise<{ ok: boolean }>;
+  getDiskHealth?: (drivePath: string) => Promise<any>;
 }
 
 const api: MediaViewerAPI = {
@@ -38,7 +42,11 @@ const api: MediaViewerAPI = {
   analyzeAfmFolder: (folderPath: string) => ipcRenderer.invoke('afm:analyzeFolder', folderPath),
   setAfmStage: (folderPath: string, stage: string) => ipcRenderer.invoke('afm:setStage', folderPath, stage),
   generatePremiereProject: (payload: any) => ipcRenderer.invoke('afm:generatePremiereProject', payload),
-  sendToTitleAdder: (folderPath: string) => ipcRenderer.invoke('afm:sendToTitleAdder', folderPath),
+  getTaskTrackerStats: (dateSession: string, safarName?: string) => ipcRenderer.invoke('afm:getTaskTrackerStats', dateSession, safarName),
+  verifyBackupSync: (folderPath: string, targetBackupDir: string) => ipcRenderer.invoke('afm:verifyBackupSync', folderPath, targetBackupDir),
+  separatePhotosAndVideos: (sourceDir: string, destDir?: string, mode?: 'copy' | 'move') => ipcRenderer.invoke('afm:separatePhotosAndVideos', { sourceDir, destDir, mode }),
+  dispatchAmbientEvent: (payload: { title: string; message: string; sound?: boolean }) => ipcRenderer.invoke('afm:dispatchAmbientEvent', payload),
+  getDiskHealth: (drivePath: string) => ipcRenderer.invoke('afm:getDiskHealth', drivePath),
   listDir: (dirPath: string) => ipcRenderer.invoke('media:listDir', dirPath),
   getDrives: () => ipcRenderer.invoke('media:getDrives'),
   getDrivesWithSpace: () => ipcRenderer.invoke('media:getDrivesWithSpace'),

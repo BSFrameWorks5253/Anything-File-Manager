@@ -59,10 +59,14 @@ export interface MediaViewerAPI {
   minimizeWindow?: () => void;
   maximizeWindow?: () => void;
   closeWindow?: () => void;
-  // AFM (Anything Production File Manager) APIs
+  // AFM (Anything Production File Manager) & One Tap Ecosystem APIs
   analyzeAfmFolder?: (folderPath: string) => Promise<any>;
   setAfmStage?: (folderPath: string, stage: string) => Promise<boolean>;
   generatePremiereProject?: (payload: any) => Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }>;
-  sendToTitleAdder?: (folderPath: string) => Promise<{ ok: boolean; error?: string }>;
   openSeparatePlayer?: (filePath: string) => Promise<{ ok: boolean; error?: string }>;
+  getTaskTrackerStats?: (dateSession: string, safarName?: string) => Promise<any>;
+  verifyBackupSync?: (folderPath: string, targetBackupDir: string) => Promise<any>;
+  separatePhotosAndVideos?: (sourceDir: string, destDir?: string, mode?: 'copy' | 'move') => Promise<any>;
+  dispatchAmbientEvent?: (payload: { title: string; message: string; sound?: boolean }) => Promise<{ ok: boolean }>;
+  getDiskHealth?: (drivePath: string) => Promise<any>;
 }

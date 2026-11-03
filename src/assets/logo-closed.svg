@@ -1,117 +1,109 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <!-- Background Squircle Gradient -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#F3F6F8"/>
-    </linearGradient>
-
-    <!-- Folder Back Plate Gradient (Teal to Emerald) -->
+    <!-- Folder Back Plate Gradient (Deep Saturated Teal-Cyan) -->
     <linearGradient id="backPlateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#048C8A"/>
-      <stop offset="50%" stop-color="#06A88E"/>
-      <stop offset="100%" stop-color="#08BD93"/>
+      <stop offset="0%" stop-color="#026361"/>
+      <stop offset="45%" stop-color="#048A7B"/>
+      <stop offset="100%" stop-color="#07B38C"/>
     </linearGradient>
 
-    <!-- Folder Front Flap Gradient (Vibrant Emerald Mint) -->
+    <!-- Folder Front Flap Gradient (Vibrant Mint-Emerald) -->
     <linearGradient id="frontFlapGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#07B38C"/>
-      <stop offset="50%" stop-color="#09C496"/>
-      <stop offset="100%" stop-color="#0FDCA3"/>
+      <stop offset="0%" stop-color="#05A384"/>
+      <stop offset="40%" stop-color="#08C296"/>
+      <stop offset="100%" stop-color="#12E5A8"/>
     </linearGradient>
 
-    <!-- Pocket Shadow inside folder -->
-    <linearGradient id="pocketShadow" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#025B57" stop-opacity="0.6"/>
-      <stop offset="100%" stop-color="#025B57" stop-opacity="0.0"/>
+    <!-- Top Highlight Rim -->
+    <linearGradient id="topRimGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.4"/>
     </linearGradient>
 
-    <!-- Drop Shadows -->
-    <filter id="squircleShadow" x="-10%" y="-10%" width="120%" height="125%" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="24" stdDeviation="32" flood-color="#074D45" flood-opacity="0.12"/>
-      <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#000000" flood-opacity="0.06"/>
+    <!-- Pocket Crease Shadow -->
+    <linearGradient id="creaseShadow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#013A37" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#013A37" stop-opacity="0.0"/>
+    </linearGradient>
+
+    <!-- Ambient Floating Drop Shadow (Allows icon to pop on ANY light/dark background) -->
+    <filter id="floatShadow" x="-15%" y="-15%" width="130%" height="135%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="36" stdDeviation="36" flood-color="#012422" flood-opacity="0.45"/>
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.25"/>
     </filter>
 
-    <filter id="folderShadow" x="-10%" y="-10%" width="120%" height="125%" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#03453E" flood-opacity="0.25"/>
-    </filter>
-
-    <filter id="slitGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#FFFFFF" flood-opacity="0.8"/>
+    <!-- Opening Slit Glow -->
+    <filter id="slitShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#013835" flood-opacity="0.7"/>
     </filter>
   </defs>
 
-  <!-- Clean App Squircle Base (Apple Style Icon Container) -->
-  <rect x="48" y="48" width="928" height="928" rx="216" fill="url(#bgGrad)" filter="url(#squircleShadow)"/>
-  <rect x="48" y="48" width="928" height="928" rx="216" fill="none" stroke="#E2E8F0" stroke-width="2.5" opacity="0.6"/>
-
-  <!-- Main Folder Structure -->
-  <g filter="url(#folderShadow)">
-    <!-- Back Folder Plate with Left Tab -->
-    <!-- Tab starts x=210, y=250. Smooth curve to shoulder at y=330. Body down to y=770 -->
+  <!-- Main Folder Group with Floating Ambient Shadow -->
+  <g filter="url(#floatShadow)">
+    <!-- Back Plate with Top-Left Tab -->
+    <!-- Tab starts x=120, y=190. Smooth bezier curve to shoulder at y=290, body down to y=850, x=904 -->
     <path d="
-      M 264 250
-      L 410 250
-      C 455 250 480 270 515 320
-      C 530 338 550 342 580 342
-      L 760 342
-      C 804 342 814 352 814 396
-      L 814 716
-      C 814 760 804 770 760 770
-      L 264 770
-      C 220 770 210 760 210 716
-      L 210 304
-      C 210 260 220 250 264 250
+      M 190 190
+      L 390 190
+      C 445 190 475 215 515 275
+      C 535 298 560 304 600 304
+      L 834 304
+      C 888 304 904 320 904 374
+      L 904 786
+      C 904 840 888 856 834 856
+      L 190 856
+      C 136 856 120 840 120 786
+      L 120 260
+      C 120 206 136 190 190 190
       Z
-    " fill="url(#backPlateGrad)"/>
+    " fill="url(#backPlateGrad)" stroke="#024744" stroke-width="4"/>
 
-    <!-- Subtle Tab Highlight -->
+    <!-- Subtle Tab Highlight Arc -->
     <path d="
-      M 264 252
-      L 408 252
-      C 450 252 475 272 510 320
-    " fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+      M 190 194
+      L 388 194
+      C 440 194 470 218 510 274
+    " fill="none" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" opacity="0.6"/>
 
-    <!-- Inside Pocket Shadow -->
-    <rect x="210" y="342" width="604" height="120" fill="url(#pocketShadow)" opacity="0.5"/>
+    <!-- Dark Crease behind front flap -->
+    <rect x="124" y="304" width="776" height="160" fill="url(#creaseShadow)"/>
 
-    <!-- The Sweet Curved Opening Slit (From User Image) -->
-    <!-- Curved white crescent gap that separates back tab and front flap -->
+    <!-- The Sweet Curved Crescent Opening Slit (Enhanced with Depth Shadow) -->
     <path d="
-      M 218 424
-      C 230 398 255 388 290 388
-      L 734 388
-      C 769 388 794 398 806 424
-      C 794 406 769 398 734 398
-      L 290 398
-      C 255 398 230 406 218 424
+      M 132 400
+      C 150 364 190 350 240 350
+      L 784 350
+      C 834 350 874 364 892 400
+      C 874 376 834 364 784 364
+      L 240 364
+      C 190 364 150 376 132 400
       Z
-    " fill="#FFFFFF" opacity="0.95" filter="url(#slitGlow)"/>
+    " fill="#FFFFFF" opacity="0.95" filter="url(#slitShadow)"/>
 
     <!-- Front Folder Flap Body -->
     <path d="
-      M 264 408
-      L 760 408
-      C 804 408 814 418 814 462
-      L 814 716
-      C 814 760 804 770 760 770
-      L 264 770
-      C 220 770 210 760 210 716
-      L 210 462
-      C 210 418 220 408 264 408
+      M 190 380
+      L 834 380
+      C 888 380 904 396 904 450
+      L 904 786
+      C 904 840 888 856 834 856
+      L 190 856
+      C 136 856 120 840 120 786
+      L 120 450
+      C 120 396 136 380 190 380
       Z
-    " fill="url(#frontFlapGrad)"/>
+    " fill="url(#frontFlapGrad)" stroke="#035B54" stroke-width="4"/>
 
-    <!-- Front Flap Top Rim Highlight -->
+    <!-- Front Flap Top Rim Gloss Highlight -->
     <path d="
-      M 264 410
-      L 760 410
-    " stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" opacity="0.55"/>
+      M 190 384
+      L 834 384
+    " stroke="url(#topRimGrad)" stroke-width="5" stroke-linecap="round"/>
 
-    <!-- Bottom Ambient Reflective Glow -->
+    <!-- Subtle Bottom Contour Highlight -->
     <path d="
-      M 250 768
-      L 774 768
-    " stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity="0.25"/>
+      M 170 852
+      L 854 852
+    " stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" opacity="0.3"/>
   </g>
 </svg>
