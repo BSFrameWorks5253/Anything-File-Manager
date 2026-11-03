@@ -7,9 +7,17 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// Camera RAW extensions
+// File extension categories
 const RAW_EXTS = new Set([
   'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'raw', 'orf', 'rw2', 'pef', 'sr2', 'srf'
+]);
+
+const VIDEO_EXTS = new Set([
+  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'ts', 'wmv', 'flv', 'm2ts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv'
+]);
+
+const AUDIO_EXTS = new Set([
+  'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'opus', 'aiff', 'alac', 'mid', 'midi'
 ]);
 
 // Persistent Disk Thumbnail Cache Directory
@@ -242,11 +250,14 @@ export function registerMediaIPC(
   });
 
   /**
-   * Universal Base64 Reader: Supports JPG, PNG, WEBP, GIF, SVG, BMP, AVIF, TIFF,
-   * AND Camera RAW (.CR3, .CR2, .NEF, .ARW, .DNG, etc.) by extracting the embedded preview!
+   * Universal Base64 Reader: Supports all Photos, Camera RAW, Videos, Audio, PDFs, and Documents
    */
   ipcMain.handle('media:readImageBase64', async (_event, filePath: string) => {
     try {
+      if (!filePath || !fs.existsSync(filePath)) {
+        return { ok: false, error: 'File not found' };
+      }
+
       const ext = path.extname(filePath).toLowerCase().replace('.', '');
 
       // Camera RAW files: Extract high-resolution embedded preview
@@ -273,11 +284,32 @@ export function registerMediaIPC(
         tiff: 'image/tiff',
         tif: 'image/tiff'
       };
-      const mime = MIME_MAP[ext] || 'image/jpeg';
-      const buf = fs.readFileSync(filePath);
+
+      if (MIME_MAP[ext]) {
+        const buf = fs.readFileSync(filePath);
+        return {
+          ok: true,
+          dataUrl: `data:${MIME_MAP[ext]};base64,${buf.toString('base64')}`
+        };
+      }
+
+      // Check if we have a generated thumbnail preview in disk cache
+      const stat = fs.statSync(filePath);
+      const cacheKey = getCacheKey(filePath, stat);
+      const diskCacheFile = path.join(getThumbCacheDir(), `${cacheKey}.jpg`);
+      if (fs.existsSync(diskCacheFile)) {
+        const diskBuf = fs.readFileSync(diskCacheFile);
+        return {
+          ok: true,
+          dataUrl: `data:image/jpeg;base64,${diskBuf.toString('base64')}`
+        };
+      }
+
+      // Fallback: Extract native Windows OS Shell Icon (256x256)
+      const icon = await app.getFileIcon(filePath, { size: 'large' });
       return {
         ok: true,
-        dataUrl: `data:${mime};base64,${buf.toString('base64')}`
+        dataUrl: icon.toDataURL()
       };
     } catch (err: any) {
       return { ok: false, error: err.message ?? String(err) };
@@ -285,8 +317,13 @@ export function registerMediaIPC(
   });
 
   /**
-   * Fast native extraction of video/photo thumbnails & metadata with persistent disk caching.
-   * Handles Camera RAW (.CR3, .CR2, .ARW, etc.), Videos (.MP4, .MKV, .MOV, etc.), and standard images.
+   * Fast Universal Thumbnail & Metadata Extractor for ALL files with persistent disk caching.
+   * Supports:
+   * 1. Photos & Camera RAW (.CR3, .CR2, .NEF, .ARW, .DNG, etc.)
+   * 2. Videos (.MP4, .MKV, .MOV, .AVI, .WEBM, .TS, etc.) + frame thumbnails + timelapse
+   * 3. Audio (.MP3, .FLAC, .M4A, .WAV, etc.) + embedded album art + duration
+   * 4. Documents & PDFs (.PDF, .DOCX, .PPTX, .XLSX)
+   * 5. Universal Windows Shell 256x256 Thumbnails & Icons for ALL file types (.EXE, .ZIP, .TXT, .CODE, etc.)
    */
   ipcMain.handle('media:getVideoMetadata', async (_event, filePath: string) => {
     try {
@@ -339,28 +376,102 @@ export function registerMediaIPC(
       }
 
       // 4. Video Files (.MP4, .MKV, .MOV, .AVI, etc.)
-      const duration = await extractDuration(filePath);
-      const frameBuf = await extractVideoFrameBuffer(filePath, duration);
+      if (VIDEO_EXTS.has(ext)) {
+        const duration = await extractDuration(filePath);
+        const frameBuf = await extractVideoFrameBuffer(filePath, duration);
 
-      let thumb = '';
-      if (frameBuf && frameBuf.length > 0) {
+        let thumb = '';
+        if (frameBuf && frameBuf.length > 0) {
+          try {
+            fs.writeFileSync(diskCacheFile, frameBuf);
+            fs.writeFileSync(metaCacheFile, JSON.stringify({ duration }));
+          } catch {}
+          thumb = `data:image/jpeg;base64,${frameBuf.toString('base64')}`;
+        }
+
+        const result = { duration, thumb };
+        if (thumb || duration > 0) {
+          memThumbCache.set(cacheKey, result);
+        }
+        return { ok: true, duration, thumb };
+      }
+
+      // 5. Audio Files (.MP3, .FLAC, .M4A, .AAC, .OGG, .WAV, etc.)
+      if (AUDIO_EXTS.has(ext)) {
+        const duration = await extractDuration(filePath);
+        let thumb = '';
+
+        // Extract embedded album art via ffmpeg
         try {
-          fs.writeFileSync(diskCacheFile, frameBuf);
-          fs.writeFileSync(metaCacheFile, JSON.stringify({ duration }));
+          const { stdout: artBuf } = await execAsync(
+            `ffmpeg -ss 0 -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 -update 1 pipe:1`,
+            { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024, timeout: 3500 }
+          );
+          if (artBuf && artBuf.length > 0) {
+            thumb = `data:image/jpeg;base64,${artBuf.toString('base64')}`;
+            try {
+              fs.writeFileSync(diskCacheFile, artBuf);
+              fs.writeFileSync(metaCacheFile, JSON.stringify({ duration }));
+            } catch {}
+          }
         } catch {}
-        thumb = `data:image/jpeg;base64,${frameBuf.toString('base64')}`;
+
+        if (!thumb) {
+          // If no album art, extract high-res Windows audio shell icon
+          try {
+            const icon = await app.getFileIcon(filePath, { size: 'large' });
+            thumb = icon.toDataURL();
+          } catch {}
+        }
+
+        const result = { duration, thumb };
+        if (thumb || duration > 0) memThumbCache.set(cacheKey, result);
+        return { ok: true, duration, thumb };
       }
 
-      const result = { duration, thumb };
-      if (thumb || duration > 0) {
-        memThumbCache.set(cacheKey, result);
+      // 6. PDF Documents (.PDF)
+      if (ext === 'pdf') {
+        let thumb = '';
+        try {
+          const { stdout: pdfBuf } = await execAsync(
+            `ffmpeg -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 pipe:1`,
+            { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024, timeout: 4000 }
+          );
+          if (pdfBuf && pdfBuf.length > 0) {
+            thumb = `data:image/jpeg;base64,${pdfBuf.toString('base64')}`;
+            try { fs.writeFileSync(diskCacheFile, pdfBuf); } catch {}
+          }
+        } catch {}
+
+        if (!thumb) {
+          try {
+            const icon = await app.getFileIcon(filePath, { size: 'large' });
+            thumb = icon.toDataURL();
+          } catch {}
+        }
+
+        const result = { duration: 0, thumb };
+        if (thumb) memThumbCache.set(cacheKey, result);
+        return { ok: true, duration: 0, thumb };
       }
 
-      return {
-        ok: true,
-        duration,
-        thumb
-      };
+      // 7. Universal High-Res Windows Shell Thumbnail & Icon for ALL other file extensions
+      // (.DOCX, .XLSX, .PPTX, .ZIP, .RAR, .7Z, .EXE, .TXT, .JS, .PY, .JSON, .HTML, etc.)
+      let shellThumb = '';
+      try {
+        const icon = await app.getFileIcon(filePath, { size: 'large' });
+        shellThumb = icon.toDataURL();
+        if (shellThumb) {
+          const rawBase64 = shellThumb.replace(/^data:image\/[a-z]+;base64,/, '');
+          try {
+            fs.writeFileSync(diskCacheFile, Buffer.from(rawBase64, 'base64'));
+          } catch {}
+        }
+      } catch {}
+
+      const result = { duration: 0, thumb: shellThumb };
+      if (shellThumb) memThumbCache.set(cacheKey, result);
+      return { ok: true, duration: 0, thumb: shellThumb };
     } catch (err: any) {
       console.error('[media:getVideoMetadata] Error:', err);
       return { ok: false, error: err.message || String(err), duration: 0, thumb: '' };
