@@ -1,0 +1,17 @@
+{
+  "appId": "media-viewer",
+  "enabled": true,
+  "productName": "MediaView Studio",
+  "versionText": "v1.0.0",
+  "tagline": "Universal Media Asset Viewer with Video Frame Zoom & Timelapse Inspector",
+  "artistName": "Anything Creative Ecosystem",
+  "artworkTitle": "Master Media Viewing Edition",
+  "durationMs": 2200,
+  "logoText": "MV",
+  "badgeGradient": "linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)",
+  "artworkUrl": "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1400&q=85",
+  "artworkFit": "cover",
+  "artworkPosition": "center",
+  "author": "Burhanuddin Sounasath",
+  "contactPhone": "8369811201"
+}
