@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 export interface MediaViewerAPI {
   listDir: (dirPath: string) => Promise<any[]>;
   getDrives: () => Promise<string[]>;
+  getDrivesWithSpace?: () => Promise<any[]>;
+  getQuickAccess?: () => Promise<any[]>;
   readImageBase64: (filePath: string) => Promise<{ ok: boolean; dataUrl?: string; error?: string }>;
   selectFolder: () => Promise<string | null>;
   saveSnapshot: (dataUrl: string, defaultName: string) => Promise<{ ok: boolean; filePath?: string; error?: string }>;
@@ -22,6 +24,8 @@ export interface MediaViewerAPI {
 const api: MediaViewerAPI = {
   listDir: (dirPath: string) => ipcRenderer.invoke('media:listDir', dirPath),
   getDrives: () => ipcRenderer.invoke('media:getDrives'),
+  getDrivesWithSpace: () => ipcRenderer.invoke('media:getDrivesWithSpace'),
+  getQuickAccess: () => ipcRenderer.invoke('media:getQuickAccess'),
   readImageBase64: (filePath: string) => ipcRenderer.invoke('media:readImageBase64', filePath),
   selectFolder: () => ipcRenderer.invoke('media:selectFolder'),
   saveSnapshot: (dataUrl: string, defaultName: string) => ipcRenderer.invoke('media:saveSnapshot', dataUrl, defaultName),

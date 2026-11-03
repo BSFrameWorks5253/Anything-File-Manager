@@ -13,6 +13,16 @@ export const mediaService = {
     return api.getDrives();
   },
 
+  async getDrivesWithSpace(): Promise<import('../types').DriveInfo[]> {
+    if (!api?.getDrivesWithSpace) return [];
+    return api.getDrivesWithSpace();
+  },
+
+  async getQuickAccess(): Promise<import('../types').QuickAccessItem[]> {
+    if (!api?.getQuickAccess) return [];
+    return api.getQuickAccess();
+  },
+
   async readImageBase64(filePath: string): Promise<{ ok: boolean; dataUrl?: string; error?: string }> {
     if (!api?.readImageBase64) return { ok: false, error: 'API unavailable' };
     return api.readImageBase64(filePath);

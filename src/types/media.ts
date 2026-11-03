@@ -8,7 +8,23 @@ export interface FsItem {
 }
 
 export type FilterCategory = 'all' | 'photo' | 'video' | 'timelapse';
-export type ViewMode = 'grid' | 'table';
+export type ViewMode = 'grid' | 'table' | 'columns' | 'gallery';
+
+export type SortField = 'name' | 'date' | 'size' | 'ext';
+export type SortOrder = 'asc' | 'desc';
+
+export interface QuickAccessItem {
+  name: string;
+  path: string;
+  icon: 'desktop' | 'downloads' | 'pictures' | 'videos' | 'documents' | 'home';
+}
+
+export interface DriveInfo {
+  drive: string;
+  total: number;
+  free: number;
+  usedPercent: number;
+}
 
 export interface VideoThumbnailData {
   thumb: string;
@@ -24,6 +40,8 @@ export interface ZoomPanState {
 export interface MediaViewerAPI {
   listDir: (dirPath: string) => Promise<FsItem[]>;
   getDrives: () => Promise<string[]>;
+  getDrivesWithSpace?: () => Promise<DriveInfo[]>;
+  getQuickAccess?: () => Promise<QuickAccessItem[]>;
   readImageBase64: (filePath: string) => Promise<{ ok: boolean; dataUrl?: string; error?: string }>;
   selectFolder: () => Promise<string | null>;
   saveSnapshot: (dataUrl: string, defaultName: string) => Promise<{ ok: boolean; filePath?: string; error?: string }>;

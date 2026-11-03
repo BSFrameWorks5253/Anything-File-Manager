@@ -3,4 +3,8 @@ export * from './ExplorerSidebar';
 export * from './ExplorerToolbar';
 export * from './ExplorerGrid';
 export * from './ExplorerTable';
+export * from './ExplorerColumns';
+export * from './ExplorerGallery';
+export * from './ExplorerInspector';
+export * from './QuickLookModal';
 export * from './ExplorerStatusBar';
