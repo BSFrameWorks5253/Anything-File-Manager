@@ -78,6 +78,11 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
   const mediaUrl = activeItem ? mediaService.toLocalResourceUrl(activeItem.fullPath) : '';
 
   const [rawPreviewUrl, setRawPreviewUrl] = useState<string | null>(null);
+  const [photoFallback, setPhotoFallback] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPhotoFallback(null);
+  }, [activeItem?.fullPath]);
 
   useEffect(() => {
     if (!activeItem || !isRaw) {
@@ -135,8 +140,15 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
       >
         {isPhoto ? (
           <img
-            src={isRaw ? (rawPreviewUrl || '') : mediaUrl}
+            src={isRaw ? (rawPreviewUrl || '') : (photoFallback || mediaUrl)}
             alt={activeItem.name}
+            onError={() => {
+              if (!photoFallback && activeItem && !isRaw) {
+                mediaService.readImageBase64(activeItem.fullPath).then(res => {
+                  if (res.ok && res.dataUrl) setPhotoFallback(res.dataUrl);
+                });
+              }
+            }}
             style={{
               transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
               transition: isDragging ? 'none' : 'transform 0.1s ease-out'

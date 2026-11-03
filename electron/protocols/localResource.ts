@@ -25,12 +25,18 @@ export function registerLocalResourceProtocol(): void {
 export function handleLocalResourceProtocol(): void {
   protocol.handle('local-resource', (request) => {
     try {
-      let cleanUrl = request.url.replace(/^local-resource:\/\/?\/?/i, '');
-      let rawPath = decodeURIComponent(cleanUrl);
-      if (/^\/?[a-zA-Z]:[\\\/]/.test(rawPath)) {
-        rawPath = rawPath.replace(/^\//, '');
+      let s = request.url.replace(/^local-resource:\/\//i, '');
+      s = s.replace(/^\/+/, '');
+      s = s.replace(/^localhost[\/\\]/i, '');
+      s = decodeURIComponent(s);
+
+      // Restore drive colon if lost by Chromium URL normalization (e.g. "c/Users/..." -> "c:/Users/...")
+      if (/^[a-zA-Z][\\\/]/.test(s)) {
+        s = s[0] + ':' + s.slice(1);
+      } else if (/^\/?[a-zA-Z]:[\\\/]/.test(s)) {
+        s = s.replace(/^\//, '');
       }
-      rawPath = rawPath.replace(/\//g, '\\');
+      const rawPath = s.replace(/\//g, '\\');
 
       if (!fs.existsSync(rawPath)) {
         return new Response('File not found', { status: 404 });

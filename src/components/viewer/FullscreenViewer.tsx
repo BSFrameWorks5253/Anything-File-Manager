@@ -61,7 +61,13 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
     };
   }, [item.fullPath, isRaw]);
 
-  const activePhotoSrc = isRaw ? (rawPhotoUrl || '') : mediaUrl;
+  const [fallbackBase64, setFallbackBase64] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFallbackBase64(null);
+  }, [item.fullPath]);
+
+  const activePhotoSrc = isRaw ? (rawPhotoUrl || '') : (fallbackBase64 || mediaUrl);
 
   // Zoom & Pan hook
   const {
@@ -247,6 +253,13 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
+              onError={() => {
+                if (!fallbackBase64) {
+                  mediaService.readImageBase64(item.fullPath).then(res => {
+                    if (res.ok && res.dataUrl) setFallbackBase64(res.dataUrl);
+                  });
+                }
+              }}
             />
           ) : (
             <div className="flex flex-col items-center justify-center gap-3 text-rose-300">

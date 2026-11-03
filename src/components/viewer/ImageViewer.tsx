@@ -11,6 +11,7 @@ interface ImageViewerProps {
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;
+  onError?: () => void;
 }
 
 export const ImageViewer: React.FC<ImageViewerProps> = ({
@@ -23,7 +24,8 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   onWheel,
   onMouseDown,
   onMouseMove,
-  onMouseUp
+  onMouseUp,
+  onError
 }) => {
   return (
     <div
@@ -37,6 +39,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
       <img
         src={src}
         alt={name}
+        onError={onError}
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotate}deg)`,
           cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',

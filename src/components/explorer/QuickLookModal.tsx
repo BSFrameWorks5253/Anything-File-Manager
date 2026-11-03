@@ -47,6 +47,12 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
   const isVideo = item ? isVideoExtension(item.ext) : false;
   const mediaUrl = item ? mediaService.toLocalResourceUrl(item.fullPath) : '';
 
+  const [photoFallback, setPhotoFallback] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPhotoFallback(null);
+  }, [item?.fullPath]);
+
   // Extract RAW preview
   useEffect(() => {
     if (!item || !isRaw || !isOpen) {
@@ -189,16 +195,16 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
 
-            {/* Open in Studio Viewer */}
+            {/* Open in Viewer */}
             <button
               onClick={() => {
                 onClose();
                 onOpenViewer(item);
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--mac-accent)] hover:opacity-90 text-white rounded-md text-xs font-medium shadow-sm transition-all"
             >
               <Maximize2 className="w-3 h-3" />
-              <span>Studio & Zoom</span>
+              <span>Open in Viewer</span>
             </button>
 
             <button
@@ -227,8 +233,15 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
             )
           ) : isPhoto ? (
             <img
-              src={mediaUrl}
+              src={photoFallback || mediaUrl}
               alt={item.name}
+              onError={() => {
+                if (!photoFallback && item) {
+                  mediaService.readImageBase64(item.fullPath).then(res => {
+                    if (res.ok && res.dataUrl) setPhotoFallback(res.dataUrl);
+                  });
+                }
+              }}
               className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
             />
           ) : isVideo ? (

@@ -42,11 +42,13 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
   const [copied, setCopied] = useState(false);
   const [thumb, setThumb] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(0);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     if (!item) return;
     setThumb(null);
     setDuration(0);
+    setImgError(false);
 
     const isVid = isVideoExtension(item.ext);
     const isRaw = isRawExtension(item.ext);
@@ -124,8 +126,16 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
           )
         ) : isPhoto ? (
           <img
-            src={photoUrl || ''}
+            src={imgError && thumb ? thumb : (photoUrl || thumb || '')}
             alt={item.name}
+            onError={() => {
+              setImgError(true);
+              if (!thumb) {
+                mediaService.readImageBase64(item.fullPath).then(res => {
+                  if (res.ok && res.dataUrl) setThumb(res.dataUrl);
+                });
+              }
+            }}
             className="w-full h-full object-contain"
           />
         ) : isVideo ? (

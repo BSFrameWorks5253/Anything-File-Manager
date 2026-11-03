@@ -303,8 +303,15 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
               )
             ) : isPhotoExtension(previewItem.ext) ? (
               <img
-                src={mediaService.toLocalResourceUrl(previewItem.fullPath)}
+                src={previewThumb || mediaService.toLocalResourceUrl(previewItem.fullPath)}
                 alt={previewItem.name}
+                onError={(e) => {
+                  mediaService.readImageBase64(previewItem.fullPath).then(res => {
+                    if (res.ok && res.dataUrl) {
+                      (e.target as HTMLImageElement).src = res.dataUrl;
+                    }
+                  });
+                }}
                 className="w-full h-full object-contain"
               />
             ) : isVideoExtension(previewItem.ext) ? (
