@@ -15,10 +15,20 @@ import {
   QuickLookModal,
   ExplorerStatusBar
 } from './components/explorer';
+import { ExplorerContextMenu, ContextMenuState } from './components/explorer/ExplorerContextMenu';
 import { FullscreenViewer } from './components/viewer';
+import { MacStandaloneMediaPlayer } from './components/viewer/MacStandaloneMediaPlayer';
 import { DefaultAppsModal, SettingsModal } from './components/modals';
 
 export default function App() {
+  const queryParams = new URLSearchParams(window.location.search);
+  const isPlayerWindow = queryParams.get('player') === '1';
+  const playerFile = queryParams.get('file');
+
+  if (isPlayerWindow && playerFile) {
+    return <MacStandaloneMediaPlayer filePath={playerFile} />;
+  }
+
   const {
     drives,
     drivesWithSpace,
@@ -42,6 +52,7 @@ export default function App() {
   const [selectedItemState, setSelectedItemState] = useState<FsItem | null>(null);
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [density, setDensity] = useState<'compact' | 'normal' | 'broad'>('normal');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [isInspectorOpen, setIsInspectorOpen] = useState(true);
@@ -49,6 +60,12 @@ export default function App() {
   const [activeItem, setActiveItem] = useState<FsItem | null>(null);
   const [isDefaultAppsModalOpen, setIsDefaultAppsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    item: null
+  });
   const [showHidden, setShowHidden] = useState<boolean>(() => {
     return localStorage.getItem('media-viewer-show-hidden') === 'true';
   });
@@ -218,11 +235,27 @@ export default function App() {
   const handleItemOpen = (item: FsItem) => {
     if (item.isDir) {
       navigate(item.fullPath);
-    } else if (isPhotoExtension(item.ext) || isVideoExtension(item.ext)) {
+    } else if (isVideoExtension(item.ext)) {
+      mediaService.openSeparatePlayer(item.fullPath);
+    } else if (isPhotoExtension(item.ext)) {
       setActiveItem(item);
     } else {
       mediaService.openExternal(item.fullPath);
     }
+  };
+
+  const handleOpenSeparately = (item: FsItem) => {
+    mediaService.openSeparatePlayer(item.fullPath);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, item: FsItem | null) => {
+    e.preventDefault();
+    setContextMenu({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+      item
+    });
   };
 
   const handleSortToggle = (field: SortField) => {
@@ -306,6 +339,8 @@ export default function App() {
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         showHidden={showHidden}
         onToggleShowHidden={handleToggleShowHidden}
+        density={density}
+        onSetDensity={setDensity}
       />
 
       {/* Main App Workspace with Resizable Dividers */}
@@ -330,7 +365,10 @@ export default function App() {
         />
 
         {/* Content Area — Switchable between Grid, Table, Columns & Gallery */}
-        <div className="flex-1 overflow-hidden flex flex-col mac-content min-w-0 transition-colors duration-200">
+        <div
+          onContextMenu={e => handleContextMenu(e, null)}
+          className="flex-1 overflow-hidden flex flex-col mac-content min-w-0 transition-colors duration-200"
+        >
           {!currentPath ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Film className="w-16 h-16 mb-4 opacity-20" />
@@ -349,8 +387,10 @@ export default function App() {
               <ExplorerGrid
                 items={filteredItems}
                 selectedPath={selectedPath}
+                density={density}
                 onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
+                onContextMenu={handleContextMenu}
               />
             </div>
           ) : viewMode === 'table' ? (
@@ -368,9 +408,11 @@ export default function App() {
               <ExplorerColumns
                 currentPath={currentPath}
                 initialItems={filteredItems}
+                isInspectorOpen={isInspectorOpen}
                 onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
                 onQuickLook={handleQuickLook}
+                onContextMenu={handleContextMenu}
               />
             </div>
           ) : (
@@ -412,6 +454,24 @@ export default function App() {
         totalShown={filteredItems.length}
         allItems={items}
         selectedPath={selectedPath}
+      />
+
+      {/* Windows / macOS Explorer Right-Click Context Menu */}
+      <ExplorerContextMenu
+        menu={contextMenu}
+        onClose={() => setContextMenu(prev => ({ ...prev, isOpen: false }))}
+        onOpen={handleItemOpen}
+        onOpenSeparately={handleOpenSeparately}
+        onQuickLook={handleQuickLook}
+        onShowInExplorer={p => mediaService.openInExplorer(p)}
+        onCopyPath={p => navigator.clipboard.writeText(p)}
+        onInspect={item => {
+          handleSelectItem(item);
+          setIsInspectorOpen(true);
+        }}
+        onRefresh={refresh}
+        onToggleHidden={handleToggleShowHidden}
+        showHidden={showHidden}
       />
 
       {/* macOS Quick Look Spacebar Modal */}

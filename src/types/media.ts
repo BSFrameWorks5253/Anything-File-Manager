@@ -64,4 +64,5 @@ export interface MediaViewerAPI {
   setAfmStage?: (folderPath: string, stage: string) => Promise<boolean>;
   generatePremiereProject?: (payload: any) => Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }>;
   sendToTitleAdder?: (folderPath: string) => Promise<{ ok: boolean; error?: string }>;
+  openSeparatePlayer?: (filePath: string) => Promise<{ ok: boolean; error?: string }>;
 }

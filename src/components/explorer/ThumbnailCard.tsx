@@ -22,8 +22,10 @@ import { classifyFolder } from '../../utils/afmTaxonomy';
 interface ThumbnailCardProps {
   item: FsItem;
   isSelected?: boolean;
+  density?: 'compact' | 'normal' | 'broad';
   onClick: () => void;
   onOpen: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 function getFolderType(name: string): 'generic' | 'desktop' | 'downloads' | 'pictures' | 'videos' | 'documents' | 'home' {
@@ -40,8 +42,10 @@ function getFolderType(name: string): 'generic' | 'desktop' | 'downloads' | 'pic
 export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   item,
   isSelected = false,
+  density = 'normal',
   onClick,
-  onOpen
+  onOpen,
+  onContextMenu
 }) => {
   const isRaw = isRawExtension(item.ext);
   const isVideo = isVideoExtension(item.ext);
@@ -80,29 +84,46 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
       }
     });
 
+    // For camera RAW photos (.CR3, .CR2, .NEF, etc.), also read embedded high-res preview directly
+    if (isRaw) {
+      mediaService.readImageBase64(item.fullPath).then(res => {
+        if (isCurrent && res.ok && res.dataUrl) {
+          setThumb(res.dataUrl);
+          setLoadingMeta(false);
+        }
+      });
+    }
+
     return () => {
       isCurrent = false;
     };
-  }, [item.fullPath, isDirectBrowserPhoto, item.isDir]);
+  }, [item.fullPath, isDirectBrowserPhoto, item.isDir, isRaw]);
 
   const directPhotoUrl = isDirectBrowserPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
+
+  // Density dimensions
+  const folderSize = density === 'compact' ? 56 : density === 'broad' ? 96 : 74;
+  const docSize = density === 'compact' ? 52 : density === 'broad' ? 84 : 66;
+  const canvasHeight = density === 'compact' ? 'h-20 sm:h-22' : density === 'broad' ? 'h-32 sm:h-36' : 'h-24 sm:h-28';
+  const labelMaxWidth = density === 'compact' ? 'max-w-[110px]' : density === 'broad' ? 'max-w-[160px]' : 'max-w-[130px]';
 
   return (
     <div
       onClick={onClick}
       onDoubleClick={onOpen}
-      className={`group relative flex flex-col items-center justify-between p-2.5 rounded-xl cursor-pointer select-none transition-all duration-150 ${
+      onContextMenu={onContextMenu}
+      className={`group relative flex flex-col items-center justify-between p-2 rounded-xl cursor-pointer select-none transition-all duration-150 ${
         isSelected
           ? 'bg-black/[0.06] dark:bg-white/[0.08] ring-1 ring-[var(--mac-accent)]/40 shadow-sm'
           : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
       } ${item.isHidden ? 'opacity-55 hover:opacity-100' : ''}`}
     >
       {/* ── Icon / Thumbnail Canvas ── */}
-      <div className="w-full h-24 sm:h-28 flex items-center justify-center relative overflow-hidden">
+      <div className={`w-full ${canvasHeight} flex items-center justify-center relative overflow-hidden`}>
         {item.isDir ? (
           /* Authentic Apple macOS Aqua Blue Folder */
           <div className="relative group-hover:scale-105 transition-transform duration-200">
-            <MacFolderIcon size={76} type={getFolderType(item.name)} />
+            <MacFolderIcon size={folderSize} type={getFolderType(item.name)} />
             {(() => {
               const afm = classifyFolder(item.name, item.fullPath);
               if (afm.type === 'slot_item_a' || afm.type === 'slot_item_b') {
@@ -200,7 +221,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
               </span>
             )}
           </div>
-        ) : isAudio && thumb && !thumb.startsWith('data:image/png') ? (
+        ) : isAudio && thumb && !thumb.startsWith('data:image/svg') ? (
           /* Audio with embedded album art */
           <div className="relative w-full h-full p-1 flex items-center justify-center">
             <img
@@ -215,19 +236,26 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
               </span>
             )}
           </div>
-        ) : thumb && !thumb.startsWith('data:image/svg') ? (
-          /* Shell Icon Extracted from OS */
-          <div className="w-full h-full flex items-center justify-center p-2">
+        ) : (item.ext === 'exe' || item.ext === 'lnk') && thumb && !thumb.startsWith('data:image/svg') ? (
+          /* Sharp Native Application / Shortcut Icon */
+          <div className="w-full h-full flex items-center justify-center p-2 relative">
             <img
               src={thumb}
               alt={item.name}
-              className="w-14 h-14 sm:w-16 sm:h-16 object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+              className="w-12 h-12 sm:w-14 sm:h-14 object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-200"
             />
+            {item.ext === 'lnk' && (
+              <span className="absolute bottom-2 right-3 bg-white dark:bg-neutral-800 text-sky-500 rounded p-0.5 shadow border border-black/10">
+                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <path d="M7 17L17 7M17 7H7M17 7V17" />
+                </svg>
+              </span>
+            )}
           </div>
         ) : (
-          /* Authentic Apple macOS Document Sheet */
+          /* Pixel-Perfect High-DPI Vector Document Sheet (PDF, XLSX, TS, JS, BAT, ZIP, etc. — Never Blurry!) */
           <div className="relative group-hover:scale-105 transition-transform duration-200">
-            <MacDocumentIcon size={68} ext={item.ext} />
+            <MacDocumentIcon size={docSize} ext={item.ext} />
           </div>
         )}
       </div>
@@ -235,7 +263,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
       {/* ── macOS Finder Style Centered Label ── */}
       <div className="w-full mt-2 flex flex-col items-center text-center select-none px-1">
         <span
-          className={`text-xs leading-snug line-clamp-2 px-1.5 py-0.5 rounded transition-all break-words max-w-[130px] ${
+          className={`text-xs leading-snug line-clamp-2 px-1.5 py-0.5 rounded transition-all break-words ${labelMaxWidth} ${
             isSelected
               ? 'bg-[var(--mac-accent)] text-white font-medium shadow-sm'
               : 'text-[var(--mac-text-primary)] font-normal group-hover:text-[var(--mac-accent)]'

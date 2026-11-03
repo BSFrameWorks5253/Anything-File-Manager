@@ -208,6 +208,39 @@ app.whenReady().then(() => {
     mainWindow?.close();
   });
 
+  ipcMain.handle('media:openSeparatePlayer', async (_event, filePath: string) => {
+    const fileName = path.basename(filePath);
+    const playerWin = new BrowserWindow({
+      width: 1120,
+      height: 740,
+      minWidth: 640,
+      minHeight: 460,
+      title: `${fileName} — Anything Media Player`,
+      icon: getAppIconPath('open'),
+      backgroundColor: '#07080b',
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false
+      }
+    });
+
+    Menu.setApplicationMenu(null);
+    playerWin.setMenuBarVisibility(false);
+
+    const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+    if (isDev && devServerUrl) {
+      playerWin.loadURL(`${devServerUrl}?player=1&file=${encodeURIComponent(filePath)}`);
+    } else {
+      playerWin.loadFile(getAppIndexPath(), {
+        query: { player: '1', file: filePath }
+      });
+    }
+    return { ok: true };
+  });
+
   const loaderConfig = resolveChildAppLoaderConfig('anything-file-manager', 'Anything File Manager');
 
   if (loaderConfig.enabled !== false) {

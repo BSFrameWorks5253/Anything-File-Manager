@@ -55,6 +55,8 @@ interface ExplorerToolbarProps {
   onOpenSettings?: () => void;
   showHidden?: boolean;
   onToggleShowHidden?: () => void;
+  density?: 'compact' | 'normal' | 'broad';
+  onSetDensity?: (d: 'compact' | 'normal' | 'broad') => void;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -82,7 +84,9 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   onChooseFolder,
   onOpenSettings,
   showHidden = false,
-  onToggleShowHidden
+  onToggleShowHidden,
+  density = 'normal',
+  onSetDensity
 }) => {
   const { actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -298,6 +302,43 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
             title="Gallery (Ctrl+4)"
           >
             <SquareCode className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* ── Density / Size Resizer Control (Compact, Normal, Broad) ── */}
+        <div className="hidden lg:flex items-center bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 p-0.5 rounded-lg text-[11px] font-medium">
+          <button
+            onClick={() => onSetDensity?.('compact')}
+            className={`px-2 py-1 rounded-md transition-all ${
+              density === 'compact'
+                ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm font-semibold'
+                : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
+            }`}
+            title="Compact Density"
+          >
+            Compact
+          </button>
+          <button
+            onClick={() => onSetDensity?.('normal')}
+            className={`px-2 py-1 rounded-md transition-all ${
+              density === 'normal'
+                ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm font-semibold'
+                : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
+            }`}
+            title="Normal Density"
+          >
+            Normal
+          </button>
+          <button
+            onClick={() => onSetDensity?.('broad')}
+            className={`px-2 py-1 rounded-md transition-all ${
+              density === 'broad'
+                ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm font-semibold'
+                : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
+            }`}
+            title="Broad / Large Density"
+          >
+            Broad
           </button>
         </div>
 

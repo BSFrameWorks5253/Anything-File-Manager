@@ -7,7 +7,8 @@ import {
   File,
   Clock,
   Maximize2,
-  Eye
+  Eye,
+  X
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import {
@@ -29,9 +30,11 @@ interface ColumnLevel {
 interface ExplorerColumnsProps {
   currentPath: string;
   initialItems: FsItem[];
+  isInspectorOpen?: boolean;
   onSelectItem: (item: FsItem) => void;
   onOpenItem: (item: FsItem) => void;
   onQuickLook?: (item: FsItem) => void;
+  onContextMenu?: (e: React.MouseEvent, item: FsItem) => void;
 }
 
 function ColumnVideoDuration({ item, isSelected }: { item: FsItem; isSelected: boolean }) {
@@ -77,9 +80,11 @@ function ColumnVideoDuration({ item, isSelected }: { item: FsItem; isSelected: b
 export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
   currentPath,
   initialItems,
+  isInspectorOpen = false,
   onSelectItem,
   onOpenItem,
-  onQuickLook
+  onQuickLook,
+  onContextMenu
 }) => {
   const [columns, setColumns] = useState<ColumnLevel[]>([]);
   const [previewItem, setPreviewItem] = useState<FsItem | null>(null);
@@ -123,19 +128,30 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
     } else {
       setColumns(nextCols);
       setPreviewItem(item);
+      setPreviewThumb(null);
 
-      if (isVideoExtension(item.ext) || isRawExtension(item.ext)) {
+      const isVid = isVideoExtension(item.ext);
+      const isRaw = isRawExtension(item.ext);
+
+      if (isVid || isRaw) {
         const cached = thumbnailService.getCached(item.fullPath);
-        if (cached) {
+        if (cached && cached.thumb) {
           setPreviewThumb(cached.thumb);
           setPreviewDuration(cached.duration);
         } else {
           thumbnailService.extractVideoThumbnail(item.fullPath).then(res => {
-            if (res) {
+            if (res && res.thumb) {
               setPreviewThumb(res.thumb);
               setPreviewDuration(res.duration);
             }
           });
+          if (isRaw) {
+            mediaService.readImageBase64(item.fullPath).then(res => {
+              if (res.ok && res.dataUrl) {
+                setPreviewThumb(res.dataUrl);
+              }
+            });
+          }
         }
       }
     }
@@ -211,9 +227,15 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
                       key={item.fullPath}
                       onClick={() => handleColumnClick(colIdx, item)}
                       onDoubleClick={() => onOpenItem(item)}
+                      onContextMenu={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleColumnClick(colIdx, item);
+                        onContextMenu?.(e, item);
+                      }}
                       className={`group relative w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-indigo-600 text-white font-medium shadow-sm'
+                          ? 'bg-[var(--mac-accent)] text-white font-medium shadow-sm'
                           : 'text-[var(--mac-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
@@ -285,9 +307,19 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
         );
       })}
 
-      {/* ── macOS Finder Style Preview Column (When file selected) ── */}
-      {previewItem && (
+      {/* ── macOS Finder Style Preview Column (When file selected and right Inspector is not already open) ── */}
+      {previewItem && !isInspectorOpen && (
         <div className="w-80 min-w-[300px] border-r border-[var(--mac-border)] flex flex-col h-full mac-sidebar p-4 select-none flex-shrink-0 transition-colors duration-200">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold text-[var(--mac-text-muted)] uppercase tracking-wider">Preview</span>
+            <button
+              onClick={() => setPreviewItem(null)}
+              className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
+              title="Close Preview Column"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <div className="aspect-video w-full bg-black/10 dark:bg-black/60 rounded-xl overflow-hidden flex items-center justify-center relative shadow-sm border border-[var(--mac-border)] mb-4">
             {isRawExtension(previewItem.ext) ? (
               previewThumb ? (

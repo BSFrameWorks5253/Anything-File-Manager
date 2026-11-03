@@ -48,8 +48,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (actualTheme === 'light') {
       root.classList.add('light-mode');
       root.classList.remove('dark-mode');
+      root.classList.remove('dark');
     } else {
       root.classList.add('dark-mode');
+      root.classList.add('dark');
       root.classList.remove('light-mode');
     }
     root.style.setProperty('--mac-accent', accentColor);

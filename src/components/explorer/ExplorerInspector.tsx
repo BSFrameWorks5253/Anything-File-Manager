@@ -59,16 +59,23 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
     const isRaw = isRawExtension(item.ext);
     if (isVid || isRaw) {
       const cached = thumbnailService.getCached(item.fullPath);
-      if (cached) {
+      if (cached && cached.thumb) {
         setThumb(cached.thumb);
         setDuration(cached.duration);
       } else {
         thumbnailService.extractVideoThumbnail(item.fullPath).then(res => {
-          if (res) {
+          if (res && res.thumb) {
             setThumb(res.thumb);
             setDuration(res.duration);
           }
         });
+        if (isRaw) {
+          mediaService.readImageBase64(item.fullPath).then(res => {
+            if (res.ok && res.dataUrl) {
+              setThumb(res.dataUrl);
+            }
+          });
+        }
       }
     }
   }, [item?.fullPath, item?.ext]);
@@ -271,69 +278,69 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
       {/* File Metadata Details List */}
       <div className="p-4 space-y-3 flex-1 text-xs">
         <div>
-          <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">File Name</span>
-          <p className="text-white font-semibold break-words mt-0.5">{item.name}</p>
+          <span className="text-[10px] text-[var(--mac-text-muted)] uppercase font-bold tracking-wider">File Name</span>
+          <p className="text-[var(--mac-text-primary)] font-semibold break-words mt-0.5">{item.name}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--mac-border)]">
           <div>
-            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider flex items-center gap-1">
-              <FileCode className="w-3 h-3 text-indigo-400" />
+            <span className="text-[10px] text-[var(--mac-text-muted)] uppercase font-bold tracking-wider flex items-center gap-1">
+              <FileCode className="w-3 h-3 text-indigo-500" />
               <span>Format</span>
             </span>
-            <p className="text-gray-200 uppercase font-bold mt-0.5">{item.ext || 'DIRECTORY'}</p>
+            <p className="text-[var(--mac-text-primary)] uppercase font-bold mt-0.5">{item.ext || 'DIRECTORY'}</p>
           </div>
           <div>
-            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider flex items-center gap-1">
-              <HardDrive className="w-3 h-3 text-emerald-400" />
+            <span className="text-[10px] text-[var(--mac-text-muted)] uppercase font-bold tracking-wider flex items-center gap-1">
+              <HardDrive className="w-3 h-3 text-emerald-500" />
               <span>Size</span>
             </span>
-            <p className="text-gray-200 font-mono mt-0.5">{item.isDir ? '—' : formatBytes(item.size)}</p>
+            <p className="text-[var(--mac-text-primary)] font-mono mt-0.5">{item.isDir ? '—' : formatBytes(item.size)}</p>
           </div>
         </div>
 
         {isVideo && duration > 0 && (
-          <div className="pt-2 border-t border-white/5">
-            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider flex items-center gap-1">
-              <Clock className="w-3 h-3 text-amber-400" />
+          <div className="pt-2 border-t border-[var(--mac-border)]">
+            <span className="text-[10px] text-[var(--mac-text-muted)] uppercase font-bold tracking-wider flex items-center gap-1">
+              <Clock className="w-3 h-3 text-amber-500" />
               <span>Timelapse Duration</span>
             </span>
-            <p className="text-amber-300 font-bold mt-0.5">{formatTimelapse(duration)} ({duration.toFixed(1)}s)</p>
+            <p className="text-amber-500 dark:text-amber-300 font-bold mt-0.5">{formatTimelapse(duration)} ({duration.toFixed(1)}s)</p>
           </div>
         )}
 
-        <div className="pt-2 border-t border-white/5">
-          <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider flex items-center gap-1">
-            <Calendar className="w-3 h-3 text-sky-400" />
+        <div className="pt-2 border-t border-[var(--mac-border)]">
+          <span className="text-[10px] text-[var(--mac-text-muted)] uppercase font-bold tracking-wider flex items-center gap-1">
+            <Calendar className="w-3 h-3 text-sky-500" />
             <span>Date Modified</span>
           </span>
-          <p className="text-gray-300 font-mono mt-0.5">{formatDate(item.mtime)}</p>
+          <p className="text-[var(--mac-text-secondary)] font-mono mt-0.5">{formatDate(item.mtime)}</p>
         </div>
 
-        <div className="pt-2 border-t border-white/5">
+        <div className="pt-2 border-t border-[var(--mac-border)]">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Full Path</span>
+            <span className="text-[10px] text-[var(--mac-text-muted)] uppercase font-bold tracking-wider">Full Path</span>
             <button
               onClick={handleCopyPath}
-              className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+              className="text-[10px] text-[var(--mac-accent)] hover:underline flex items-center gap-1"
             >
-              {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
-          <p className="text-[11px] text-gray-400 font-mono break-all bg-black/40 p-2 rounded-lg border border-white/5">
+          <p className="text-[11px] text-[var(--mac-text-secondary)] font-mono break-all bg-black/[0.04] dark:bg-black/40 p-2 rounded-lg border border-[var(--mac-border)]">
             {item.fullPath}
           </p>
         </div>
       </div>
 
       {/* Footer Quick Actions */}
-      <div className="p-3 border-t border-white/10 bg-[#12141c] flex gap-2">
+      <div className="p-3 border-t border-[var(--mac-border)] mac-header flex gap-2">
         <button
           onClick={() => mediaService.openInExplorer(item.fullPath)}
-          className="flex-1 py-1.5 px-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-white/10"
+          className="flex-1 py-1.5 px-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--mac-text-primary)] rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-[var(--mac-border)]"
         >
-          <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+          <FolderOpen className="w-3.5 h-3.5 text-amber-500" />
           <span>Show in Explorer</span>
         </button>
       </div>
