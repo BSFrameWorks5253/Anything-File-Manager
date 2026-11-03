@@ -30,6 +30,7 @@ export interface MediaViewerAPI {
   openInExplorer: (filePath: string) => Promise<boolean>;
   openExternal: (filePath: string) => Promise<boolean>;
   getInitialFile: () => Promise<string | null>;
+  getVideoMetadata: (filePath: string) => Promise<{ ok: boolean; duration: number; thumb: string; error?: string }>;
   toLocalResourceUrl: (filePath: string) => string;
   onOpenTarget: (cb: (targetPath: string) => void) => () => void;
   registerDefaultViewer: (categories: ('videos' | 'photos')[]) => Promise<{ ok: boolean; registeredCount?: number; total?: number; error?: string }>;

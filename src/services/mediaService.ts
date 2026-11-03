@@ -43,6 +43,11 @@ export const mediaService = {
     return api.getInitialFile();
   },
 
+  async getVideoMetadata(filePath: string): Promise<{ ok: boolean; duration: number; thumb: string; error?: string }> {
+    if (!api?.getVideoMetadata) return { ok: false, duration: 0, thumb: '', error: 'API unavailable' };
+    return api.getVideoMetadata(filePath);
+  },
+
   toLocalResourceUrl(filePath: string): string {
     if (api?.toLocalResourceUrl) {
       return api.toLocalResourceUrl(filePath);

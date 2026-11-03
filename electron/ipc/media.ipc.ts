@@ -1,6 +1,90 @@
 import { ipcMain, dialog, shell, app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+// In-memory cache for video metadata & frame thumbnails
+const videoMetaCache = new Map<string, { duration: number; thumb: string }>();
+
+/**
+ * Extract video duration (in seconds) via ffprobe or Windows Shell COM
+ */
+async function extractDuration(filePath: string): Promise<number> {
+  // 1. Try ffprobe (fastest, supports virtually all containers & codecs)
+  try {
+    const { stdout } = await execAsync(
+      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+      { timeout: 4000 }
+    );
+    const parsed = parseFloat(stdout.trim());
+    if (isFinite(parsed) && parsed > 0) {
+      return Math.round(parsed * 10) / 10;
+    }
+  } catch {}
+
+  // 2. Fallback: Windows Shell COM (Property 27 = Duration)
+  if (process.platform === 'win32') {
+    try {
+      const dir = path.dirname(filePath).replace(/'/g, "''");
+      const leaf = path.basename(filePath).replace(/'/g, "''");
+      const psCmd = `powershell -NoProfile -Command "$shell = New-Object -ComObject Shell.Application; $folder = $shell.Namespace('${dir}'); $item = $folder.ParseName('${leaf}'); $folder.GetDetailsOf($item, 27)"`;
+      const { stdout } = await execAsync(psCmd, { timeout: 3000 });
+      const raw = stdout.trim(); // e.g. "00:00:10" or "01:23:45"
+      if (raw && raw.includes(':')) {
+        const parts = raw.split(':').map(p => parseInt(p, 10));
+        if (parts.length === 3 && parts.every(p => !isNaN(p))) {
+          const totalSecs = parts[0] * 3600 + parts[1] * 60 + parts[2];
+          if (totalSecs > 0) return totalSecs;
+        }
+      }
+    } catch {}
+  }
+
+  return 0;
+}
+
+/**
+ * Extract video thumbnail frame via ffmpeg
+ */
+async function extractThumbnailFrame(filePath: string, duration: number): Promise<string> {
+  // Seek target: 10% of duration, or 1s, or 0.1s for short clips
+  let seekSecs = 0.5;
+  if (duration > 1) {
+    seekSecs = Math.min(Math.max(1, duration * 0.1), duration - 0.2);
+  }
+
+  const seekFormatted = new Date(seekSecs * 1000).toISOString().substr(11, 8) + '.' + String(Math.floor((seekSecs % 1) * 1000)).padStart(3, '0');
+
+  try {
+    const cmd = `ffmpeg -ss ${seekFormatted} -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 -update 1 pipe:1`;
+    const { stdout: buf } = await execAsync(cmd, {
+      encoding: 'buffer',
+      maxBuffer: 15 * 1024 * 1024,
+      timeout: 5000
+    });
+    if (buf && buf.length > 0) {
+      return `data:image/jpeg;base64,${buf.toString('base64')}`;
+    }
+  } catch {}
+
+  // Fallback: Try seeking at start of file
+  try {
+    const cmd = `ffmpeg -ss 00:00:00.100 -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 -update 1 pipe:1`;
+    const { stdout: buf } = await execAsync(cmd, {
+      encoding: 'buffer',
+      maxBuffer: 15 * 1024 * 1024,
+      timeout: 4000
+    });
+    if (buf && buf.length > 0) {
+      return `data:image/jpeg;base64,${buf.toString('base64')}`;
+    }
+  } catch {}
+
+  return '';
+}
 
 /**
  * Registers all media explorer & viewer IPC handlers
@@ -78,6 +162,41 @@ export function registerMediaIPC(
       };
     } catch (err: any) {
       return { ok: false, error: err.message ?? String(err) };
+    }
+  });
+
+  /**
+   * Fast native extraction of video duration and thumbnail frame
+   */
+  ipcMain.handle('media:getVideoMetadata', async (_event, filePath: string) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) {
+        return { ok: false, error: 'File not found' };
+      }
+
+      // Check cache first
+      const cached = videoMetaCache.get(filePath);
+      if (cached) {
+        return { ok: true, duration: cached.duration, thumb: cached.thumb };
+      }
+
+      // Extract duration & thumbnail
+      const duration = await extractDuration(filePath);
+      const thumb = await extractThumbnailFrame(filePath, duration);
+
+      const result = { duration, thumb };
+      if (thumb || duration > 0) {
+        videoMetaCache.set(filePath, result);
+      }
+
+      return {
+        ok: true,
+        duration,
+        thumb
+      };
+    } catch (err: any) {
+      console.error('[media:getVideoMetadata] Error:', err);
+      return { ok: false, error: err.message || String(err), duration: 0, thumb: '' };
     }
   });
 

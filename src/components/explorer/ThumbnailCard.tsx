@@ -17,22 +17,36 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
   const cached = thumbnailService.getCached(item.fullPath);
   const [thumb, setThumb] = useState<string | null>(cached?.thumb || null);
   const [duration, setDuration] = useState<number>(cached?.duration || 0);
+  const [loadingMeta, setLoadingMeta] = useState<boolean>(!cached && isVideo);
 
   useEffect(() => {
-    if (!isVideo || thumb) return;
+    if (!isVideo) return;
+
+    const currentCached = thumbnailService.getCached(item.fullPath);
+    if (currentCached && currentCached.thumb && currentCached.duration > 0) {
+      setThumb(currentCached.thumb);
+      setDuration(currentCached.duration);
+      setLoadingMeta(false);
+      return;
+    }
+
     let isCurrent = true;
+    setLoadingMeta(true);
 
     thumbnailService.extractVideoThumbnail(item.fullPath).then(res => {
-      if (isCurrent && res) {
-        setThumb(res.thumb);
-        setDuration(res.duration);
+      if (isCurrent) {
+        if (res) {
+          setThumb(res.thumb);
+          setDuration(res.duration);
+        }
+        setLoadingMeta(false);
       }
     });
 
     return () => {
       isCurrent = false;
     };
-  }, [item.fullPath, isVideo, thumb]);
+  }, [item.fullPath, isVideo]);
 
   const photoUrl = isPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
 
@@ -69,23 +83,25 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
           <File className="w-10 h-10 text-gray-400 group-hover:scale-110 transition-transform" />
         )}
 
-        {/* Video Duration / Timelapse Badge (e.g. 10s) */}
-        {isVideo && duration > 0 && (
-          <span className="absolute bottom-2 right-2 bg-black/85 backdrop-blur-md text-amber-300 border border-amber-400/40 text-[11px] font-bold px-1.5 py-0.5 rounded shadow-xl flex items-center gap-1">
-            <Clock className="w-2.5 h-2.5" />
-            {formatTimelapse(duration)}
+        {/* Video Duration / Timelapse Badge (e.g. 10s, 1m 20s) */}
+        {isVideo && (
+          <span className="absolute bottom-2 right-2 bg-black/90 backdrop-blur-md text-amber-300 border border-amber-400/50 text-[11px] font-extrabold px-2 py-0.5 rounded-md shadow-2xl flex items-center gap-1.5 z-10 tracking-wide pointer-events-none">
+            <Clock className={`w-3 h-3 text-amber-400 ${loadingMeta ? 'animate-spin' : ''}`} />
+            <span>
+              {duration > 0 ? formatTimelapse(duration) : loadingMeta ? '...' : 'VIDEO'}
+            </span>
           </span>
         )}
 
         {/* Extension Pill */}
         {!item.isDir && item.ext && (
-          <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-gray-300 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded border border-white/10">
+          <span className="absolute top-2 left-2 bg-black/75 backdrop-blur-md text-gray-200 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded border border-white/10 z-10">
             {item.ext}
           </span>
         )}
 
         {/* Hover Action Overlay */}
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20">
           <button
             onClick={e => {
               e.stopPropagation();
