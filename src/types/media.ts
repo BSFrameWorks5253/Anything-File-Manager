@@ -5,6 +5,7 @@ export interface FsItem {
   mtime: number;
   ext: string;
   fullPath: string;
+  isHidden?: boolean;
 }
 
 export type FilterCategory = 'all' | 'photo' | 'video' | 'timelapse';

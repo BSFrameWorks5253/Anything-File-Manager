@@ -207,7 +207,7 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                 onDoubleClick={() => onOpenItem(item)}
                 className={`group cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors border-b border-[var(--mac-border-subtle)] ${
                   isSelected ? 'bg-indigo-600 text-white font-medium shadow-sm' : 'text-[var(--mac-text-primary)]'
-                }`}
+                } ${item.isHidden && !isSelected ? 'opacity-55 hover:opacity-100' : ''}`}
               >
                 {/* Name */}
                 <td className="py-2 px-3 truncate">

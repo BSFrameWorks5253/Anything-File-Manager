@@ -78,7 +78,9 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
     <div
       onClick={onClick}
       onDoubleClick={onOpen}
-      className="group relative flex flex-col mac-card hover:border-[var(--mac-accent)] rounded-xl overflow-hidden cursor-pointer transition-all duration-200 border"
+      className={`group relative flex flex-col mac-card hover:border-[var(--mac-accent)] rounded-xl overflow-hidden cursor-pointer transition-all duration-200 border ${
+        item.isHidden ? 'opacity-55 hover:opacity-100 border-dashed border-gray-400/40' : ''
+      }`}
     >
       {/* Thumbnail Aspect Ratio Box */}
       <div className="relative aspect-video w-full bg-black/10 dark:bg-black/60 flex items-center justify-center overflow-hidden">

@@ -49,6 +49,17 @@ export default function App() {
   const [activeItem, setActiveItem] = useState<FsItem | null>(null);
   const [isDefaultAppsModalOpen, setIsDefaultAppsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [showHidden, setShowHidden] = useState<boolean>(() => {
+    return localStorage.getItem('media-viewer-show-hidden') === 'true';
+  });
+
+  const handleToggleShowHidden = useCallback(() => {
+    setShowHidden(prev => {
+      const next = !prev;
+      localStorage.setItem('media-viewer-show-hidden', String(next));
+      return next;
+    });
+  }, []);
 
   // Resizable sidebar and inspector widths
   const [sidebarWidth, setSidebarWidth] = useState(250);
@@ -182,6 +193,12 @@ export default function App() {
         }
       }
 
+      // Cmd/Ctrl+Shift+. -> Toggle Show Hidden Files (Native macOS Finder / Explorer shortcut)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === '.' || e.key === '>')) {
+        e.preventDefault();
+        handleToggleShowHidden();
+      }
+
       // Alt+Up -> Parent folder
       if (e.altKey && e.key === 'ArrowUp') {
         e.preventDefault();
@@ -220,6 +237,9 @@ export default function App() {
   // Filter items by category & search term
   const filteredItems = useMemo(() => {
     let list = items;
+    if (!showHidden) {
+      list = list.filter(i => !i.isHidden);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(i => i.name.toLowerCase().includes(q));
@@ -284,6 +304,8 @@ export default function App() {
         onToggleInspector={() => setIsInspectorOpen(prev => !prev)}
         onChooseFolder={handleChooseFolder}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        showHidden={showHidden}
+        onToggleShowHidden={handleToggleShowHidden}
       />
 
       {/* Main App Workspace with Resizable Dividers */}
@@ -424,7 +446,11 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        onOpenDefaultApps={() => setIsDefaultAppsModalOpen(true)}
+        defaultViewMode={viewMode}
+        onSetDefaultViewMode={setViewMode}
+        onOpenDefaultAppsModal={() => setIsDefaultAppsModalOpen(true)}
+        showHidden={showHidden}
+        onToggleShowHidden={handleToggleShowHidden}
       />
     </div>
   );

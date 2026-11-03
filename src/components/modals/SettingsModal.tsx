@@ -25,6 +25,8 @@ interface SettingsModalProps {
   defaultViewMode: ViewMode;
   onSetDefaultViewMode: (mode: ViewMode) => void;
   onOpenDefaultAppsModal?: () => void;
+  showHidden?: boolean;
+  onToggleShowHidden?: () => void;
 }
 
 const ACCENT_COLORS = [
@@ -41,7 +43,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   defaultViewMode,
   onSetDefaultViewMode,
-  onOpenDefaultAppsModal
+  onOpenDefaultAppsModal,
+  showHidden = false,
+  onToggleShowHidden
 }) => {
   const { theme, actualTheme, setTheme, accentColor, setAccentColor } = useTheme();
   const [activeTab, setActiveTab] = useState<'appearance' | 'general' | 'cache'>('appearance');
@@ -270,6 +274,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   })}
                 </div>
               </div>
+
+              {/* Show Hidden Files & Folders */}
+              {onToggleShowHidden && (
+                <div className="p-4 rounded-xl border mac-border mac-header flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold mac-text-primary block">
+                      Show Hidden Files and Folders
+                    </span>
+                    <span className="text-[11px] mac-text-secondary block mt-0.5">
+                      Display protected operating system items and hidden dot files ($Recycle.Bin, .git, etc.)
+                    </span>
+                    <span className="text-[10px] text-[var(--mac-text-muted)] block mt-0.5">
+                      Shortcut: Ctrl+Shift+. (or Cmd+Shift+.)
+                    </span>
+                  </div>
+                  <button
+                    onClick={onToggleShowHidden}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      showHidden ? 'bg-[var(--mac-accent)]' : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        showHidden ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
 
               {/* Windows Default Apps Integration */}
               {onOpenDefaultAppsModal && (

@@ -19,7 +19,9 @@ import {
   X,
   Sun,
   Moon,
-  Settings
+  Settings,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { ViewMode, SortField, SortOrder } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
@@ -48,6 +50,8 @@ interface ExplorerToolbarProps {
   onToggleInspector: () => void;
   onChooseFolder: () => void;
   onOpenSettings?: () => void;
+  showHidden?: boolean;
+  onToggleShowHidden?: () => void;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -73,7 +77,9 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   isInspectorOpen,
   onToggleInspector,
   onChooseFolder,
-  onOpenSettings
+  onOpenSettings,
+  showHidden = false,
+  onToggleShowHidden
 }) => {
   const { actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -319,6 +325,21 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
             <Moon className="w-3.5 h-3.5 text-slate-700" />
           )}
         </button>
+
+        {/* Toggle Hidden Items */}
+        {onToggleShowHidden && (
+          <button
+            onClick={onToggleShowHidden}
+            className={`p-1.5 h-8 w-8 flex items-center justify-center rounded-lg border transition-colors ${
+              showHidden
+                ? 'bg-[var(--mac-accent)] text-white border-transparent shadow-sm'
+                : 'border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.06] text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/10 dark:hover:bg-white/10'
+            }`}
+            title={showHidden ? 'Hide Hidden Items (Ctrl+Shift+.)' : 'Show Hidden Items (Ctrl+Shift+.)'}
+          >
+            {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          </button>
+        )}
 
         {/* Settings */}
         {onOpenSettings && (

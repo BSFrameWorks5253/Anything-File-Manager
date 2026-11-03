@@ -20,6 +20,40 @@ const AUDIO_EXTS = new Set([
   'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'opus', 'aiff', 'alac', 'mid', 'midi'
 ]);
 
+// Well-known system hidden folders and files
+const KNOWN_HIDDEN_NAMES = new Set([
+  // Windows & OS system folders
+  'system volume information',
+  'recovery',
+  'config.msi',
+  'onedrivetemp',
+  'perflogs',
+  'documents and settings',
+  'ahcache',
+  'msocache',
+  'programdata',
+  'inteloptanedata',
+  // Windows & OS system files
+  'desktop.ini',
+  'thumbs.db',
+  'hiberfil.sys',
+  'pagefile.sys',
+  'swapfile.sys',
+  'dumpstack.log.tmp',
+  'boottel.dat'
+]);
+
+export function isItemHidden(name: string): boolean {
+  if (!name) return false;
+  // Dot files (.git, .GamingRoot, .DS_Store) & Dollar system folders ($Recycle.Bin, $SysReset)
+  if (name.startsWith('.') || name.startsWith('$')) return true;
+  const lower = name.toLowerCase();
+  if (KNOWN_HIDDEN_NAMES.has(lower)) return true;
+  if (/^found\.\d+$/i.test(name)) return true;
+  if (lower.startsWith('ntuser.dat') || lower.startsWith('usrclass.dat')) return true;
+  return false;
+}
+
 // Persistent Disk Thumbnail Cache Directory
 let thumbCacheDir: string | null = null;
 function getThumbCacheDir(): string {
@@ -181,13 +215,15 @@ export function registerMediaIPC(
             mtime = stat.mtimeMs;
           } catch {}
           const ext = e.isDirectory() ? '' : (e.name.split('.').pop() || '').toLowerCase();
+          const isHidden = isItemHidden(e.name);
           return {
             name: e.name,
             isDir: e.isDirectory(),
             size,
             mtime,
             ext,
-            fullPath
+            fullPath,
+            isHidden
           };
         })
         .sort((a, b) => {
