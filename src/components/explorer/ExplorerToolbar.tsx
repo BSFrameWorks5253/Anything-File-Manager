@@ -12,7 +12,6 @@ import {
   Columns,
   SquareCode,
   FolderOpen,
-  ShieldCheck,
   PanelRight,
   ArrowUpDown,
   Edit2,
@@ -48,7 +47,6 @@ interface ExplorerToolbarProps {
   isInspectorOpen: boolean;
   onToggleInspector: () => void;
   onChooseFolder: () => void;
-  onOpenDefaultAppsModal?: () => void;
   onOpenSettings?: () => void;
 }
 
@@ -75,10 +73,9 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   isInspectorOpen,
   onToggleInspector,
   onChooseFolder,
-  onOpenDefaultAppsModal,
   onOpenSettings
 }) => {
-  const { theme, actualTheme, setTheme } = useTheme();
+  const { actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
   const [pathInput, setPathInput] = useState(currentPath);
 
@@ -99,15 +96,15 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   };
 
   return (
-    <div className="flex flex-col border-b mac-header select-none transition-colors duration-200">
-      {/* ── Top Command Bar ── */}
-      <div className="flex items-center gap-2.5 px-3 py-2">
-        {/* macOS / Windows Navigation Controls */}
-        <div className="flex items-center gap-0.5 bg-black/10 dark:bg-white/5 p-0.5 rounded-lg border border-black/5 dark:border-white/5">
+    <header className="flex flex-col border-b mac-header select-none transition-colors duration-200">
+      {/* ── Main Native Command Bar ── */}
+      <div className="flex items-center gap-2 px-3 py-1.5 h-12">
+        {/* Navigation Group (Back / Forward) */}
+        <div className="flex items-center bg-black/5 dark:bg-white/[0.06] p-0.5 rounded-lg border border-black/10 dark:border-white/10">
           <button
             onClick={onGoBack}
             disabled={!canGoBack}
-            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 text-[var(--mac-text-primary)] transition-colors"
+            className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-25 text-[var(--mac-text-primary)] transition-colors"
             title="Back (Alt+Left)"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -115,37 +112,41 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
           <button
             onClick={onGoForward}
             disabled={!canGoForward}
-            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 text-[var(--mac-text-primary)] transition-colors"
+            className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-25 text-[var(--mac-text-primary)] transition-colors"
             title="Forward (Alt+Right)"
           >
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+        </div>
+
+        {/* Action Buttons: Up, Refresh, Home */}
+        <div className="flex items-center gap-0.5 text-[var(--mac-text-secondary)]">
           <button
             onClick={onGoUp}
             disabled={!canGoUp}
-            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 text-[var(--mac-text-primary)] transition-colors"
-            title="Up to Parent Folder (Alt+Up)"
+            className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-25 hover:text-[var(--mac-text-primary)] transition-colors"
+            title="Parent Folder (Alt+Up)"
           >
             <ArrowUp className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onRefresh}
-            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-primary)] transition-colors"
+            className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--mac-text-primary)] transition-colors"
             title="Refresh (F5)"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onGoHome}
-            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-primary)] transition-colors"
+            className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--mac-text-primary)] transition-colors"
             title="Home"
           >
             <Home className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Windows Explorer Address Bar + Editable Path */}
-        <div className="flex-1 flex items-center bg-black/40 border border-white/10 hover:border-indigo-500/40 focus-within:border-indigo-500 rounded-xl px-3 py-1.5 transition-all shadow-inner overflow-hidden">
+        {/* Streamlined Native Breadcrumb / Address Bar */}
+        <div className="flex-1 flex items-center bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 focus-within:border-[var(--mac-accent)] rounded-lg px-2.5 h-8 transition-all overflow-hidden">
           {isEditingPath ? (
             <form onSubmit={handlePathSubmit} className="flex items-center w-full gap-2">
               <input
@@ -153,11 +154,11 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
                 value={pathInput}
                 onChange={e => setPathInput(e.target.value)}
                 autoFocus
-                className="w-full bg-transparent text-xs text-white outline-none font-mono"
-                placeholder="Type or paste a folder path..."
+                className="w-full bg-transparent text-xs text-[var(--mac-text-primary)] outline-none font-mono"
+                placeholder="Folder path..."
               />
-              <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-0.5">
-                <Check className="w-4 h-4" />
+              <button type="submit" className="text-emerald-500 hover:text-emerald-400 p-0.5" title="Navigate">
+                <Check className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
@@ -165,9 +166,10 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
                   setPathInput(currentPath);
                   setIsEditingPath(false);
                 }}
-                className="text-gray-400 hover:text-white p-0.5"
+                className="text-gray-400 hover:text-[var(--mac-text-primary)] p-0.5"
+                title="Cancel"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </form>
           ) : (
@@ -177,7 +179,7 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
               title="Click to edit path directly"
             >
               {breadcrumbs.length === 0 ? (
-                <span className="text-xs text-gray-500">Select a location...</span>
+                <span className="text-xs text-[var(--mac-text-muted)]">Select location...</span>
               ) : (
                 breadcrumbs.map((crumb, idx) => {
                   const pathUpTo = breadcrumbs.slice(0, idx + 1).join('\\');
@@ -190,13 +192,13 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
                           e.stopPropagation();
                           onNavigateBreadcrumb(pathUpTo.includes(':') && !pathUpTo.includes('\\') ? pathUpTo + '\\' : pathUpTo);
                         }}
-                        className={`text-xs px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors truncate max-w-[150px] ${
-                          isLast ? 'text-white font-bold' : 'text-gray-400 hover:text-gray-200'
+                        className={`text-xs px-1 py-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors truncate max-w-[160px] ${
+                          isLast ? 'text-[var(--mac-text-primary)] font-semibold' : 'text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)]'
                         }`}
                       >
                         {crumb}
                       </button>
-                      {!isLast && <ChevronRight className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />}
+                      {!isLast && <ChevronRight className="w-3 h-3 text-[var(--mac-text-muted)] flex-shrink-0" />}
                     </React.Fragment>
                   );
                 })
@@ -207,78 +209,78 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
                   e.stopPropagation();
                   setIsEditingPath(true);
                 }}
-                className="ml-auto text-gray-500 hover:text-gray-300 p-1 rounded hover:bg-white/10"
+                className="ml-auto text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                 title="Edit path directly"
               >
-                <Edit2 className="w-3.5 h-3.5" />
+                <Edit2 className="w-3 h-3" />
               </button>
             </div>
           )}
         </div>
 
-        {/* Search Bar with Instant Filter */}
-        <div className="relative w-48 lg:w-60">
-          <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+        {/* Clean Native Search Input */}
+        <div className="relative w-44 lg:w-56">
+          <Search className="w-3.5 h-3.5 text-[var(--mac-text-muted)] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={e => onSearchChange(e.target.value)}
-            placeholder="Search media..."
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-indigo-500 focus:bg-white/10 transition-all"
+            placeholder="Search"
+            className="w-full bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 rounded-lg pl-8 pr-2.5 h-8 text-xs text-[var(--mac-text-primary)] placeholder-[var(--mac-text-muted)] outline-none focus:border-[var(--mac-accent)] transition-all"
           />
         </div>
 
-        {/* ── macOS Finder Style Segmented View Switcher ── */}
-        <div className="flex items-center bg-black/40 border border-white/10 p-1 rounded-xl">
+        {/* ── Native macOS Segmented View Control ── */}
+        <div className="flex items-center bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 p-0.5 rounded-lg">
           <button
             onClick={() => onSetViewMode('grid')}
-            className={`p-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all ${
+            className={`p-1 rounded-md flex items-center justify-center transition-all ${
               viewMode === 'grid'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-gray-400 hover:text-white'
+                ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
             }`}
-            title="Icons / Grid View (Ctrl+1)"
+            title="Icons / Grid (Ctrl+1)"
           >
-            <LayoutGrid className="w-4 h-4" />
+            <LayoutGrid className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onSetViewMode('table')}
-            className={`p-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all ${
+            className={`p-1 rounded-md flex items-center justify-center transition-all ${
               viewMode === 'table'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-gray-400 hover:text-white'
+                ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
             }`}
-            title="List / Details View (Ctrl+2)"
+            title="List / Details (Ctrl+2)"
           >
-            <List className="w-4 h-4" />
+            <List className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onSetViewMode('columns')}
-            className={`p-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all ${
+            className={`p-1 rounded-md flex items-center justify-center transition-all ${
               viewMode === 'columns'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-gray-400 hover:text-white'
+                ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
             }`}
-            title="Columns View - macOS Finder Miller Columns (Ctrl+3)"
+            title="Columns (Ctrl+3)"
           >
-            <Columns className="w-4 h-4" />
+            <Columns className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onSetViewMode('gallery')}
-            className={`p-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all ${
+            className={`p-1 rounded-md flex items-center justify-center transition-all ${
               viewMode === 'gallery'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-gray-400 hover:text-white'
+                ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                : 'text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
             }`}
-            title="Gallery View - Stage & Filmstrip (Ctrl+4)"
+            title="Gallery (Ctrl+4)"
           >
-            <SquareCode className="w-4 h-4" />
+            <SquareCode className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Sorting Dropdown */}
-        <div className="flex items-center bg-black/10 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 gap-1 text-xs text-[var(--mac-text-secondary)]">
-          <ArrowUpDown className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+        {/* Minimalist Sort Control */}
+        <div className="flex items-center bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 rounded-lg px-2 h-8 gap-1 text-xs text-[var(--mac-text-secondary)]">
+          <ArrowUpDown className="w-3 h-3 text-[var(--mac-text-muted)]" />
           <select
             value={sortField}
             onChange={e => onSetSort(e.target.value as SortField)}
@@ -289,67 +291,56 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
             <option value="size" className="bg-[var(--mac-bg-card)]">Size</option>
             <option value="ext" className="bg-[var(--mac-bg-card)]">Type</option>
           </select>
-          <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold uppercase">{sortOrder}</span>
+          <span className="text-[10px] text-[var(--mac-text-muted)] font-mono uppercase">{sortOrder}</span>
         </div>
 
-        {/* Details / Inspector Pane Toggle */}
+        {/* Inspector Toggle */}
         <button
           onClick={onToggleInspector}
-          className={`p-1.5 rounded-lg border transition-all ${
+          className={`p-1.5 h-8 w-8 flex items-center justify-center rounded-lg border transition-all ${
             isInspectorOpen
-              ? 'bg-indigo-600/15 border-indigo-500/50 text-indigo-600 dark:text-indigo-400 shadow-sm'
-              : 'border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)]'
+              ? 'bg-black/10 dark:bg-white/15 border-black/15 dark:border-white/20 text-[var(--mac-text-primary)] shadow-sm'
+              : 'border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.06] text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)]'
           }`}
-          title="Toggle Inspector / Details Pane (Alt+P or Cmd+I)"
+          title="Toggle Inspector (Cmd+I or Ctrl+I)"
         >
-          <PanelRight className="w-4 h-4" />
+          <PanelRight className="w-3.5 h-3.5" />
         </button>
 
-        {/* macOS Quick Theme Toggle (Sun / Moon) */}
+        {/* Light / Dark Mode Toggle */}
         <button
           onClick={toggleTheme}
-          className="p-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          className="p-1.5 h-8 w-8 flex items-center justify-center rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.06] text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
           title={`Switch to ${actualTheme === 'dark' ? 'Light' : 'Dark'} Mode`}
         >
           {actualTheme === 'dark' ? (
-            <Sun className="w-4 h-4 text-amber-400" />
+            <Sun className="w-3.5 h-3.5 text-amber-400" />
           ) : (
-            <Moon className="w-4 h-4 text-indigo-600" />
+            <Moon className="w-3.5 h-3.5 text-slate-700" />
           )}
         </button>
 
-        {/* macOS Settings Modal Trigger */}
+        {/* Settings */}
         {onOpenSettings && (
           <button
             onClick={onOpenSettings}
-            className="p-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-            title="Preferences & Settings (Cmd+, or Ctrl+,)"
+            className="p-1.5 h-8 w-8 flex items-center justify-center rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.06] text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            title="Settings (Cmd+, or Ctrl+,)"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-3.5 h-3.5" />
           </button>
         )}
 
-        {/* Open Folder Button */}
+        {/* Clean Subdued "Open Folder" Action Button */}
         <button
           onClick={onChooseFolder}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all hover:scale-[1.02] active:scale-95"
+          className="flex items-center gap-1.5 px-2.5 h-8 bg-black/5 dark:bg-white/[0.08] hover:bg-black/10 dark:hover:bg-white/15 text-[var(--mac-text-primary)] border border-black/10 dark:border-white/10 rounded-lg text-xs font-medium transition-colors"
+          title="Open Folder"
         >
-          <FolderOpen className="w-4 h-4" />
-          <span className="hidden sm:inline">Open Folder</span>
+          <FolderOpen className="w-3.5 h-3.5" />
+          <span className="hidden md:inline">Open</span>
         </button>
-
-        {/* Default Apps Modal Trigger */}
-        {onOpenDefaultAppsModal && (
-          <button
-            onClick={onOpenDefaultAppsModal}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-indigo-600 dark:text-indigo-300 text-xs font-semibold rounded-lg border border-indigo-500/30 transition-all shadow-sm active:scale-95"
-            title="Windows Default Apps & Explorer Thumbnails Setup"
-          >
-            <ShieldCheck className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-            <span className="hidden md:inline">Default</span>
-          </button>
-        )}
       </div>
-    </div>
+    </header>
   );
 };

@@ -283,7 +283,6 @@ export default function App() {
         isInspectorOpen={isInspectorOpen}
         onToggleInspector={() => setIsInspectorOpen(prev => !prev)}
         onChooseFolder={handleChooseFolder}
-        onOpenDefaultAppsModal={() => setIsDefaultAppsModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
       />
 
