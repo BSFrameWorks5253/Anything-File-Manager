@@ -11,7 +11,8 @@ import {
   Search,
   LayoutGrid,
   List,
-  FolderOpen
+  FolderOpen,
+  ShieldCheck
 } from 'lucide-react';
 import { FilterCategory, ViewMode } from '../../types';
 
@@ -31,6 +32,7 @@ interface ExplorerToolbarProps {
   viewMode: ViewMode;
   onSetViewMode: (mode: ViewMode) => void;
   onChooseFolder: () => void;
+  onOpenDefaultAppsModal?: () => void;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -48,7 +50,8 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   onSearchChange,
   viewMode,
   onSetViewMode,
-  onChooseFolder
+  onChooseFolder,
+  onOpenDefaultAppsModal
 }) => {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/10 bg-[#12141c]">
@@ -189,6 +192,18 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
         <FolderOpen className="w-4 h-4" />
         <span>Open Folder</span>
       </button>
+
+      {/* Set as Default Viewer Button */}
+      {onOpenDefaultAppsModal && (
+        <button
+          onClick={onOpenDefaultAppsModal}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-indigo-300 hover:text-white text-xs font-bold rounded-xl border border-indigo-500/30 transition-all shadow-sm hover:scale-105 active:scale-95"
+          title="Set as Default Windows Viewer & Enable Explorer Thumbnails"
+        >
+          <ShieldCheck className="w-4 h-4 text-indigo-400" />
+          <span>Default Viewer</span>
+        </button>
+      )}
     </div>
   );
 };

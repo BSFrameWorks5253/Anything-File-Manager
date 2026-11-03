@@ -54,5 +54,25 @@ export const mediaService = {
   onOpenTarget(cb: (targetPath: string) => void): () => void {
     if (!api?.onOpenTarget) return () => {};
     return api.onOpenTarget(cb);
+  },
+
+  async registerDefaultViewer(categories: ('videos' | 'photos')[]): Promise<{ ok: boolean; registeredCount?: number; total?: number; error?: string }> {
+    if (!api?.registerDefaultViewer) return { ok: false, error: 'API not available' };
+    return api.registerDefaultViewer(categories);
+  },
+
+  async checkDefaultStatus(): Promise<{ isVideoDefault: boolean; isPhotoDefault: boolean }> {
+    if (!api?.checkDefaultStatus) return { isVideoDefault: false, isPhotoDefault: false };
+    return api.checkDefaultStatus();
+  },
+
+  async unregisterDefaultViewer(): Promise<{ ok: boolean; error?: string }> {
+    if (!api?.unregisterDefaultViewer) return { ok: false, error: 'API not available' };
+    return api.unregisterDefaultViewer();
+  },
+
+  async openWindowsDefaultAppsSettings(): Promise<boolean> {
+    if (!api?.openWindowsDefaultAppsSettings) return false;
+    return api.openWindowsDefaultAppsSettings();
   }
 };

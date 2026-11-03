@@ -32,4 +32,8 @@ export interface MediaViewerAPI {
   getInitialFile: () => Promise<string | null>;
   toLocalResourceUrl: (filePath: string) => string;
   onOpenTarget: (cb: (targetPath: string) => void) => () => void;
+  registerDefaultViewer: (categories: ('videos' | 'photos')[]) => Promise<{ ok: boolean; registeredCount?: number; total?: number; error?: string }>;
+  checkDefaultStatus: () => Promise<{ isVideoDefault: boolean; isPhotoDefault: boolean }>;
+  unregisterDefaultViewer: () => Promise<{ ok: boolean; error?: string }>;
+  openWindowsDefaultAppsSettings: () => Promise<boolean>;
 }

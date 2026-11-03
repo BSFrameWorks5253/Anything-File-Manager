@@ -12,6 +12,7 @@ import {
   ExplorerStatusBar
 } from './components/explorer';
 import { FullscreenViewer } from './components/viewer';
+import { DefaultAppsModal } from './components/modals';
 
 export default function App() {
   const {
@@ -33,6 +34,7 @@ export default function App() {
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [activeItem, setActiveItem] = useState<FsItem | null>(null);
+  const [isDefaultAppsModalOpen, setIsDefaultAppsModalOpen] = useState(false);
 
   // Handle external open target (from CLI argument or Windows Explorer double click)
   const handleOpenTarget = useCallback(async (target: string) => {
@@ -127,6 +129,7 @@ export default function App() {
         viewMode={viewMode}
         onSetViewMode={setViewMode}
         onChooseFolder={handleChooseFolder}
+        onOpenDefaultAppsModal={() => setIsDefaultAppsModalOpen(true)}
       />
 
       {/* Main Studio Body */}
@@ -189,6 +192,12 @@ export default function App() {
           onNavigate={target => setActiveItem(target)}
         />
       )}
+
+      {/* Windows Explorer & Default Viewer Settings Modal */}
+      <DefaultAppsModal
+        isOpen={isDefaultAppsModalOpen}
+        onClose={() => setIsDefaultAppsModalOpen(false)}
+      />
     </div>
   );
 }

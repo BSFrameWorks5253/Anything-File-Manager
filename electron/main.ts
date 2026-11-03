@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { registerLocalResourceProtocol, handleLocalResourceProtocol } from './protocols/localResource';
 import { registerMediaIPC } from './ipc/media.ipc';
+import { registerShellIntegrationIPC } from './ipc/shellIntegration.ipc';
 import { resolveChildAppLoaderConfig, showChildAppSplash, closeChildAppSplash } from './splash/splash';
 
 // Windows Taskbar & Action Center Model ID
@@ -143,6 +144,7 @@ function createWindow(showImmediately = false) {
 
 // ── Register Modular Subsystem IPC Handlers ──────────────────
 registerMediaIPC(() => mainWindow, () => initialFileToOpen);
+registerShellIntegrationIPC();
 
 // ── App Lifecycle ─────────────────────────────────────────────
 app.whenReady().then(() => {
