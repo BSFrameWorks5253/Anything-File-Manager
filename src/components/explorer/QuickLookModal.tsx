@@ -1,14 +1,15 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Maximize2, Clock, Film } from 'lucide-react';
 import { FsItem } from '../../types';
 import {
   isPhotoExtension,
   isVideoExtension,
+  isRawExtension,
   formatBytes,
   formatDate,
   formatTimelapse
 } from '../../utils';
-import { mediaService } from '../../services';
+import { mediaService, thumbnailService } from '../../services';
 
 interface QuickLookModalProps {
   item: FsItem | null;
@@ -24,6 +25,29 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
   onOpenViewer
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [rawUrl, setRawUrl] = useState<string | null>(null);
+
+  const isRaw = item ? isRawExtension(item.ext) : false;
+
+  useEffect(() => {
+    if (!item || !isRaw || !isOpen) {
+      setRawUrl(null);
+      return;
+    }
+    const cached = thumbnailService.getCached(item.fullPath)?.thumb;
+    if (cached) setRawUrl(cached);
+
+    let isCurrent = true;
+    mediaService.readImageBase64(item.fullPath).then(res => {
+      if (isCurrent && res.ok && res.dataUrl) {
+        setRawUrl(res.dataUrl);
+      }
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [item?.fullPath, isRaw, isOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -85,7 +109,20 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
 
         {/* Media Canvas */}
         <div className="flex-1 bg-black flex items-center justify-center p-2 min-h-[400px] max-h-[60vh] overflow-hidden">
-          {isPhoto ? (
+          {isRaw ? (
+            rawUrl ? (
+              <img
+                src={rawUrl}
+                alt={item.name}
+                className="max-h-full max-w-full object-contain rounded-lg"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-rose-300">
+                <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mb-2" />
+                <span className="text-xs font-semibold">Extracting RAW Preview...</span>
+              </div>
+            )
+          ) : isPhoto ? (
             <img
               src={mediaUrl}
               alt={item.name}

@@ -1,13 +1,85 @@
 import { ipcMain, dialog, shell, app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// In-memory cache for video metadata & frame thumbnails
-const videoMetaCache = new Map<string, { duration: number; thumb: string }>();
+// Camera RAW extensions
+const RAW_EXTS = new Set([
+  'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'raw', 'orf', 'rw2', 'pef', 'sr2', 'srf'
+]);
+
+// Persistent Disk Thumbnail Cache Directory
+let thumbCacheDir: string | null = null;
+function getThumbCacheDir(): string {
+  if (!thumbCacheDir) {
+    thumbCacheDir = path.join(app.getPath('userData'), 'thumb-cache');
+    if (!fs.existsSync(thumbCacheDir)) {
+      try {
+        fs.mkdirSync(thumbCacheDir, { recursive: true });
+      } catch {}
+    }
+  }
+  return thumbCacheDir;
+}
+
+function getCacheKey(filePath: string, stat: fs.Stats): string {
+  return crypto.createHash('md5').update(`${filePath}:${stat.size}:${stat.mtimeMs}`).digest('hex');
+}
+
+// In-memory cache for ultra-fast UI rendering
+const memThumbCache = new Map<string, { thumb: string; duration?: number }>();
+
+/**
+ * Super-fast pure Node buffer extractor for embedded JPEGs inside Camera RAW files
+ * (.CR3, .CR2, .NEF, .ARW, .DNG, .RAF, etc.)
+ * Reads up to 4MB in ~2-15ms and extracts the embedded JPEG preview.
+ */
+function extractEmbeddedRawJpeg(filePath: string, forThumbnail = true): Buffer | null {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    // For thumbnails, 4MB is more than enough; for full view, up to 10MB
+    const READ_SIZE = forThumbnail ? 4 * 1024 * 1024 : 10 * 1024 * 1024;
+    const buf = Buffer.alloc(READ_SIZE);
+    const bytesRead = fs.readSync(fd, buf, 0, READ_SIZE, 0);
+    fs.closeSync(fd);
+
+    const jpegs: Buffer[] = [];
+    for (let i = 0; i < bytesRead - 4; i++) {
+      // JPEG SOI: FF D8 FF
+      if (buf[i] === 0xFF && buf[i+1] === 0xD8 && buf[i+2] === 0xFF) {
+        for (let j = i + 100; j < bytesRead - 1; j++) {
+          // JPEG EOI: FF D9
+          if (buf[j] === 0xFF && buf[j+1] === 0xD9) {
+            const slice = buf.subarray(i, j + 2);
+            jpegs.push(slice);
+            i = j + 2;
+            break;
+          }
+        }
+      }
+    }
+
+    if (jpegs.length === 0) return null;
+
+    if (forThumbnail) {
+      // For grid thumbnail, prefer a medium preview (50KB to 700KB)
+      const medium = jpegs.find(b => b.length >= 40 * 1024 && b.length <= 800 * 1024);
+      if (medium) return medium;
+      // Fallback: sort descending
+      return jpegs.sort((a, b) => b.length - a.length)[0];
+    } else {
+      // For fullscreen HD viewing, return the largest preview available
+      return jpegs.sort((a, b) => b.length - a.length)[0];
+    }
+  } catch (err) {
+    console.error('[extractEmbeddedRawJpeg] Error:', err);
+    return null;
+  }
+}
 
 /**
  * Extract video duration (in seconds) via ffprobe or Windows Shell COM
@@ -17,7 +89,7 @@ async function extractDuration(filePath: string): Promise<number> {
   try {
     const { stdout } = await execAsync(
       `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
-      { timeout: 4000 }
+      { timeout: 3000 }
     );
     const parsed = parseFloat(stdout.trim());
     if (isFinite(parsed) && parsed > 0) {
@@ -32,7 +104,7 @@ async function extractDuration(filePath: string): Promise<number> {
       const leaf = path.basename(filePath).replace(/'/g, "''");
       const psCmd = `powershell -NoProfile -Command "$shell = New-Object -ComObject Shell.Application; $folder = $shell.Namespace('${dir}'); $item = $folder.ParseName('${leaf}'); $folder.GetDetailsOf($item, 27)"`;
       const { stdout } = await execAsync(psCmd, { timeout: 3000 });
-      const raw = stdout.trim(); // e.g. "00:00:10" or "01:23:45"
+      const raw = stdout.trim();
       if (raw && raw.includes(':')) {
         const parts = raw.split(':').map(p => parseInt(p, 10));
         if (parts.length === 3 && parts.every(p => !isNaN(p))) {
@@ -47,15 +119,13 @@ async function extractDuration(filePath: string): Promise<number> {
 }
 
 /**
- * Extract video thumbnail frame via ffmpeg
+ * Extract video thumbnail frame via ffmpeg directly to buffer
  */
-async function extractThumbnailFrame(filePath: string, duration: number): Promise<string> {
-  // Seek target: 10% of duration, or 1s, or 0.1s for short clips
+async function extractVideoFrameBuffer(filePath: string, duration: number): Promise<Buffer | null> {
   let seekSecs = 0.5;
   if (duration > 1) {
     seekSecs = Math.min(Math.max(1, duration * 0.1), duration - 0.2);
   }
-
   const seekFormatted = new Date(seekSecs * 1000).toISOString().substr(11, 8) + '.' + String(Math.floor((seekSecs % 1) * 1000)).padStart(3, '0');
 
   try {
@@ -63,27 +133,22 @@ async function extractThumbnailFrame(filePath: string, duration: number): Promis
     const { stdout: buf } = await execAsync(cmd, {
       encoding: 'buffer',
       maxBuffer: 15 * 1024 * 1024,
-      timeout: 5000
+      timeout: 4000
     });
-    if (buf && buf.length > 0) {
-      return `data:image/jpeg;base64,${buf.toString('base64')}`;
-    }
+    if (buf && buf.length > 0) return buf;
   } catch {}
 
-  // Fallback: Try seeking at start of file
   try {
     const cmd = `ffmpeg -ss 00:00:00.100 -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 -update 1 pipe:1`;
     const { stdout: buf } = await execAsync(cmd, {
       encoding: 'buffer',
       maxBuffer: 15 * 1024 * 1024,
-      timeout: 4000
+      timeout: 3000
     });
-    if (buf && buf.length > 0) {
-      return `data:image/jpeg;base64,${buf.toString('base64')}`;
-    }
+    if (buf && buf.length > 0) return buf;
   } catch {}
 
-  return '';
+  return null;
 }
 
 /**
@@ -176,21 +241,37 @@ export function registerMediaIPC(
     }
   });
 
+  /**
+   * Universal Base64 Reader: Supports JPG, PNG, WEBP, GIF, SVG, BMP, AVIF, TIFF,
+   * AND Camera RAW (.CR3, .CR2, .NEF, .ARW, .DNG, etc.) by extracting the embedded preview!
+   */
   ipcMain.handle('media:readImageBase64', async (_event, filePath: string) => {
     try {
-      const ext = path.extname(filePath).toLowerCase();
+      const ext = path.extname(filePath).toLowerCase().replace('.', '');
+
+      // Camera RAW files: Extract high-resolution embedded preview
+      if (RAW_EXTS.has(ext)) {
+        const rawBuf = extractEmbeddedRawJpeg(filePath, false);
+        if (rawBuf && rawBuf.length > 0) {
+          return {
+            ok: true,
+            dataUrl: `data:image/jpeg;base64,${rawBuf.toString('base64')}`
+          };
+        }
+      }
+
       const MIME_MAP: Record<string, string> = {
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.webp': 'image/webp',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml',
-        '.bmp': 'image/bmp',
-        '.ico': 'image/x-icon',
-        '.avif': 'image/avif',
-        '.tiff': 'image/tiff',
-        '.tif': 'image/tiff'
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        webp: 'image/webp',
+        gif: 'image/gif',
+        svg: 'image/svg+xml',
+        bmp: 'image/bmp',
+        ico: 'image/x-icon',
+        avif: 'image/avif',
+        tiff: 'image/tiff',
+        tif: 'image/tiff'
       };
       const mime = MIME_MAP[ext] || 'image/jpeg';
       const buf = fs.readFileSync(filePath);
@@ -204,27 +285,75 @@ export function registerMediaIPC(
   });
 
   /**
-   * Fast native extraction of video duration and thumbnail frame
+   * Fast native extraction of video/photo thumbnails & metadata with persistent disk caching.
+   * Handles Camera RAW (.CR3, .CR2, .ARW, etc.), Videos (.MP4, .MKV, .MOV, etc.), and standard images.
    */
   ipcMain.handle('media:getVideoMetadata', async (_event, filePath: string) => {
     try {
       if (!filePath || !fs.existsSync(filePath)) {
-        return { ok: false, error: 'File not found' };
+        return { ok: false, error: 'File not found', duration: 0, thumb: '' };
       }
 
-      // Check cache first
-      const cached = videoMetaCache.get(filePath);
-      if (cached) {
-        return { ok: true, duration: cached.duration, thumb: cached.thumb };
+      const stat = fs.statSync(filePath);
+      const cacheKey = getCacheKey(filePath, stat);
+
+      // 1. Check in-memory cache
+      const memCached = memThumbCache.get(cacheKey);
+      if (memCached) {
+        return { ok: true, duration: memCached.duration || 0, thumb: memCached.thumb };
       }
 
-      // Extract duration & thumbnail
+      // 2. Check persistent disk cache
+      const diskCacheFile = path.join(getThumbCacheDir(), `${cacheKey}.jpg`);
+      const metaCacheFile = path.join(getThumbCacheDir(), `${cacheKey}.json`);
+
+      if (fs.existsSync(diskCacheFile)) {
+        try {
+          const diskBuf = fs.readFileSync(diskCacheFile);
+          let duration = 0;
+          if (fs.existsSync(metaCacheFile)) {
+            try {
+              const meta = JSON.parse(fs.readFileSync(metaCacheFile, 'utf-8'));
+              duration = meta.duration || 0;
+            } catch {}
+          }
+          const dataUrl = `data:image/jpeg;base64,${diskBuf.toString('base64')}`;
+          memThumbCache.set(cacheKey, { thumb: dataUrl, duration });
+          return { ok: true, duration, thumb: dataUrl };
+        } catch {}
+      }
+
+      const ext = path.extname(filePath).toLowerCase().replace('.', '');
+
+      // 3. Camera RAW files (.CR3, .CR2, .NEF, .ARW, .DNG, etc.)
+      if (RAW_EXTS.has(ext)) {
+        const rawBuf = extractEmbeddedRawJpeg(filePath, true);
+        if (rawBuf && rawBuf.length > 0) {
+          try {
+            fs.writeFileSync(diskCacheFile, rawBuf);
+          } catch {}
+          const dataUrl = `data:image/jpeg;base64,${rawBuf.toString('base64')}`;
+          memThumbCache.set(cacheKey, { thumb: dataUrl, duration: 0 });
+          return { ok: true, duration: 0, thumb: dataUrl };
+        }
+      }
+
+      // 4. Video Files (.MP4, .MKV, .MOV, .AVI, etc.)
       const duration = await extractDuration(filePath);
-      const thumb = await extractThumbnailFrame(filePath, duration);
+      const frameBuf = await extractVideoFrameBuffer(filePath, duration);
+
+      let thumb = '';
+      if (frameBuf && frameBuf.length > 0) {
+        try {
+          fs.writeFileSync(diskCacheFile, frameBuf);
+          fs.writeFileSync(metaCacheFile, JSON.stringify({ duration }));
+        } catch {}
+        thumb = `data:image/jpeg;base64,${frameBuf.toString('base64')}`;
+      }
 
       const result = { duration, thumb };
       if (thumb || duration > 0) {
-        videoMetaCache.set(filePath, result);
+        memThumbCache.set(cacheKey, result);
       }
 
       return {

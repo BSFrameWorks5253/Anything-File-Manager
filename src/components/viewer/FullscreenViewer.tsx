@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { FsItem } from '../../types';
-import { isPhotoExtension, isVideoExtension } from '../../utils';
-import { mediaService } from '../../services';
+import { isPhotoExtension, isVideoExtension, isRawExtension } from '../../utils';
+import { mediaService, thumbnailService } from '../../services';
 import { useVideoFrameZoom } from '../../hooks';
 import { ViewerToolbar } from './ViewerToolbar';
 import { ImageViewer } from './ImageViewer';
@@ -24,7 +24,44 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
 }) => {
   const isVideo = isVideoExtension(item.ext);
   const isPhoto = isPhotoExtension(item.ext);
+  const isRaw = isRawExtension(item.ext);
   const mediaUrl = mediaService.toLocalResourceUrl(item.fullPath);
+
+  // RAW photo base64 high-res state
+  const [rawPhotoUrl, setRawPhotoUrl] = useState<string | null>(() => {
+    return isRaw ? (thumbnailService.getCached(item.fullPath)?.thumb || null) : null;
+  });
+  const [loadingRaw, setLoadingRaw] = useState(false);
+
+  useEffect(() => {
+    if (!isRaw) {
+      setRawPhotoUrl(null);
+      setLoadingRaw(false);
+      return;
+    }
+
+    const cachedThumb = thumbnailService.getCached(item.fullPath)?.thumb;
+    if (cachedThumb) {
+      setRawPhotoUrl(cachedThumb);
+    }
+
+    let isCurrent = true;
+    setLoadingRaw(true);
+    mediaService.readImageBase64(item.fullPath).then(res => {
+      if (isCurrent) {
+        if (res.ok && res.dataUrl) {
+          setRawPhotoUrl(res.dataUrl);
+        }
+        setLoadingRaw(false);
+      }
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [item.fullPath, isRaw]);
+
+  const activePhotoSrc = isRaw ? (rawPhotoUrl || '') : mediaUrl;
 
   // Zoom & Pan hook
   const {
@@ -198,18 +235,25 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
 
         {/* Media Rendering */}
         {isPhoto ? (
-          <ImageViewer
-            src={mediaUrl}
-            name={item.name}
-            zoom={zoom}
-            pan={pan}
-            rotate={rotate}
-            isDragging={isDragging}
-            onWheel={handleWheel}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-          />
+          activePhotoSrc ? (
+            <ImageViewer
+              src={activePhotoSrc}
+              name={item.name}
+              zoom={zoom}
+              pan={pan}
+              rotate={rotate}
+              isDragging={isDragging}
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-3 text-rose-300">
+              <div className="w-10 h-10 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm font-semibold">Extracting RAW Preview...</span>
+            </div>
+          )
         ) : isVideo ? (
           <VideoPlayer
             src={mediaUrl}

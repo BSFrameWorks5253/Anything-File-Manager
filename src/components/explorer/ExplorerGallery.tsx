@@ -15,6 +15,7 @@ import { FsItem } from '../../types';
 import {
   isPhotoExtension,
   isVideoExtension,
+  isRawExtension,
   formatTimelapse,
   formatPlaybackTime
 } from '../../utils';
@@ -73,7 +74,27 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
 
   const isPhoto = activeItem ? isPhotoExtension(activeItem.ext) : false;
   const isVideo = activeItem ? isVideoExtension(activeItem.ext) : false;
+  const isRaw = activeItem ? isRawExtension(activeItem.ext) : false;
   const mediaUrl = activeItem ? mediaService.toLocalResourceUrl(activeItem.fullPath) : '';
+
+  const [rawPreviewUrl, setRawPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeItem || !isRaw) {
+      setRawPreviewUrl(null);
+      return;
+    }
+    const cached = thumbnailService.getCached(activeItem.fullPath)?.thumb;
+    if (cached) setRawPreviewUrl(cached);
+
+    let isCurrent = true;
+    mediaService.readImageBase64(activeItem.fullPath).then(res => {
+      if (isCurrent && res.ok && res.dataUrl) {
+        setRawPreviewUrl(res.dataUrl);
+      }
+    });
+    return () => { isCurrent = false; };
+  }, [activeItem?.fullPath, isRaw]);
 
   const handleCaptureSnapshot = async () => {
     if (!videoRef.current) return;
@@ -114,7 +135,7 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
       >
         {isPhoto ? (
           <img
-            src={mediaUrl}
+            src={isRaw ? (rawPreviewUrl || '') : mediaUrl}
             alt={activeItem.name}
             style={{
               transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
@@ -231,8 +252,9 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
       <div className="h-28 border-t border-white/10 bg-[#12141c] flex items-center px-4 overflow-x-auto gap-2.5 no-scrollbar py-2">
         {mediaItems.map(item => {
           const isSelected = item.fullPath === activeItem.fullPath;
-          const isP = isPhotoExtension(item.ext);
-          const cached = isP ? null : thumbnailService.getCached(item.fullPath);
+          const isRaw = isRawExtension(item.ext);
+          const isDirectPhoto = isPhotoExtension(item.ext) && !isRaw;
+          const cached = isDirectPhoto ? null : thumbnailService.getCached(item.fullPath);
 
           return (
             <div
@@ -245,7 +267,7 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
                   : 'border-white/10 opacity-70 hover:opacity-100 hover:border-white/30'
               }`}
             >
-              {isP ? (
+              {isDirectPhoto ? (
                 <img
                   src={mediaService.toLocalResourceUrl(item.fullPath)}
                   alt={item.name}

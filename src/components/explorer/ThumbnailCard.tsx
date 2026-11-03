@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Folder, File, Clock, Eye, Film } from 'lucide-react';
+import { Play, Folder, File, Clock, Eye, Film, Image as ImageIcon } from 'lucide-react';
 import { FsItem } from '../../types';
-import { isPhotoExtension, isVideoExtension, formatBytes, formatTimelapse } from '../../utils';
+import { isPhotoExtension, isVideoExtension, isRawExtension, formatBytes, formatTimelapse } from '../../utils';
 import { mediaService, thumbnailService } from '../../services';
 
 interface ThumbnailCardProps {
@@ -11,19 +11,23 @@ interface ThumbnailCardProps {
 }
 
 export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onOpen }) => {
-  const isPhoto = isPhotoExtension(item.ext);
+  const isRaw = isRawExtension(item.ext);
   const isVideo = isVideoExtension(item.ext);
+  const isPhoto = isPhotoExtension(item.ext);
+  const isDirectBrowserPhoto = isPhoto && !isRaw;
 
   const cached = thumbnailService.getCached(item.fullPath);
   const [thumb, setThumb] = useState<string | null>(cached?.thumb || null);
   const [duration, setDuration] = useState<number>(cached?.duration || 0);
-  const [loadingMeta, setLoadingMeta] = useState<boolean>(!cached && isVideo);
+  const [loadingMeta, setLoadingMeta] = useState<boolean>(!cached && (isVideo || isRaw));
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
-    if (!isVideo) return;
+    // Only videos and Camera RAW files need thumbnail extraction
+    if (!isVideo && !isRaw) return;
 
     const currentCached = thumbnailService.getCached(item.fullPath);
-    if (currentCached && currentCached.thumb && currentCached.duration > 0) {
+    if (currentCached && currentCached.thumb) {
       setThumb(currentCached.thumb);
       setDuration(currentCached.duration);
       setLoadingMeta(false);
@@ -35,7 +39,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
 
     thumbnailService.extractVideoThumbnail(item.fullPath).then(res => {
       if (isCurrent) {
-        if (res) {
+        if (res && res.thumb) {
           setThumb(res.thumb);
           setDuration(res.duration);
         }
@@ -46,9 +50,10 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
     return () => {
       isCurrent = false;
     };
-  }, [item.fullPath, isVideo]);
+  }, [item.fullPath, isVideo, isRaw]);
 
-  const photoUrl = isPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
+  // Standard photos load directly via fast local-resource URL; RAW photos use extracted thumbnail
+  const directPhotoUrl = isDirectBrowserPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
 
   return (
     <div
@@ -58,14 +63,8 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
     >
       {/* Thumbnail Aspect Ratio Box */}
       <div className="relative aspect-video w-full bg-black/60 flex items-center justify-center overflow-hidden">
-        {isPhoto ? (
-          <img
-            src={photoUrl || ''}
-            alt={item.name}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-            loading="lazy"
-          />
-        ) : isVideo ? (
+        {isRaw ? (
+          /* Camera RAW (.CR3, .CR2, .NEF, .ARW, etc.) */
           thumb ? (
             <img
               src={thumb}
@@ -73,7 +72,48 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-indigo-400">
+            <div className="flex flex-col items-center justify-center text-rose-400">
+              <ImageIcon className="w-8 h-8 opacity-60 animate-pulse" />
+              <span className="text-[10px] font-bold text-rose-300/80 mt-1 uppercase">RAW</span>
+            </div>
+          )
+        ) : isDirectBrowserPhoto ? (
+          /* Standard Photo (JPG, PNG, WEBP, GIF, etc.) */
+          !imgError ? (
+            <img
+              src={directPhotoUrl || ''}
+              alt={item.name}
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+              onError={() => {
+                setImgError(true);
+                // Fallback: extract base64 via main process
+                mediaService.readImageBase64(item.fullPath).then(res => {
+                  if (res.ok && res.dataUrl) setThumb(res.dataUrl);
+                });
+              }}
+            />
+          ) : thumb ? (
+            <img
+              src={thumb}
+              alt={item.name}
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-emerald-400">
+              <ImageIcon className="w-8 h-8 opacity-60" />
+            </div>
+          )
+        ) : isVideo ? (
+          /* Video */
+          thumb ? (
+            <img
+              src={thumb}
+              alt={item.name}
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-purple-400">
               <Film className="w-8 h-8 opacity-60 animate-pulse" />
             </div>
           )
@@ -90,6 +130,13 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
             <span>
               {duration > 0 ? formatTimelapse(duration) : loadingMeta ? '...' : 'VIDEO'}
             </span>
+          </span>
+        )}
+
+        {/* Camera RAW Badge */}
+        {isRaw && (
+          <span className="absolute bottom-2 right-2 bg-rose-950/80 backdrop-blur-md text-rose-300 border border-rose-500/40 text-[10px] font-black px-1.5 py-0.5 rounded shadow-lg uppercase z-10 pointer-events-none tracking-wider">
+            RAW
           </span>
         )}
 
@@ -122,7 +169,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
         </span>
         <div className="flex items-center justify-between text-[11px] text-gray-500 mt-1">
           <span>{item.isDir ? 'Folder' : formatBytes(item.size)}</span>
-          <span>{item.isDir ? 'DIR' : item.ext.toUpperCase()}</span>
+          <span className="uppercase">{item.isDir ? 'DIR' : item.ext}</span>
         </div>
       </div>
     </div>

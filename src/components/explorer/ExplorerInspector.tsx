@@ -16,6 +16,7 @@ import { FsItem } from '../../types';
 import {
   isPhotoExtension,
   isVideoExtension,
+  isRawExtension,
   formatBytes,
   formatDate,
   formatTimelapse
@@ -43,7 +44,8 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
     setDuration(0);
 
     const isVid = isVideoExtension(item.ext);
-    if (isVid) {
+    const isRaw = isRawExtension(item.ext);
+    if (isVid || isRaw) {
       const cached = thumbnailService.getCached(item.fullPath);
       if (cached) {
         setThumb(cached.thumb);
@@ -69,9 +71,10 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
     );
   }
 
+  const isRaw = isRawExtension(item.ext);
   const isPhoto = isPhotoExtension(item.ext);
   const isVideo = isVideoExtension(item.ext);
-  const photoUrl = isPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
+  const photoUrl = isPhoto && !isRaw ? mediaService.toLocalResourceUrl(item.fullPath) : null;
 
   const handleCopyPath = () => {
     navigator.clipboard.writeText(item.fullPath);
@@ -95,7 +98,20 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
 
       {/* Large Preview Canvas */}
       <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden border-b border-white/10">
-        {isPhoto ? (
+        {isRaw ? (
+          thumb ? (
+            <img
+              src={thumb}
+              alt={item.name}
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-rose-400">
+              <ImageIcon className="w-10 h-10 opacity-60 animate-pulse" />
+              <span className="text-[10px] font-bold text-rose-300 mt-1 uppercase">RAW Preview Loading</span>
+            </div>
+          )
+        ) : isPhoto ? (
           <img
             src={photoUrl || ''}
             alt={item.name}

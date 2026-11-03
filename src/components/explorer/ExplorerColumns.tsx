@@ -12,6 +12,7 @@ import { FsItem } from '../../types';
 import {
   isPhotoExtension,
   isVideoExtension,
+  isRawExtension,
   formatBytes,
   formatTimelapse
 } from '../../utils';
@@ -76,7 +77,7 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
       setColumns(nextCols);
       setPreviewItem(item);
 
-      if (isVideoExtension(item.ext)) {
+      if (isVideoExtension(item.ext) || isRawExtension(item.ext)) {
         const cached = thumbnailService.getCached(item.fullPath);
         if (cached) {
           setPreviewThumb(cached.thumb);
@@ -161,7 +162,20 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
       {previewItem && (
         <div className="w-80 min-w-[300px] border-r border-white/10 flex flex-col h-full bg-[#131622] p-4 select-none">
           <div className="aspect-video w-full bg-black/60 rounded-xl overflow-hidden flex items-center justify-center relative shadow-lg border border-white/10 mb-4">
-            {isPhotoExtension(previewItem.ext) ? (
+            {isRawExtension(previewItem.ext) ? (
+              previewThumb ? (
+                <img
+                  src={previewThumb}
+                  alt={previewItem.name}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-rose-400">
+                  <ImageIcon className="w-12 h-12 opacity-60 animate-pulse" />
+                  <span className="text-[10px] font-bold text-rose-300 mt-1 uppercase">RAW Preview</span>
+                </div>
+              )
+            ) : isPhotoExtension(previewItem.ext) ? (
               <img
                 src={mediaService.toLocalResourceUrl(previewItem.fullPath)}
                 alt={previewItem.name}
