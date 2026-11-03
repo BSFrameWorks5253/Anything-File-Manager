@@ -16,7 +16,7 @@ import {
   ExplorerStatusBar
 } from './components/explorer';
 import { FullscreenViewer } from './components/viewer';
-import { DefaultAppsModal } from './components/modals';
+import { DefaultAppsModal, SettingsModal } from './components/modals';
 
 export default function App() {
   const {
@@ -48,6 +48,7 @@ export default function App() {
   const [isQuickLookOpen, setIsQuickLookOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<FsItem | null>(null);
   const [isDefaultAppsModalOpen, setIsDefaultAppsModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Resizable sidebar and inspector widths
   const [sidebarWidth, setSidebarWidth] = useState(250);
@@ -175,6 +176,9 @@ export default function App() {
         } else if (e.key.toLowerCase() === 'i') {
           e.preventDefault();
           setIsInspectorOpen(prev => !prev);
+        } else if (e.key === ',') {
+          e.preventDefault();
+          setIsSettingsModalOpen(true);
         }
       }
 
@@ -254,7 +258,7 @@ export default function App() {
   const subfolders = useMemo(() => items.filter(i => i.isDir), [items]);
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0b0f] text-gray-200 select-none overflow-hidden">
+    <div className="flex flex-col h-screen mac-window select-none overflow-hidden transition-colors duration-200">
       {/* Top Windows Explorer + Mac Finder Hybrid Command Toolbar */}
       <ExplorerToolbar
         canGoBack={canGoBack}
@@ -280,6 +284,7 @@ export default function App() {
         onToggleInspector={() => setIsInspectorOpen(prev => !prev)}
         onChooseFolder={handleChooseFolder}
         onOpenDefaultAppsModal={() => setIsDefaultAppsModalOpen(true)}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
       />
 
       {/* Main App Workspace with Resizable Dividers */}
@@ -304,7 +309,7 @@ export default function App() {
         />
 
         {/* Content Area — Switchable between Grid, Table, Columns & Gallery */}
-        <div className="flex-1 overflow-hidden flex flex-col bg-[#0d0f15] min-w-0">
+        <div className="flex-1 overflow-hidden flex flex-col mac-content min-w-0 transition-colors duration-200">
           {!currentPath ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Film className="w-16 h-16 mb-4 opacity-20" />
@@ -414,6 +419,13 @@ export default function App() {
       <DefaultAppsModal
         isOpen={isDefaultAppsModalOpen}
         onClose={() => setIsDefaultAppsModalOpen(false)}
+      />
+
+      {/* macOS Preferences / Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        onOpenDefaultApps={() => setIsDefaultAppsModalOpen(true)}
       />
     </div>
   );

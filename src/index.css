@@ -1,29 +1,62 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0c0d12;
-  --panel: #13151f;
-  --card: #181a26;
-  --border: rgba(255, 255, 255, 0.08);
-  --accent: #6366f1;
+  --mac-accent: #0071e3;
+
+  /* Default Dark Mode (macOS Sonoma / Sequoia Dark) */
+  --mac-bg-window: #131419;
+  --mac-bg-sidebar: #161821;
+  --mac-bg-header: #1a1c26;
+  --mac-bg-content: #0d0f15;
+  --mac-bg-card: #151824;
+  --mac-bg-card-hover: #1c2030;
+  --mac-bg-input: rgba(255, 255, 255, 0.06);
+  --mac-border: rgba(255, 255, 255, 0.08);
+  --mac-border-subtle: rgba(255, 255, 255, 0.04);
+  --mac-text-primary: #f5f5f7;
+  --mac-text-secondary: #a1a1a6;
+  --mac-text-muted: #6e6e73;
+  --mac-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --mac-card-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme="light"],
+.light-mode {
+  /* macOS Sonoma / Sequoia Light */
+  --mac-bg-window: #e8e8ed;
+  --mac-bg-sidebar: #ececf1;
+  --mac-bg-header: #f4f4f7;
+  --mac-bg-content: #ffffff;
+  --mac-bg-card: #ffffff;
+  --mac-bg-card-hover: #f5f6fa;
+  --mac-bg-input: rgba(0, 0, 0, 0.06);
+  --mac-border: rgba(0, 0, 0, 0.1);
+  --mac-border-subtle: rgba(0, 0, 0, 0.05);
+  --mac-text-primary: #1d1d1f;
+  --mac-text-secondary: #515154;
+  --mac-text-muted: #86868b;
+  --mac-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  --mac-card-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
 }
 
 body {
   margin: 0;
-  background-color: var(--bg);
-  color: #f1f5f9;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--mac-bg-window);
+  color: var(--mac-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow: hidden;
   user-select: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* macOS Smooth Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
@@ -31,10 +64,56 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--mac-border);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(120, 120, 130, 0.4);
+}
+
+/* Custom utility classes */
+.mac-window {
+  background-color: var(--mac-bg-window);
+  color: var(--mac-text-primary);
+}
+
+.mac-sidebar {
+  background-color: var(--mac-bg-sidebar);
+  border-color: var(--mac-border);
+}
+
+.mac-header {
+  background-color: var(--mac-bg-header);
+  border-color: var(--mac-border);
+}
+
+.mac-content {
+  background-color: var(--mac-bg-content);
+}
+
+.mac-card {
+  background-color: var(--mac-bg-card);
+  border-color: var(--mac-border);
+  box-shadow: var(--mac-card-shadow);
+}
+
+.mac-card:hover {
+  background-color: var(--mac-bg-card-hover);
+}
+
+.mac-border {
+  border-color: var(--mac-border);
+}
+
+.mac-text-primary {
+  color: var(--mac-text-primary);
+}
+
+.mac-text-secondary {
+  color: var(--mac-text-secondary);
+}
+
+.mac-text-muted {
+  color: var(--mac-text-muted);
 }

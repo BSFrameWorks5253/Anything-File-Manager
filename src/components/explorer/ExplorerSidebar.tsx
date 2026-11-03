@@ -64,22 +64,22 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   return (
     <div
       style={{ width: `${width}px` }}
-      className="flex-shrink-0 border-r border-white/10 bg-[#0e1017] overflow-y-auto flex flex-col p-3 select-none text-gray-300"
+      className="flex-shrink-0 border-r mac-sidebar overflow-y-auto flex flex-col p-3 select-none text-[var(--mac-text-primary)] transition-colors duration-200"
     >
       {/* macOS Window Traffic Lights Header */}
-      <div className="flex items-center gap-2 px-2 pt-1 pb-4 border-b border-white/5 mb-3">
+      <div className="flex items-center gap-2 px-2 pt-1 pb-3 border-b border-black/5 dark:border-white/5 mb-3">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm hover:opacity-80 transition-opacity cursor-pointer" />
           <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm hover:opacity-80 transition-opacity cursor-pointer" />
           <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm hover:opacity-80 transition-opacity cursor-pointer" />
         </div>
-        <span className="text-[11px] font-bold text-gray-400 tracking-wider ml-2 uppercase">
-          Finder & Explorer
+        <span className="text-[11px] font-semibold text-[var(--mac-text-muted)] tracking-wider ml-2 uppercase">
+          Finder
         </span>
       </div>
 
       {/* ── Section 1: Favorites / Quick Access (Mac Finder & Win Explorer) ── */}
-      <div className="px-2 pb-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center justify-between">
+      <div className="px-2 pb-1 text-[10px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
         <span>Favorites</span>
       </div>
       <div className="space-y-0.5 mb-4">
@@ -91,8 +91,8 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
               onClick={() => onSelectPath(item.path)}
               className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 active
-                  ? 'bg-indigo-600 text-white shadow-md font-semibold'
-                  : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                  : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
               }`}
             >
               {getIconForQuickAccess(item.icon)}

@@ -49,8 +49,8 @@ const memThumbCache = new Map<string, { thumb: string; duration?: number }>();
 function extractEmbeddedRawJpeg(filePath: string, forThumbnail = true): Buffer | null {
   try {
     const fd = fs.openSync(filePath, 'r');
-    // For thumbnails, 4MB is more than enough; for full view, up to 10MB
-    const READ_SIZE = forThumbnail ? 4 * 1024 * 1024 : 10 * 1024 * 1024;
+    // For thumbnails, 8MB captures all preview JPEGs; for full view, up to 16MB
+    const READ_SIZE = forThumbnail ? 8 * 1024 * 1024 : 16 * 1024 * 1024;
     const buf = Buffer.alloc(READ_SIZE);
     const bytesRead = fs.readSync(fd, buf, 0, READ_SIZE, 0);
     fs.closeSync(fd);

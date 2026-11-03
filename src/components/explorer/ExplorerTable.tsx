@@ -112,10 +112,10 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
   };
 
   return (
-    <div className="w-full overflow-x-auto select-none">
+    <div className="w-full overflow-x-auto select-none mac-content transition-colors duration-200">
       <table className="w-full text-sm border-collapse table-fixed">
         <thead>
-          <tr className="text-[11px] text-gray-400 uppercase border-b border-white/10 bg-[#12141c]">
+          <tr className="text-[11px] text-[var(--mac-text-muted)] uppercase border-b border-[var(--mac-border)] mac-header">
             {/* Name Column */}
             <th
               style={{ width: `${colWidths.name}px` }}
@@ -205,8 +205,8 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                 key={item.fullPath}
                 onClick={() => onSelectItem(item)}
                 onDoubleClick={() => onOpenItem(item)}
-                className={`group cursor-pointer hover:bg-white/5 rounded-lg transition-colors border-b border-white/[0.03] ${
-                  isSelected ? 'bg-indigo-500/20 text-indigo-100 font-medium' : 'text-gray-300'
+                className={`group cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors border-b border-[var(--mac-border-subtle)] ${
+                  isSelected ? 'bg-indigo-600 text-white font-medium shadow-sm' : 'text-[var(--mac-text-primary)]'
                 }`}
               >
                 {/* Name */}

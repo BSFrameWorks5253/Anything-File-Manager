@@ -17,9 +17,13 @@ import {
   ArrowUpDown,
   Edit2,
   Check,
-  X
+  X,
+  Sun,
+  Moon,
+  Settings
 } from 'lucide-react';
 import { ViewMode, SortField, SortOrder } from '../../types';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ExplorerToolbarProps {
   canGoBack: boolean;
@@ -45,6 +49,7 @@ interface ExplorerToolbarProps {
   onToggleInspector: () => void;
   onChooseFolder: () => void;
   onOpenDefaultAppsModal?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -70,8 +75,10 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   isInspectorOpen,
   onToggleInspector,
   onChooseFolder,
-  onOpenDefaultAppsModal
+  onOpenDefaultAppsModal,
+  onOpenSettings
 }) => {
+  const { theme, actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
   const [pathInput, setPathInput] = useState(currentPath);
 
@@ -87,49 +94,53 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
     setIsEditingPath(false);
   };
 
+  const toggleTheme = () => {
+    setTheme(actualTheme === 'dark' ? 'light' : 'dark');
+  };
+
   return (
-    <div className="flex flex-col border-b border-white/10 bg-[#12141c] select-none text-gray-200">
+    <div className="flex flex-col border-b mac-header select-none transition-colors duration-200">
       {/* ── Top Command Bar ── */}
-      <div className="flex items-center gap-3 px-4 py-2">
-        {/* Windows Explorer Style History Navigation */}
-        <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
+      <div className="flex items-center gap-2.5 px-3 py-2">
+        {/* macOS / Windows Navigation Controls */}
+        <div className="flex items-center gap-0.5 bg-black/10 dark:bg-white/5 p-0.5 rounded-lg border border-black/5 dark:border-white/5">
           <button
             onClick={onGoBack}
             disabled={!canGoBack}
-            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 text-gray-300 transition-colors"
+            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 text-[var(--mac-text-primary)] transition-colors"
             title="Back (Alt+Left)"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onGoForward}
             disabled={!canGoForward}
-            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 text-gray-300 transition-colors"
+            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 text-[var(--mac-text-primary)] transition-colors"
             title="Forward (Alt+Right)"
           >
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onGoUp}
             disabled={!canGoUp}
-            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 text-gray-300 transition-colors"
+            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 text-[var(--mac-text-primary)] transition-colors"
             title="Up to Parent Folder (Alt+Up)"
           >
-            <ArrowUp className="w-4 h-4" />
+            <ArrowUp className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onRefresh}
-            className="p-1.5 rounded-lg hover:bg-white/10 text-gray-300 transition-colors"
+            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-primary)] transition-colors"
             title="Refresh (F5)"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onGoHome}
-            className="p-1.5 rounded-lg hover:bg-white/10 text-gray-300 transition-colors"
+            className="p-1.5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-primary)] transition-colors"
             title="Home"
           >
-            <Home className="w-4 h-4" />
+            <Home className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -266,38 +277,62 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
         </div>
 
         {/* Sorting Dropdown */}
-        <div className="flex items-center bg-black/40 border border-white/10 rounded-xl px-2 py-1 gap-1 text-xs text-gray-300">
-          <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400" />
+        <div className="flex items-center bg-black/10 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 gap-1 text-xs text-[var(--mac-text-secondary)]">
+          <ArrowUpDown className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
           <select
             value={sortField}
             onChange={e => onSetSort(e.target.value as SortField)}
-            className="bg-transparent text-xs text-gray-200 outline-none cursor-pointer"
+            className="bg-transparent text-xs text-[var(--mac-text-primary)] outline-none cursor-pointer"
           >
-            <option value="name" className="bg-[#141620]">Name</option>
-            <option value="date" className="bg-[#141620]">Date</option>
-            <option value="size" className="bg-[#141620]">Size</option>
-            <option value="ext" className="bg-[#141620]">Type</option>
+            <option value="name" className="bg-[var(--mac-bg-card)]">Name</option>
+            <option value="date" className="bg-[var(--mac-bg-card)]">Date</option>
+            <option value="size" className="bg-[var(--mac-bg-card)]">Size</option>
+            <option value="ext" className="bg-[var(--mac-bg-card)]">Type</option>
           </select>
-          <span className="text-[10px] text-indigo-400 font-bold uppercase">{sortOrder}</span>
+          <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold uppercase">{sortOrder}</span>
         </div>
 
         {/* Details / Inspector Pane Toggle */}
         <button
           onClick={onToggleInspector}
-          className={`p-2 rounded-xl border transition-all ${
+          className={`p-1.5 rounded-lg border transition-all ${
             isInspectorOpen
-              ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 shadow-md'
-              : 'border-white/10 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+              ? 'bg-indigo-600/15 border-indigo-500/50 text-indigo-600 dark:text-indigo-400 shadow-sm'
+              : 'border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)]'
           }`}
           title="Toggle Inspector / Details Pane (Alt+P or Cmd+I)"
         >
           <PanelRight className="w-4 h-4" />
         </button>
 
+        {/* macOS Quick Theme Toggle (Sun / Moon) */}
+        <button
+          onClick={toggleTheme}
+          className="p-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          title={`Switch to ${actualTheme === 'dark' ? 'Light' : 'Dark'} Mode`}
+        >
+          {actualTheme === 'dark' ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-indigo-600" />
+          )}
+        </button>
+
+        {/* macOS Settings Modal Trigger */}
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            className="p-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            title="Preferences & Settings (Cmd+, or Ctrl+,)"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Open Folder Button */}
         <button
           onClick={onChooseFolder}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition-all hover:scale-105"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all hover:scale-[1.02] active:scale-95"
         >
           <FolderOpen className="w-4 h-4" />
           <span className="hidden sm:inline">Open Folder</span>
@@ -307,10 +342,10 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
         {onOpenDefaultAppsModal && (
           <button
             onClick={onOpenDefaultAppsModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-indigo-300 hover:text-white text-xs font-bold rounded-xl border border-indigo-500/30 transition-all shadow-sm hover:scale-105 active:scale-95"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-indigo-600 dark:text-indigo-300 text-xs font-semibold rounded-lg border border-indigo-500/30 transition-all shadow-sm active:scale-95"
             title="Windows Default Apps & Explorer Thumbnails Setup"
           >
-            <ShieldCheck className="w-4 h-4 text-indigo-400" />
+            <ShieldCheck className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
             <span className="hidden md:inline">Default</span>
           </button>
         )}

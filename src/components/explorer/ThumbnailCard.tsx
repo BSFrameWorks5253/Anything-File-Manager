@@ -78,22 +78,33 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
     <div
       onClick={onClick}
       onDoubleClick={onOpen}
-      className="group relative flex flex-col bg-[#141620] hover:bg-[#1a1e2d] border border-white/10 hover:border-indigo-500/60 rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-lg hover:shadow-indigo-500/15"
+      className="group relative flex flex-col mac-card hover:border-[var(--mac-accent)] rounded-xl overflow-hidden cursor-pointer transition-all duration-200 border"
     >
       {/* Thumbnail Aspect Ratio Box */}
-      <div className="relative aspect-video w-full bg-black/60 flex items-center justify-center overflow-hidden">
+      <div className="relative aspect-video w-full bg-black/10 dark:bg-black/60 flex items-center justify-center overflow-hidden">
         {isRaw ? (
           /* Camera RAW (.CR3, .CR2, .NEF, .ARW, etc.) */
-          thumb ? (
+          thumb && !imgError ? (
             <img
               src={thumb}
               alt={item.name}
+              onError={() => {
+                setImgError(true);
+                mediaService.readImageBase64(item.fullPath).then(res => {
+                  if (res.ok && res.dataUrl) {
+                    setThumb(res.dataUrl);
+                    setImgError(false);
+                  }
+                });
+              }}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-rose-400">
-              <ImageIcon className="w-8 h-8 opacity-60 animate-pulse" />
-              <span className="text-[10px] font-bold text-rose-300/80 mt-1 uppercase">RAW</span>
+            <div className="flex flex-col items-center justify-center text-rose-500 dark:text-rose-400">
+              <ImageIcon className={`w-8 h-8 opacity-70 ${loadingMeta ? 'animate-pulse' : ''}`} />
+              <span className="text-[10px] font-bold text-rose-600 dark:text-rose-300 mt-1 uppercase tracking-wider">
+                {loadingMeta ? 'Loading RAW...' : 'RAW Photo'}
+              </span>
             </div>
           )
         ) : isDirectBrowserPhoto ? (
@@ -107,7 +118,10 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
               onError={() => {
                 setImgError(true);
                 mediaService.readImageBase64(item.fullPath).then(res => {
-                  if (res.ok && res.dataUrl) setThumb(res.dataUrl);
+                  if (res.ok && res.dataUrl) {
+                    setThumb(res.dataUrl);
+                    setImgError(false);
+                  }
                 });
               }}
             />
@@ -118,7 +132,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-emerald-400">
+            <div className="flex flex-col items-center justify-center text-emerald-500 dark:text-emerald-400">
               <ImageIcon className="w-8 h-8 opacity-60" />
             </div>
           )
@@ -131,7 +145,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-purple-400">
+            <div className="flex flex-col items-center justify-center text-purple-500 dark:text-purple-400">
               <Film className="w-8 h-8 opacity-60 animate-pulse" />
             </div>
           )
@@ -144,17 +158,17 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
           />
         ) : thumb ? (
           /* ALL OTHER FILES (Audio, PDF, Documents, Code, Archives, Executables, etc.) with Windows Shell Icon/Thumbnail! */
-          <div className="w-full h-full flex items-center justify-center p-3 bg-gradient-to-b from-white/[0.04] to-black/60">
+          <div className="w-full h-full flex items-center justify-center p-3 bg-gradient-to-b from-black/[0.02] to-black/[0.1] dark:from-white/[0.04] dark:to-black/60">
             <img
               src={thumb}
               alt={item.name}
-              className="max-h-full max-w-full object-contain filter drop-shadow-2xl transition-transform duration-300 group-hover:scale-110"
+              className="max-h-full max-w-full object-contain filter drop-shadow-xl transition-transform duration-300 group-hover:scale-110"
             />
           </div>
         ) : item.isDir ? (
-          <Folder className="w-12 h-12 text-amber-400/80 group-hover:scale-110 transition-transform" />
+          <Folder className="w-12 h-12 text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform" />
         ) : (
-          <File className="w-10 h-10 text-gray-400 group-hover:scale-110 transition-transform" />
+          <File className="w-10 h-10 text-[var(--mac-text-muted)] group-hover:scale-110 transition-transform" />
         )}
 
         {/* Video Duration / Timelapse Badge (e.g. 10s, 1m 20s) */}
@@ -205,16 +219,16 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({ item, onClick, onO
       </div>
 
       {/* Item Details Info */}
-      <div className="p-3 flex flex-col justify-between flex-1">
+      <div className="p-2.5 flex flex-col justify-between flex-1">
         <div className="flex items-start justify-between gap-2">
-          <span className="text-xs font-semibold text-gray-200 truncate flex-1 group-hover:text-indigo-300 transition-colors" title={item.name}>
+          <span className="text-xs font-semibold text-[var(--mac-text-primary)] truncate flex-1 group-hover:text-[var(--mac-accent)] transition-colors" title={item.name}>
             {item.name}
           </span>
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium mt-2">
+        <div className="flex items-center justify-between text-[11px] text-[var(--mac-text-secondary)] font-medium mt-1.5">
           <span>{item.isDir ? 'Folder' : formatBytes(item.size)}</span>
-          <span className="uppercase tracking-wider font-mono text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-gray-400">
+          <span className="uppercase tracking-wider font-mono text-[9.5px] bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-[var(--mac-text-muted)]">
             {item.ext || (item.isDir ? 'DIR' : 'FILE')}
           </span>
         </div>

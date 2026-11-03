@@ -174,7 +174,7 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
   };
 
   return (
-    <div className="flex h-full overflow-x-auto no-scrollbar bg-[#0d0f15] select-none">
+    <div className="flex h-full overflow-x-auto no-scrollbar mac-content select-none transition-colors duration-200">
       {columns.map((col, colIdx) => {
         const width = columnWidths[colIdx] || 340;
 
@@ -182,14 +182,14 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
           <div
             key={col.path + colIdx}
             style={{ width: `${width}px`, minWidth: `${width}px` }}
-            className="relative border-r border-white/10 flex flex-col h-full bg-[#11131c] flex-shrink-0"
+            className="relative border-r border-[var(--mac-border)] flex flex-col h-full bg-[var(--mac-bg-content)] flex-shrink-0 transition-colors duration-200"
           >
             {/* Column Header */}
-            <div className="px-3 py-2 border-b border-white/5 bg-[#141622] text-[11px] font-bold text-gray-400 truncate flex items-center justify-between">
+            <div className="px-3 py-2 border-b border-[var(--mac-border)] mac-header text-[11px] font-semibold text-[var(--mac-text-secondary)] truncate flex items-center justify-between">
               <span className="truncate" title={col.path}>
                 {col.path.split(/[\\/]/).filter(Boolean).pop() || col.path}
               </span>
-              <span className="text-[10px] text-gray-500 font-mono ml-2 flex-shrink-0">
+              <span className="text-[10px] text-[var(--mac-text-muted)] font-mono ml-2 flex-shrink-0">
                 {col.items.length} items
               </span>
             </div>
@@ -197,7 +197,7 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
             {/* Column Items List */}
             <div className="flex-1 overflow-y-auto p-1 space-y-0.5">
               {col.items.length === 0 ? (
-                <div className="p-4 text-center text-xs text-gray-600">Empty folder</div>
+                <div className="p-4 text-center text-xs text-[var(--mac-text-muted)]">Empty folder</div>
               ) : (
                 col.items.map(item => {
                   const isSelected = col.selectedItem?.fullPath === item.fullPath;
@@ -212,8 +212,8 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
                       onDoubleClick={() => onOpenItem(item)}
                       className={`group relative w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-indigo-600 text-white font-medium shadow-md'
-                          : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                          ? 'bg-indigo-600 text-white font-medium shadow-sm'
+                          : 'text-[var(--mac-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate flex-1 min-w-0 mr-1.5">
@@ -286,8 +286,8 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
 
       {/* ── macOS Finder Style Preview Column (When file selected) ── */}
       {previewItem && (
-        <div className="w-80 min-w-[300px] border-r border-white/10 flex flex-col h-full bg-[#131622] p-4 select-none flex-shrink-0">
-          <div className="aspect-video w-full bg-black/60 rounded-xl overflow-hidden flex items-center justify-center relative shadow-lg border border-white/10 mb-4">
+        <div className="w-80 min-w-[300px] border-r border-[var(--mac-border)] flex flex-col h-full mac-sidebar p-4 select-none flex-shrink-0 transition-colors duration-200">
+          <div className="aspect-video w-full bg-black/10 dark:bg-black/60 rounded-xl overflow-hidden flex items-center justify-center relative shadow-sm border border-[var(--mac-border)] mb-4">
             {isRawExtension(previewItem.ext) ? (
               previewThumb ? (
                 <img
@@ -296,9 +296,9 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
                   className="w-full h-full object-contain"
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center text-rose-400">
+                <div className="flex flex-col items-center justify-center text-rose-500 dark:text-rose-400">
                   <ImageIcon className="w-12 h-12 opacity-60 animate-pulse" />
-                  <span className="text-[10px] font-bold text-rose-300 mt-1 uppercase">RAW Preview</span>
+                  <span className="text-[10px] font-bold text-rose-600 dark:text-rose-300 mt-1 uppercase">RAW Preview</span>
                 </div>
               )
             ) : isPhotoExtension(previewItem.ext) ? (
@@ -315,10 +315,10 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
                   className="w-full h-full object-contain"
                 />
               ) : (
-                <Film className="w-12 h-12 text-indigo-400 opacity-60 animate-pulse" />
+                <Film className="w-12 h-12 text-indigo-500 dark:text-indigo-400 opacity-60 animate-pulse" />
               )
             ) : (
-              <File className="w-16 h-16 text-gray-500" />
+              <File className="w-16 h-16 text-[var(--mac-text-muted)]" />
             )}
 
             {isVideoExtension(previewItem.ext) && previewDuration > 0 && (
@@ -329,28 +329,28 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
             )}
           </div>
 
-          <span className="text-sm font-semibold text-white truncate break-words mb-1">
+          <span className="text-sm font-semibold text-[var(--mac-text-primary)] truncate break-words mb-1">
             {previewItem.name}
           </span>
-          <div className="flex items-center gap-2 text-xs text-gray-400 mb-4">
+          <div className="flex items-center gap-2 text-xs text-[var(--mac-text-secondary)] mb-4">
             <span className="font-mono">{formatBytes(previewItem.size)}</span>
             <span>•</span>
-            <span className="uppercase text-indigo-400 font-semibold">{previewItem.ext}</span>
+            <span className="uppercase text-indigo-600 dark:text-indigo-400 font-semibold">{previewItem.ext}</span>
           </div>
 
           {/* Quick Look & Fullscreen action buttons */}
           <div className="flex flex-col gap-2">
             <button
               onClick={() => onQuickLook?.(previewItem)}
-              className="w-full py-2 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-white/10 hover:border-indigo-500/50"
+              className="w-full py-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--mac-text-primary)] rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-[var(--mac-border)]"
             >
-              <Eye className="w-4 h-4 text-indigo-400" />
+              <Eye className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               <span>Quick Look Preview (Space)</span>
             </button>
 
             <button
               onClick={() => onOpenItem(previewItem)}
-              className="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition-all"
+              className="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
             >
               <Maximize2 className="w-4 h-4" />
               <span>Open Studio Viewer & Zoom</span>

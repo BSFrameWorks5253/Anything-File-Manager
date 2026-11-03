@@ -70,11 +70,11 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
     return (
       <div
         style={{ width: `${width}px` }}
-        className="flex-shrink-0 border-l border-white/10 bg-[#0e1017] p-4 flex flex-col items-center justify-center text-center text-gray-500 select-none"
+        className="flex-shrink-0 border-l mac-sidebar p-4 flex flex-col items-center justify-center text-center text-[var(--mac-text-muted)] select-none transition-colors duration-200"
       >
         <Film className="w-10 h-10 mb-2 opacity-30" />
         <p className="text-xs font-semibold">No item selected</p>
-        <p className="text-[11px] text-gray-600 mt-1">Select any photo or video to inspect details</p>
+        <p className="text-[11px] mt-1">Select any photo or video to inspect details</p>
       </div>
     );
   }
@@ -93,17 +93,17 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
   return (
     <div
       style={{ width: `${width}px` }}
-      className="flex-shrink-0 border-l border-white/10 bg-[#0e1017] flex flex-col overflow-y-auto select-none text-gray-300"
+      className="flex-shrink-0 border-l mac-sidebar flex flex-col overflow-y-auto select-none text-[var(--mac-text-primary)] transition-colors duration-200"
     >
       {/* Inspector Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#141620]">
-        <span className="text-xs font-bold text-white tracking-wide uppercase">Details & Preview</span>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b mac-header">
+        <span className="text-xs font-semibold text-[var(--mac-text-primary)] tracking-wide">Inspector</span>
         <button
           onClick={onClose}
-          className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+          className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
           title="Close Inspector"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
 
