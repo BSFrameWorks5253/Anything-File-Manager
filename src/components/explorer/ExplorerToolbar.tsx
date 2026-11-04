@@ -125,8 +125,14 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
 
   const handlePathSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pathInput.trim()) {
-      onNavigateDirectPath(pathInput.trim());
+    let trimmed = pathInput.trim();
+    if (trimmed) {
+      // Normalize drive roots like "C:" -> "C:\"
+      if (/^[a-zA-Z]:$/.test(trimmed)) {
+        trimmed = trimmed + '\\';
+      }
+      trimmed = trimmed.replace(/\//g, '\\');
+      onNavigateDirectPath(trimmed);
     }
     setIsEditingPath(false);
   };

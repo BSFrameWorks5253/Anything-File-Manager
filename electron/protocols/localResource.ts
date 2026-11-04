@@ -1,5 +1,6 @@
 import { protocol, net } from 'electron';
 import fs from 'fs';
+import path from 'path';
 import { pathToFileURL } from 'url';
 
 /**
@@ -30,16 +31,27 @@ export function handleLocalResourceProtocol(): void {
       s = s.replace(/^localhost[\/\\]/i, '');
       s = decodeURIComponent(s);
 
+      // Security hardening: strip null bytes to prevent null byte poison injection
+      s = s.replace(/\0/g, '');
+
       // Restore drive colon if lost by Chromium URL normalization (e.g. "c/Users/..." -> "c:/Users/...")
       if (/^[a-zA-Z][\\\/]/.test(s)) {
         s = s[0] + ':' + s.slice(1);
       } else if (/^\/?[a-zA-Z]:[\\\/]/.test(s)) {
         s = s.replace(/^\//, '');
       }
-      const rawPath = s.replace(/\//g, '\\');
+
+      // Normalize path to canonical OS separator
+      const rawPath = path.normalize(s.replace(/\//g, '\\'));
 
       if (!fs.existsSync(rawPath)) {
         return new Response('File not found', { status: 404 });
+      }
+
+      // Security check: ensure target is an actual file, not a directory or device
+      const stat = fs.statSync(rawPath);
+      if (!stat.isFile()) {
+        return new Response('Target is not a file', { status: 400 });
       }
 
       // Delegate directly to Chromium's native file URL reader via net.fetch.

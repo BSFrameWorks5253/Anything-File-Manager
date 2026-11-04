@@ -89,8 +89,8 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
   const isArchive = item ? isArchiveExtension(ext) : false;
   const isApp = ext === 'exe' || ext === 'msi' || ext === 'bat' || ext === 'cmd';
 
-  // Navigation list (all items in folder)
-  const navList = useMemo(() => items.filter(f => !f.isDir), [items]);
+  // Navigation list (all items in folder including subfolders)
+  const navList = useMemo(() => items, [items]);
   const currentIndex = navList.findIndex(f => f.fullPath === item?.fullPath);
 
   const goPrev = useCallback(() => {
@@ -236,7 +236,10 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
 
         {/* ── Dynamic Universal Preview Body ── */}
         <div className="flex-1 overflow-hidden flex flex-col bg-black/90 relative">
-          {isVid ? (
+          {item.isDir ? (
+            /* 0. Folder / Directory Quick Look */
+            <FolderQuickLook item={item} onClose={onClose} />
+          ) : isVid ? (
             /* 1. Adobe Premiere Pro / Timeline Video Preview */
             <AdobePremiereQuickLook item={item} />
           ) : isRaw ? (
@@ -992,6 +995,56 @@ function GenericFileQuickLook({ item }: { item: FsItem }) {
           className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors"
         >
           Show in Explorer
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 11. FOLDER / DIRECTORY QUICK LOOK
+// ═══════════════════════════════════════════════════════════════════════════
+function FolderQuickLook({
+  item,
+  onClose
+}: {
+  item: FsItem;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0f111c] text-center">
+      <div className="mb-4 drop-shadow-2xl">
+        <MacFolderIcon size={110} />
+      </div>
+
+      <h2 className="text-xl font-bold text-white mb-1 truncate max-w-md" title={item.name}>
+        {item.name}
+      </h2>
+      <p className="text-xs text-emerald-400 font-mono uppercase mb-6 tracking-wider">Folder / Directory</p>
+
+      <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-md w-full text-xs text-left space-y-2 mb-6 font-mono">
+        <div className="flex justify-between">
+          <span className="text-gray-400">Path:</span>
+          <span className="text-gray-200 truncate max-w-[240px]" title={item.fullPath}>
+            {item.fullPath}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Last Modified:</span>
+          <span className="text-white">{formatDate(item.mtime)}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => {
+            onClose();
+            mediaService.openInExplorer(item.fullPath);
+          }}
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+        >
+          <FolderOpen className="w-4 h-4" />
+          <span>Show in Windows Explorer</span>
         </button>
       </div>
     </div>

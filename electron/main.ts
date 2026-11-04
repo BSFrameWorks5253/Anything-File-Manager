@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeTheme, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, nativeTheme, ipcMain, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { registerLocalResourceProtocol, handleLocalResourceProtocol } from './protocols/localResource';
@@ -179,6 +179,25 @@ function createWindow(showImmediately = false) {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // Security Hardening: Prevent untrusted window creation and navigation
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:') || url.startsWith('mailto:')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const isAllowedDev = isDev && process.env.VITE_DEV_SERVER_URL && url.startsWith(process.env.VITE_DEV_SERVER_URL);
+    const isAllowedFile = url.startsWith('file://');
+    if (!isAllowedDev && !isAllowedFile) {
+      event.preventDefault();
+      if (url.startsWith('https:') || url.startsWith('http:')) {
+        shell.openExternal(url);
+      }
+    }
+  });
 }
 
 // ── Register Modular Subsystem IPC Handlers ──────────────────
@@ -229,6 +248,21 @@ app.whenReady().then(() => {
 
     Menu.setApplicationMenu(null);
     playerWin.setMenuBarVisibility(false);
+
+    playerWin.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith('https:') || url.startsWith('http:')) {
+        shell.openExternal(url);
+      }
+      return { action: 'deny' };
+    });
+
+    playerWin.webContents.on('will-navigate', (event, url) => {
+      const isAllowedDev = isDev && process.env.VITE_DEV_SERVER_URL && url.startsWith(process.env.VITE_DEV_SERVER_URL);
+      const isAllowedFile = url.startsWith('file://');
+      if (!isAllowedDev && !isAllowedFile) {
+        event.preventDefault();
+      }
+    });
 
     const devServerUrl = process.env.VITE_DEV_SERVER_URL;
     if (isDev && devServerUrl) {

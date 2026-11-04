@@ -2,10 +2,11 @@ import { ipcMain, dialog, shell, app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // File extension categories
 const RAW_EXTS = new Set([
@@ -81,13 +82,13 @@ const memThumbCache = new Map<string, { thumb: string; duration?: number }>();
  * Reads up to 4MB in ~2-15ms and extracts the embedded JPEG preview.
  */
 function extractEmbeddedRawJpeg(filePath: string, forThumbnail = true): Buffer | null {
+  let fd: number | null = null;
   try {
-    const fd = fs.openSync(filePath, 'r');
+    fd = fs.openSync(filePath, 'r');
     // For thumbnails, 8MB captures all preview JPEGs; for full view, up to 16MB
     const READ_SIZE = forThumbnail ? 8 * 1024 * 1024 : 16 * 1024 * 1024;
     const buf = Buffer.alloc(READ_SIZE);
     const bytesRead = fs.readSync(fd, buf, 0, READ_SIZE, 0);
-    fs.closeSync(fd);
 
     const jpegs: Buffer[] = [];
     for (let i = 0; i < bytesRead - 4; i++) {
@@ -120,18 +121,23 @@ function extractEmbeddedRawJpeg(filePath: string, forThumbnail = true): Buffer |
   } catch (err) {
     console.error('[extractEmbeddedRawJpeg] Error:', err);
     return null;
+  } finally {
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch {}
+    }
   }
 }
 
 /**
- * Extract video duration (in seconds) via ffprobe or Windows Shell COM
+ * Extract video duration (in seconds) via ffprobe or Windows Shell COM (Safe from shell injection)
  */
 async function extractDuration(filePath: string): Promise<number> {
-  // 1. Try ffprobe (fastest, supports virtually all containers & codecs)
+  // 1. Try ffprobe directly via execFile (immune to shell injection, handles spaces/quotes)
   try {
-    const { stdout } = await execAsync(
-      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
-      { timeout: 3000 }
+    const { stdout } = await execFileAsync(
+      'ffprobe',
+      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath],
+      { timeout: 3500 }
     );
     const parsed = parseFloat(stdout.trim());
     if (isFinite(parsed) && parsed > 0) {
@@ -139,13 +145,26 @@ async function extractDuration(filePath: string): Promise<number> {
     }
   } catch {}
 
-  // 2. Fallback: Windows Shell COM (Property 27 = Duration)
+  // 2. Fallback: Windows Shell COM (Property 27 = Duration) using parameterized PowerShell
   if (process.platform === 'win32') {
     try {
-      const dir = path.dirname(filePath).replace(/'/g, "''");
-      const leaf = path.basename(filePath).replace(/'/g, "''");
-      const psCmd = `powershell -NoProfile -Command "$shell = New-Object -ComObject Shell.Application; $folder = $shell.Namespace('${dir}'); $item = $folder.ParseName('${leaf}'); $folder.GetDetailsOf($item, 27)"`;
-      const { stdout } = await execAsync(psCmd, { timeout: 3000 });
+      const dir = path.dirname(filePath);
+      const leaf = path.basename(filePath);
+      const psScript = `
+        $shell = New-Object -ComObject Shell.Application
+        $folder = $shell.Namespace($args[0])
+        if ($folder) {
+          $item = $folder.ParseName($args[1])
+          if ($item) {
+            $folder.GetDetailsOf($item, 27)
+          }
+        }
+      `;
+      const { stdout } = await execFileAsync(
+        'powershell',
+        ['-NoProfile', '-NonInteractive', '-Command', psScript, dir, leaf],
+        { timeout: 3500 }
+      );
       const raw = stdout.trim();
       if (raw && raw.includes(':')) {
         const parts = raw.split(':').map(p => parseInt(p, 10));
@@ -161,7 +180,7 @@ async function extractDuration(filePath: string): Promise<number> {
 }
 
 /**
- * Extract video thumbnail frame via ffmpeg directly to buffer
+ * Extract video thumbnail frame via ffmpeg directly to buffer (Safe binary execFile)
  */
 async function extractVideoFrameBuffer(filePath: string, duration: number): Promise<Buffer | null> {
   let seekSecs = 0.5;
@@ -171,22 +190,28 @@ async function extractVideoFrameBuffer(filePath: string, duration: number): Prom
   const seekFormatted = new Date(seekSecs * 1000).toISOString().substr(11, 8) + '.' + String(Math.floor((seekSecs % 1) * 1000)).padStart(3, '0');
 
   try {
-    const cmd = `ffmpeg -ss ${seekFormatted} -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 -update 1 pipe:1`;
-    const { stdout: buf } = await execAsync(cmd, {
-      encoding: 'buffer',
-      maxBuffer: 15 * 1024 * 1024,
-      timeout: 4000
-    });
+    const { stdout: buf } = await execFileAsync(
+      'ffmpeg',
+      ['-ss', seekFormatted, '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
+      {
+        encoding: 'buffer',
+        maxBuffer: 15 * 1024 * 1024,
+        timeout: 4000
+      }
+    );
     if (buf && buf.length > 0) return buf;
   } catch {}
 
   try {
-    const cmd = `ffmpeg -ss 00:00:00.100 -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 -update 1 pipe:1`;
-    const { stdout: buf } = await execAsync(cmd, {
-      encoding: 'buffer',
-      maxBuffer: 15 * 1024 * 1024,
-      timeout: 3000
-    });
+    const { stdout: buf } = await execFileAsync(
+      'ffmpeg',
+      ['-ss', '00:00:00.100', '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
+      {
+        encoding: 'buffer',
+        maxBuffer: 15 * 1024 * 1024,
+        timeout: 3000
+      }
+    );
     if (buf && buf.length > 0) return buf;
   } catch {}
 
@@ -356,6 +381,7 @@ export function registerMediaIPC(
    * Fast Text & Code Reader for Universal Quick Look Preview
    */
   ipcMain.handle('media:readTextFile', async (_event, filePath: string, maxBytes = 512 * 1024) => {
+    let fd: number | null = null;
     try {
       if (!filePath || !fs.existsSync(filePath)) {
         return { ok: false, error: 'File not found' };
@@ -365,9 +391,8 @@ export function registerMediaIPC(
 
       const readSize = Math.min(stat.size, maxBytes);
       const buf = Buffer.alloc(readSize);
-      const fd = fs.openSync(filePath, 'r');
+      fd = fs.openSync(filePath, 'r');
       fs.readSync(fd, buf, 0, readSize, 0);
-      fs.closeSync(fd);
 
       const content = buf.toString('utf-8');
       const isTruncated = stat.size > maxBytes;
@@ -382,6 +407,10 @@ export function registerMediaIPC(
       };
     } catch (err: any) {
       return { ok: false, error: err.message || String(err) };
+    } finally {
+      if (fd !== null) {
+        try { fs.closeSync(fd); } catch {}
+      }
     }
   });
 
@@ -488,8 +517,9 @@ export function registerMediaIPC(
 
         // Extract embedded album art via ffmpeg
         try {
-          const { stdout: artBuf } = await execAsync(
-            `ffmpeg -ss 0 -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 -update 1 pipe:1`,
+          const { stdout: artBuf } = await execFileAsync(
+            'ffmpeg',
+            ['-ss', '0', '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
             { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024, timeout: 3500 }
           );
           if (artBuf && artBuf.length > 0) {
@@ -518,8 +548,9 @@ export function registerMediaIPC(
       if (ext === 'pdf') {
         let thumb = '';
         try {
-          const { stdout: pdfBuf } = await execAsync(
-            `ffmpeg -i "${filePath}" -vframes 1 -vf "scale=360:-1" -f image2 pipe:1`,
+          const { stdout: pdfBuf } = await execFileAsync(
+            'ffmpeg',
+            ['-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', 'pipe:1'],
             { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024, timeout: 4000 }
           );
           if (pdfBuf && pdfBuf.length > 0) {
@@ -656,11 +687,37 @@ export function registerMediaIPC(
     }
   });
 
+function isRootOrSystemPath(p: string): boolean {
+  if (!p || typeof p !== 'string') return true;
+  try {
+    const resolved = path.resolve(p);
+    const parsed = path.parse(resolved);
+    // Root drive e.g. "C:\", "D:\", "/"
+    if (resolved.toLowerCase() === parsed.root.toLowerCase()) return true;
+
+    const lower = resolved.toLowerCase();
+    const winDir = (process.env.WINDIR || 'C:\\Windows').toLowerCase();
+    if (lower === winDir || lower.startsWith(winDir + path.sep)) return true;
+
+    const progFiles = (process.env.ProgramFiles || 'C:\\Program Files').toLowerCase();
+    if (lower === progFiles || lower.startsWith(progFiles + path.sep)) return true;
+
+    const progFilesX86 = (process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)').toLowerCase();
+    if (lower === progFilesX86 || lower.startsWith(progFilesX86 + path.sep)) return true;
+  } catch {
+    return true;
+  }
+  return false;
+}
+
   // 3. Rename File or Folder
   ipcMain.handle('media:renameItem', async (_event, oldPath: string, newName: string) => {
     try {
       if (!oldPath || !fs.existsSync(oldPath)) {
         return { ok: false, error: 'Original item not found' };
+      }
+      if (isRootOrSystemPath(oldPath)) {
+        return { ok: false, error: 'Cannot rename protected root or system location' };
       }
       const trimmed = newName?.trim();
       if (!trimmed) return { ok: false, error: 'Filename cannot be empty' };
@@ -672,11 +729,21 @@ export function registerMediaIPC(
 
       const dir = path.dirname(oldPath);
       const newPath = path.join(dir, trimmed);
-      if (newPath.toLowerCase() !== oldPath.toLowerCase() && fs.existsSync(newPath)) {
+
+      // Handle case-only renaming on Windows (e.g. photo.jpg -> Photo.jpg)
+      const isCaseOnlyChange = newPath.toLowerCase() === oldPath.toLowerCase() && newPath !== oldPath;
+      if (!isCaseOnlyChange && fs.existsSync(newPath)) {
         return { ok: false, error: `An item named "${trimmed}" already exists.` };
       }
 
-      fs.renameSync(oldPath, newPath);
+      if (isCaseOnlyChange) {
+        // Windows NTFS requires renaming through a temp name when only the case changes
+        const tempPath = path.join(dir, `__afm_tmp_${Date.now()}_${trimmed}`);
+        fs.renameSync(oldPath, tempPath);
+        fs.renameSync(tempPath, newPath);
+      } else {
+        fs.renameSync(oldPath, newPath);
+      }
       return { ok: true, newPath, name: trimmed };
     } catch (err: any) {
       return { ok: false, error: err.message || String(err) };
@@ -690,7 +757,11 @@ export function registerMediaIPC(
 
     for (const p of filePaths) {
       try {
-        if (!fs.existsSync(p)) continue;
+        if (!p || typeof p !== 'string' || !fs.existsSync(p)) continue;
+        if (isRootOrSystemPath(p)) {
+          errors.push(`Cannot delete protected root or system location: ${p}`);
+          continue;
+        }
         if (permanent) {
           fs.rmSync(p, { recursive: true, force: true });
         } else {
@@ -721,7 +792,24 @@ export function registerMediaIPC(
 
       for (const src of sourcePaths) {
         try {
-          if (!fs.existsSync(src)) continue;
+          if (!src || !fs.existsSync(src)) continue;
+
+          // Prevent pasting a folder into itself or its own subfolder (infinite recursion guard)
+          const resolvedSrc = path.resolve(src);
+          const resolvedTarget = path.resolve(targetDir);
+          if (
+            resolvedTarget.toLowerCase() === resolvedSrc.toLowerCase() ||
+            resolvedTarget.toLowerCase().startsWith(resolvedSrc.toLowerCase() + path.sep)
+          ) {
+            errors.push(`Cannot copy or move "${path.basename(src)}" into itself or its subfolder.`);
+            continue;
+          }
+
+          if (operation === 'move' && isRootOrSystemPath(src)) {
+            errors.push(`Cannot move protected system location: ${src}`);
+            continue;
+          }
+
           const originalName = path.basename(src);
           const ext = path.extname(originalName);
           const base = path.basename(originalName, ext);

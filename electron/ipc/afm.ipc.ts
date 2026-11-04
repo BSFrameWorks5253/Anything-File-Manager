@@ -2,11 +2,12 @@ import { ipcMain, app, shell, Notification } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import crypto from 'crypto';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ── ONE TAP COMPANION SYSTEM HELPERS ──
 function getOneTapDb(): any | null {
@@ -132,8 +133,9 @@ async function getFastVideoDuration(filePath: string): Promise<number> {
       return durationCache.get(cacheKey)!;
     }
 
-    const { stdout } = await execAsync(
-      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+    const { stdout } = await execFileAsync(
+      'ffprobe',
+      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath],
       { timeout: 3500 }
     );
     const parsed = parseFloat(stdout.trim());
