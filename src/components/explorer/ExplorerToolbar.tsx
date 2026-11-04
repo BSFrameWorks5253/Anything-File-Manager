@@ -21,7 +21,13 @@ import {
   Moon,
   Settings,
   Eye,
-  EyeOff
+  EyeOff,
+  FolderPlus,
+  Scissors,
+  Copy,
+  Clipboard,
+  Trash2,
+  CopyPlus
 } from 'lucide-react';
 import { ViewMode, SortField, SortOrder } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
@@ -57,6 +63,17 @@ interface ExplorerToolbarProps {
   onToggleShowHidden?: () => void;
   density?: 'compact' | 'normal' | 'broad';
   onSetDensity?: (d: 'compact' | 'normal' | 'broad') => void;
+  // Pro CRUD Action Bar
+  onNewFolder?: () => void;
+  onCut?: () => void;
+  onCopy?: () => void;
+  onPaste?: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
+  onDuplicate?: () => void;
+  selectedCount?: number;
+  clipboardCount?: number;
+  clipboardOp?: 'copy' | 'move' | null;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -86,7 +103,17 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   showHidden = false,
   onToggleShowHidden,
   density = 'normal',
-  onSetDensity
+  onSetDensity,
+  onNewFolder,
+  onCut,
+  onCopy,
+  onPaste,
+  onRename,
+  onDelete,
+  onDuplicate,
+  selectedCount = 0,
+  clipboardCount = 0,
+  clipboardOp = null
 }) => {
   const { actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -419,6 +446,115 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
           <FolderOpen className="w-3.5 h-3.5" />
           <span className="hidden md:inline">Open</span>
         </button>
+      </div>
+
+      {/* ── Secondary Pro File Operations Command Strip (Windows 11 / Mac Finder Hybrid) ── */}
+      <div className="flex items-center justify-between px-3 py-1 bg-black/[0.02] dark:bg-white/[0.02] border-t border-black/5 dark:border-white/5 text-xs text-[var(--mac-text-secondary)]">
+        <div className="flex items-center gap-1 flex-wrap">
+          {onNewFolder && (
+            <button
+              onClick={onNewFolder}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-[var(--mac-text-primary)] font-medium transition-colors"
+              title="New Folder (Ctrl+Shift+N)"
+            >
+              <FolderPlus className="w-3.5 h-3.5 text-emerald-500" />
+              <span>New Folder</span>
+            </button>
+          )}
+
+          <div className="h-3.5 w-px bg-black/10 dark:bg-white/10 mx-1" />
+
+          {onCut && (
+            <button
+              onClick={onCut}
+              disabled={selectedCount === 0}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none text-[var(--mac-text-primary)] transition-colors"
+              title="Cut (Ctrl+X)"
+            >
+              <Scissors className="w-3.5 h-3.5 text-blue-500" />
+              <span className="hidden sm:inline">Cut</span>
+            </button>
+          )}
+
+          {onCopy && (
+            <button
+              onClick={onCopy}
+              disabled={selectedCount === 0}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none text-[var(--mac-text-primary)] transition-colors"
+              title="Copy (Ctrl+C)"
+            >
+              <Copy className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden sm:inline">Copy</span>
+            </button>
+          )}
+
+          {onPaste && (
+            <button
+              onClick={onPaste}
+              disabled={clipboardCount === 0}
+              className="relative flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none text-[var(--mac-text-primary)] transition-colors"
+              title={`Paste (${clipboardCount} items in clipboard) (Ctrl+V)`}
+            >
+              <Clipboard className="w-3.5 h-3.5 text-teal-400" />
+              <span className="hidden sm:inline">Paste</span>
+              {clipboardCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[var(--mac-accent)] text-white text-[10px] font-bold">
+                  {clipboardCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {onDuplicate && (
+            <button
+              onClick={onDuplicate}
+              disabled={selectedCount === 0}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none text-[var(--mac-text-primary)] transition-colors"
+              title="Duplicate (Ctrl+D)"
+            >
+              <CopyPlus className="w-3.5 h-3.5 text-amber-500" />
+              <span className="hidden md:inline">Duplicate</span>
+            </button>
+          )}
+
+          {onRename && (
+            <button
+              onClick={onRename}
+              disabled={selectedCount !== 1}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none text-[var(--mac-text-primary)] transition-colors"
+              title="Rename (F2)"
+            >
+              <Edit2 className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Rename</span>
+            </button>
+          )}
+
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              disabled={selectedCount === 0}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-red-500/10 hover:text-red-500 disabled:opacity-30 disabled:pointer-events-none text-[var(--mac-text-primary)] transition-colors"
+              title="Move to Recycle Bin (Delete)"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+          )}
+        </div>
+
+        {/* Right Info Tags */}
+        <div className="flex items-center gap-2 text-[11px] text-[var(--mac-text-muted)]">
+          {selectedCount > 0 && (
+            <span className="font-medium text-[var(--mac-accent)]">
+              {selectedCount} item{selectedCount > 1 ? 's' : ''} selected
+            </span>
+          )}
+          {clipboardCount > 0 && (
+            <span className="bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded border border-amber-500/30">
+              Clipboard: {clipboardCount} ({clipboardOp === 'move' ? 'cut' : 'copied'})
+            </span>
+          )}
+        </div>
       </div>
     </header>
   );

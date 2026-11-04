@@ -48,6 +48,46 @@ export const mediaService = {
     return api.openInExplorer(filePath);
   },
 
+  async createFolder(parentDir: string, customName?: string): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+    if (!api?.createFolder) return { ok: false, error: 'API unavailable' };
+    return api.createFolder(parentDir, customName);
+  },
+
+  async createFile(parentDir: string, fileName?: string, defaultContent = ''): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+    if (!api?.createFile) return { ok: false, error: 'API unavailable' };
+    return api.createFile(parentDir, fileName, defaultContent);
+  },
+
+  async renameItem(oldPath: string, newName: string): Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }> {
+    if (!api?.renameItem) return { ok: false, error: 'API unavailable' };
+    return api.renameItem(oldPath, newName);
+  },
+
+  async deleteItems(filePaths: string[], permanent = false): Promise<{ ok: boolean; deletedCount: number; errors?: string[] }> {
+    if (!api?.deleteItems) return { ok: false, deletedCount: 0, errors: ['API unavailable'] };
+    return api.deleteItems(filePaths, permanent);
+  },
+
+  async clipboardPaste(targetDir: string, sourcePaths: string[], operation: 'copy' | 'move'): Promise<{ ok: boolean; pastedCount: number; errors?: string[] }> {
+    if (!api?.clipboardPaste) return { ok: false, pastedCount: 0, errors: ['API unavailable'] };
+    return api.clipboardPaste(targetDir, sourcePaths, operation);
+  },
+
+  async duplicateItem(sourcePath: string): Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }> {
+    if (!api?.duplicateItem) return { ok: false, error: 'API unavailable' };
+    return api.duplicateItem(sourcePath);
+  },
+
+  async getFileTags(): Promise<Record<string, string>> {
+    if (!api?.getFileTags) return {};
+    return api.getFileTags();
+  },
+
+  async setFileTag(filePath: string, tagColor: string | null): Promise<{ ok: boolean; error?: string }> {
+    if (!api?.setFileTag) return { ok: false, error: 'API unavailable' };
+    return api.setFileTag(filePath, tagColor);
+  },
+
   async openExternal(filePath: string): Promise<boolean> {
     if (!api?.openExternal) return false;
     return api.openExternal(filePath);

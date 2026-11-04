@@ -13,7 +13,9 @@ import {
   ExplorerGallery,
   ExplorerInspector,
   QuickLookModal,
-  ExplorerStatusBar
+  ExplorerStatusBar,
+  ExplorerTabBar,
+  TabData
 } from './components/explorer';
 import { ExplorerContextMenu, ContextMenuState } from './components/explorer/ExplorerContextMenu';
 import { FullscreenViewer } from './components/viewer';
@@ -47,6 +49,13 @@ export default function App() {
     breadcrumbs
   } = useMediaNavigation();
 
+  // Multi-Tab State
+  const [tabs, setTabs] = useState<TabData[]>([
+    { id: 'tab-1', title: 'Home', path: '' }
+  ]);
+  const [activeTabId, setActiveTabId] = useState<string>('tab-1');
+
+  // Filter & View State
   const [search, setSearch] = useState('');
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedItemState, setSelectedItemState] = useState<FsItem | null>(null);
@@ -62,12 +71,21 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [propertiesItem, setPropertiesItem] = useState<FsItem | null>(null);
+
+  // Pro CRUD & Multi-Selection State
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [lastSelectedPath, setLastSelectedPath] = useState<string | null>(null);
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<{ paths: string[]; operation: 'copy' | 'move' } | null>(null);
+  const [colorTags, setColorTags] = useState<Record<string, string>>({});
+
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     isOpen: false,
     x: 0,
     y: 0,
     item: null
   });
+
   const [showHidden, setShowHidden] = useState<boolean>(() => {
     return localStorage.getItem('media-viewer-show-hidden') === 'true';
   });
@@ -84,6 +102,68 @@ export default function App() {
   const [sidebarWidth, setSidebarWidth] = useState(250);
   const [inspectorWidth, setInspectorWidth] = useState(320);
 
+  // Synchronize active tab path with navigation
+  useEffect(() => {
+    if (currentPath) {
+      setTabs(prev =>
+        prev.map(tab => {
+          if (tab.id === activeTabId) {
+            const folderName = currentPath.split(/[\\/]/).filter(Boolean).pop() || currentPath;
+            return { ...tab, path: currentPath, title: folderName };
+          }
+          return tab;
+        })
+      );
+    }
+  }, [currentPath, activeTabId]);
+
+  // Load color tags
+  useEffect(() => {
+    mediaService.getFileTags().then(tags => {
+      if (tags) setColorTags(tags);
+    });
+  }, [currentPath]);
+
+  // Filter items by category & search term
+  const filteredItems = useMemo(() => {
+    let list = items;
+    if (!showHidden) {
+      list = list.filter(i => !i.isHidden);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(i => i.name.toLowerCase().includes(q));
+    }
+    if (filterCategory === 'photo') {
+      list = list.filter(i => i.isDir || isPhotoExtension(i.ext));
+    } else if (filterCategory === 'video') {
+      list = list.filter(i => i.isDir || isVideoExtension(i.ext));
+    } else if (filterCategory === 'timelapse') {
+      list = list.filter(i => {
+        if (i.isDir) return true;
+        if (!isVideoExtension(i.ext)) return false;
+        const cached = thumbnailService.getCached(i.fullPath);
+        return cached ? cached.duration <= 60 : true;
+      });
+    }
+
+    // Sort items (folders always on top)
+    return [...list].sort((a, b) => {
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      let cmp = 0;
+      if (sortField === 'name') {
+        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortField === 'date') {
+        cmp = a.mtime - b.mtime;
+      } else if (sortField === 'size') {
+        cmp = a.size - b.size;
+      } else if (sortField === 'ext') {
+        cmp = a.ext.localeCompare(b.ext);
+      }
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+  }, [items, search, filterCategory, sortField, sortOrder, showHidden]);
+
   // Selected item object (reliable across folders and columns)
   const selectedItem = useMemo(() => {
     if (selectedItemState && selectedItemState.fullPath === selectedPath) {
@@ -92,10 +172,103 @@ export default function App() {
     return items.find(i => i.fullPath === selectedPath) || null;
   }, [items, selectedPath, selectedItemState]);
 
-  const handleSelectItem = (item: FsItem) => {
+  // Total size of selected items
+  const selectedSize = useMemo(() => {
+    return filteredItems
+      .filter(i => selectedPaths.has(i.fullPath))
+      .reduce((sum, item) => sum + (item.size || 0), 0);
+  }, [filteredItems, selectedPaths]);
+
+  // Set of paths that are currently cut (for dimming)
+  const cutPaths = useMemo(() => {
+    if (clipboard && clipboard.operation === 'move') {
+      return new Set(clipboard.paths);
+    }
+    return new Set<string>();
+  }, [clipboard]);
+
+  // Tab Handlers
+  const handleSelectTab = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+    const targetTab = tabs.find(t => t.id === tabId);
+    if (targetTab && targetTab.path && targetTab.path !== currentPath) {
+      navigate(targetTab.path);
+    }
+    if (targetTab?.viewMode) {
+      setViewMode(targetTab.viewMode);
+    }
+  }, [tabs, currentPath, navigate]);
+
+  const handleNewTab = useCallback(() => {
+    const newId = `tab-${Date.now()}`;
+    const newTab: TabData = {
+      id: newId,
+      title: currentPath ? currentPath.split(/[\\/]/).filter(Boolean).pop() || 'Folder' : 'Home',
+      path: currentPath || '',
+      viewMode
+    };
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(newId);
+  }, [currentPath, viewMode]);
+
+  const handleCloseTab = useCallback((tabId: string) => {
+    if (tabs.length <= 1) return;
+    const index = tabs.findIndex(t => t.id === tabId);
+    const remaining = tabs.filter(t => t.id !== tabId);
+    setTabs(remaining);
+
+    if (activeTabId === tabId) {
+      const nextTab = remaining[Math.max(0, index - 1)];
+      setActiveTabId(nextTab.id);
+      if (nextTab.path) navigate(nextTab.path);
+    }
+  }, [tabs, activeTabId, navigate]);
+
+  // Multi-Selection Logic
+  const handleSelectItem = useCallback((item: FsItem, e?: React.MouseEvent) => {
     setSelectedPath(item.fullPath);
     setSelectedItemState(item);
-  };
+
+    if (e && (e.ctrlKey || e.metaKey)) {
+      // Toggle selection
+      setSelectedPaths(prev => {
+        const next = new Set(prev);
+        if (next.has(item.fullPath)) {
+          next.delete(item.fullPath);
+        } else {
+          next.add(item.fullPath);
+        }
+        return next;
+      });
+      setLastSelectedPath(item.fullPath);
+    } else if (e && e.shiftKey && lastSelectedPath) {
+      // Shift range selection
+      const idx1 = filteredItems.findIndex(i => i.fullPath === lastSelectedPath);
+      const idx2 = filteredItems.findIndex(i => i.fullPath === item.fullPath);
+      if (idx1 !== -1 && idx2 !== -1) {
+        const [start, end] = idx1 < idx2 ? [idx1, idx2] : [idx2, idx1];
+        const rangePaths = new Set(selectedPaths);
+        for (let i = start; i <= end; i++) {
+          rangePaths.add(filteredItems[i].fullPath);
+        }
+        setSelectedPaths(rangePaths);
+      } else {
+        setSelectedPaths(new Set([item.fullPath]));
+        setLastSelectedPath(item.fullPath);
+      }
+    } else {
+      // Single selection
+      setSelectedPaths(new Set([item.fullPath]));
+      setLastSelectedPath(item.fullPath);
+    }
+  }, [filteredItems, lastSelectedPath, selectedPaths]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedPaths(new Set());
+    setSelectedPath(null);
+    setSelectedItemState(null);
+    setLastSelectedPath(null);
+  }, []);
 
   const handleQuickLook = (item: FsItem) => {
     setSelectedPath(item.fullPath);
@@ -118,6 +291,119 @@ export default function App() {
       setIsPropertiesOpen(true);
     }
   }, [selectedItem, currentPath]);
+
+  // CRUD Operations
+  const handleCreateFolder = useCallback(async () => {
+    if (!currentPath) return;
+    const res = await mediaService.createFolder(currentPath);
+    if (res.ok && res.folderPath) {
+      await refresh();
+      setSelectedPaths(new Set([res.folderPath]));
+      setSelectedPath(res.folderPath);
+      setRenamingPath(res.folderPath);
+    }
+  }, [currentPath, refresh]);
+
+  const handleCommitRename = useCallback(async (item: FsItem, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === item.name) {
+      setRenamingPath(null);
+      return;
+    }
+    const res = await mediaService.renameItem(item.fullPath, trimmed);
+    if (res.ok && res.newPath) {
+      await refresh();
+      setSelectedPaths(new Set([res.newPath]));
+      setSelectedPath(res.newPath);
+      setRenamingPath(null);
+    } else if (res.error) {
+      alert(`Rename failed: ${res.error}`);
+      setRenamingPath(null);
+    }
+  }, [refresh]);
+
+  const handleCancelRename = useCallback(() => {
+    setRenamingPath(null);
+  }, []);
+
+  const handleStartRename = useCallback(() => {
+    if (selectedPaths.size === 1) {
+      setRenamingPath(Array.from(selectedPaths)[0]);
+    } else if (selectedPath) {
+      setRenamingPath(selectedPath);
+    }
+  }, [selectedPaths, selectedPath]);
+
+  const handleCopySelected = useCallback((singleItem?: FsItem) => {
+    const targets = singleItem ? [singleItem.fullPath] : Array.from(selectedPaths);
+    if (targets.length === 0 && selectedPath) targets.push(selectedPath);
+    if (targets.length > 0) {
+      setClipboard({ paths: targets, operation: 'copy' });
+    }
+  }, [selectedPaths, selectedPath]);
+
+  const handleCutSelected = useCallback((singleItem?: FsItem) => {
+    const targets = singleItem ? [singleItem.fullPath] : Array.from(selectedPaths);
+    if (targets.length === 0 && selectedPath) targets.push(selectedPath);
+    if (targets.length > 0) {
+      setClipboard({ paths: targets, operation: 'move' });
+    }
+  }, [selectedPaths, selectedPath]);
+
+  const handlePaste = useCallback(async () => {
+    if (!clipboard || clipboard.paths.length === 0 || !currentPath) return;
+    const res = await mediaService.clipboardPaste(currentPath, clipboard.paths, clipboard.operation);
+    if (res.ok) {
+      if (clipboard.operation === 'move') {
+        setClipboard(null);
+      }
+      await refresh();
+    } else if (res.error) {
+      alert(`Paste failed: ${res.error}`);
+    }
+  }, [clipboard, currentPath, refresh]);
+
+  const handleDuplicateSelected = useCallback(async (singleItem?: FsItem) => {
+    const targets = singleItem ? [singleItem.fullPath] : Array.from(selectedPaths);
+    if (targets.length === 0 && selectedPath) targets.push(selectedPath);
+    if (targets.length === 0) return;
+
+    for (const p of targets) {
+      await mediaService.duplicateItem(p);
+    }
+    await refresh();
+  }, [selectedPaths, selectedPath, refresh]);
+
+  const handleDeleteSelected = useCallback(async (singleItem?: FsItem, permanent = false) => {
+    const targets = singleItem ? [singleItem.fullPath] : Array.from(selectedPaths);
+    if (targets.length === 0 && selectedPath) targets.push(selectedPath);
+    if (targets.length === 0) return;
+
+    if (permanent) {
+      const ok = window.confirm(`Permanently delete ${targets.length} item(s)? This action cannot be undone.`);
+      if (!ok) return;
+    }
+
+    const res = await mediaService.deleteItems(targets, permanent);
+    if (res.ok) {
+      handleClearSelection();
+      await refresh();
+    } else if (res.error) {
+      alert(`Delete failed: ${res.error}`);
+    }
+  }, [selectedPaths, selectedPath, handleClearSelection, refresh]);
+
+  const handleSetTag = useCallback(async (filePath: string, color: string | null) => {
+    const res = await mediaService.setFileTag(filePath, color);
+    if (res.ok) {
+      setColorTags(prev => {
+        const next = { ...prev };
+        if (color) next[filePath] = color;
+        else delete next[filePath];
+        return next;
+      });
+    }
+  }, []);
 
   const startSidebarResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -151,7 +437,7 @@ export default function App() {
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  // Handle external open target (from CLI argument or Windows Explorer double click)
+  // Handle external open target (CLI arg or Explorer double-click)
   const handleOpenTarget = useCallback(async (target: string) => {
     const isFile = isPhotoExtension((target.split('.').pop() || '').toLowerCase()) ||
                    isVideoExtension((target.split('.').pop() || '').toLowerCase());
@@ -169,6 +455,7 @@ export default function App() {
           fullPath: target
         };
         setSelectedPath(target);
+        setSelectedPaths(new Set([target]));
         setActiveItem(itemObj);
       }
     } else {
@@ -188,16 +475,24 @@ export default function App() {
     return () => unsubscribe();
   }, [handleOpenTarget]);
 
-  // Spacebar for macOS Quick Look & Hotkeys for view switching
+  // Global Keyboard Shortcuts (Native Mac Finder / Win Explorer)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
       const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-        return;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+
+      // Esc cancels rename or clears selection
+      if (e.key === 'Escape') {
+        if (renamingPath) {
+          handleCancelRename();
+          return;
+        }
       }
 
-      // Spacebar -> Toggle macOS Quick Look
+      // If user is editing filename inline, do not intercept hotkeys
+      if (isInput) return;
+
+      // Spacebar -> macOS Quick Look
       if (e.code === 'Space') {
         e.preventDefault();
         if (selectedItem) {
@@ -205,8 +500,28 @@ export default function App() {
         }
       }
 
-      // View mode hotkeys (Ctrl+1 to 4)
+      // Ctrl / Cmd shortcuts
       if (e.ctrlKey || e.metaKey) {
+        // Tab shortcuts
+        if (e.key.toLowerCase() === 't') {
+          e.preventDefault();
+          handleNewTab();
+          return;
+        }
+        if (e.key.toLowerCase() === 'w') {
+          e.preventDefault();
+          handleCloseTab(activeTabId);
+          return;
+        }
+
+        // New folder (Ctrl+Shift+N)
+        if (e.shiftKey && e.key.toLowerCase() === 'n') {
+          e.preventDefault();
+          handleCreateFolder();
+          return;
+        }
+
+        // View mode hotkeys (Ctrl+1 to 4)
         if (e.key === '1') {
           e.preventDefault();
           setViewMode('grid');
@@ -225,10 +540,42 @@ export default function App() {
         } else if (e.key === ',') {
           e.preventDefault();
           setIsSettingsModalOpen(true);
+        } else if (e.key.toLowerCase() === 'c') {
+          // Copy
+          e.preventDefault();
+          handleCopySelected();
+        } else if (e.key.toLowerCase() === 'x') {
+          // Cut
+          e.preventDefault();
+          handleCutSelected();
+        } else if (e.key.toLowerCase() === 'v') {
+          // Paste
+          e.preventDefault();
+          handlePaste();
+        } else if (e.key.toLowerCase() === 'd') {
+          // Duplicate
+          e.preventDefault();
+          handleDuplicateSelected();
+        } else if (e.key.toLowerCase() === 'a') {
+          // Select All
+          e.preventDefault();
+          setSelectedPaths(new Set(filteredItems.map(i => i.fullPath)));
         }
       }
 
-      // Cmd/Ctrl+Shift+. -> Toggle Show Hidden Files (Native macOS Finder / Explorer shortcut)
+      // F2 -> Inline Rename
+      if (e.key === 'F2') {
+        e.preventDefault();
+        handleStartRename();
+      }
+
+      // Delete -> Move to Recycle Bin (Delete) or Permanent (Shift+Delete)
+      if (e.key === 'Delete') {
+        e.preventDefault();
+        handleDeleteSelected(undefined, e.shiftKey);
+      }
+
+      // Cmd/Ctrl+Shift+. -> Toggle Show Hidden Files
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === '.' || e.key === '>')) {
         e.preventDefault();
         handleToggleShowHidden();
@@ -249,7 +596,26 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedItem, goUp]);
+  }, [
+    selectedItem,
+    selectedPaths,
+    filteredItems,
+    renamingPath,
+    activeTabId,
+    goUp,
+    handleNewTab,
+    handleCloseTab,
+    handleCreateFolder,
+    handleStartRename,
+    handleCancelRename,
+    handleCopySelected,
+    handleCutSelected,
+    handlePaste,
+    handleDuplicateSelected,
+    handleDeleteSelected,
+    handleToggleShowHidden,
+    handleOpenProperties
+  ]);
 
   const handleChooseFolder = async () => {
     const folder = await mediaService.selectFolder();
@@ -274,6 +640,11 @@ export default function App() {
 
   const handleContextMenu = (e: React.MouseEvent, item: FsItem | null) => {
     e.preventDefault();
+    if (item && !selectedPaths.has(item.fullPath)) {
+      setSelectedPaths(new Set([item.fullPath]));
+      setSelectedPath(item.fullPath);
+      setSelectedItemState(item);
+    }
     setContextMenu({
       isOpen: true,
       x: e.clientX,
@@ -291,51 +662,19 @@ export default function App() {
     }
   };
 
-  // Filter items by category & search term
-  const filteredItems = useMemo(() => {
-    let list = items;
-    if (!showHidden) {
-      list = list.filter(i => !i.isHidden);
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(i => i.name.toLowerCase().includes(q));
-    }
-    if (filterCategory === 'photo') {
-      list = list.filter(i => i.isDir || isPhotoExtension(i.ext));
-    } else if (filterCategory === 'video') {
-      list = list.filter(i => i.isDir || isVideoExtension(i.ext));
-    } else if (filterCategory === 'timelapse') {
-      list = list.filter(i => {
-        if (i.isDir) return true;
-        if (!isVideoExtension(i.ext)) return false;
-        const cached = thumbnailService.getCached(i.fullPath);
-        return cached ? cached.duration <= 60 : true;
-      });
-    }
-
-    // Sort items (folders always on top)
-    return [...list].sort((a, b) => {
-      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-
-      let cmp = 0;
-      if (sortField === 'name') {
-        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-      } else if (sortField === 'date') {
-        cmp = a.mtime - b.mtime;
-      } else if (sortField === 'size') {
-        cmp = a.size - b.size;
-      } else if (sortField === 'ext') {
-        cmp = a.ext.localeCompare(b.ext);
-      }
-      return sortOrder === 'asc' ? cmp : -cmp;
-    });
-  }, [items, search, filterCategory, sortField, sortOrder]);
-
   const subfolders = useMemo(() => items.filter(i => i.isDir), [items]);
 
   return (
     <div className="flex flex-col h-screen mac-window select-none overflow-hidden transition-colors duration-200">
+      {/* ── Top Multi-Tab Workspace Bar ── */}
+      <ExplorerTabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onSelectTab={handleSelectTab}
+        onCloseTab={handleCloseTab}
+        onNewTab={handleNewTab}
+      />
+
       {/* Top Windows Explorer + Mac Finder Hybrid Command Toolbar */}
       <ExplorerToolbar
         canGoBack={canGoBack}
@@ -365,6 +704,17 @@ export default function App() {
         onToggleShowHidden={handleToggleShowHidden}
         density={density}
         onSetDensity={setDensity}
+        // Pro CRUD Action Bar props
+        onNewFolder={handleCreateFolder}
+        onCut={() => handleCutSelected()}
+        onCopy={() => handleCopySelected()}
+        onPaste={handlePaste}
+        onRename={handleStartRename}
+        onDelete={() => handleDeleteSelected(undefined, false)}
+        onDuplicate={() => handleDuplicateSelected()}
+        selectedCount={selectedPaths.size}
+        clipboardCount={clipboard ? clipboard.paths.length : 0}
+        clipboardOp={clipboard?.operation || null}
       />
 
       {/* Main App Workspace with Resizable Dividers */}
@@ -411,10 +761,17 @@ export default function App() {
               <ExplorerGrid
                 items={filteredItems}
                 selectedPath={selectedPath}
+                selectedPaths={selectedPaths}
+                cutPaths={cutPaths}
+                renamingPath={renamingPath}
+                colorTags={colorTags}
                 density={density}
                 onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
                 onContextMenu={handleContextMenu}
+                onCommitRename={handleCommitRename}
+                onCancelRename={handleCancelRename}
+                onClearSelection={handleClearSelection}
               />
             </div>
           ) : viewMode === 'table' ? (
@@ -422,10 +779,16 @@ export default function App() {
               <ExplorerTable
                 items={filteredItems}
                 selectedPath={selectedPath}
+                selectedPaths={selectedPaths}
+                cutPaths={cutPaths}
+                renamingPath={renamingPath}
+                colorTags={colorTags}
                 onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
                 onQuickLook={handleQuickLook}
                 onContextMenu={handleContextMenu}
+                onCommitRename={handleCommitRename}
+                onCancelRename={handleCancelRename}
               />
             </div>
           ) : viewMode === 'columns' ? (
@@ -480,6 +843,8 @@ export default function App() {
         totalShown={filteredItems.length}
         allItems={items}
         selectedPath={selectedPath}
+        selectedCount={selectedPaths.size}
+        selectedSize={selectedSize}
       />
 
       {/* Windows / macOS Explorer Right-Click Context Menu */}
@@ -497,6 +862,7 @@ export default function App() {
         }}
         onOpenProperties={handleOpenProperties}
         onRefresh={refresh}
+        onNewFolder={handleCreateFolder}
         onToggleHidden={handleToggleShowHidden}
         showHidden={showHidden}
         currentFolderItem={currentPath ? {
@@ -507,6 +873,15 @@ export default function App() {
           ext: '',
           fullPath: currentPath
         } : null}
+        onCut={item => handleCutSelected(item)}
+        onCopy={item => handleCopySelected(item)}
+        onPaste={handlePaste}
+        onDuplicate={item => handleDuplicateSelected(item)}
+        onRename={item => setRenamingPath(item.fullPath)}
+        onDelete={(item, permanent) => handleDeleteSelected(item, permanent)}
+        onSetColorTag={handleSetTag}
+        currentColorTag={contextMenu.item ? colorTags[contextMenu.item.fullPath] : null}
+        canPaste={Boolean(clipboard && clipboard.paths.length > 0)}
       />
 
       {/* Full File / Folder Properties Modal */}
@@ -534,7 +909,7 @@ export default function App() {
           items={filteredItems}
           onClose={() => setActiveItem(null)}
           onNavigate={target => {
-            setSelectedPath(target.fullPath);
+            handleSelectItem(target);
             setActiveItem(target);
           }}
         />

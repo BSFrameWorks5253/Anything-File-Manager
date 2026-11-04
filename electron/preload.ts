@@ -33,9 +33,26 @@ export interface MediaViewerAPI {
   dispatchAmbientEvent?: (payload: { title: string; message: string; sound?: boolean }) => Promise<{ ok: boolean }>;
   getDiskHealth?: (drivePath: string) => Promise<any>;
   readTextFile?: (filePath: string, maxBytes?: number) => Promise<{ ok: boolean; content?: string; lineCount?: number; isTruncated?: boolean; totalBytes?: number; error?: string }>;
+  // Full CRUD File Engine & Cross-Disk Operations
+  createFolder?: (parentDir: string, customName?: string) => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>;
+  createFile?: (parentDir: string, fileName?: string, defaultContent?: string) => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>;
+  renameItem?: (oldPath: string, newName: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;
+  deleteItems?: (filePaths: string[], permanent?: boolean) => Promise<{ ok: boolean; deletedCount: number; errors?: string[] }>;
+  clipboardPaste?: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => Promise<{ ok: boolean; pastedCount: number; errors?: string[] }>;
+  duplicateItem?: (sourcePath: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;
+  getFileTags?: () => Promise<Record<string, string>>;
+  setFileTag?: (filePath: string, tagColor: string | null) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const api: MediaViewerAPI = {
+  createFolder: (parentDir: string, customName?: string) => ipcRenderer.invoke('media:createFolder', parentDir, customName),
+  createFile: (parentDir: string, fileName?: string, defaultContent?: string) => ipcRenderer.invoke('media:createFile', parentDir, fileName, defaultContent),
+  renameItem: (oldPath: string, newName: string) => ipcRenderer.invoke('media:renameItem', oldPath, newName),
+  deleteItems: (filePaths: string[], permanent?: boolean) => ipcRenderer.invoke('media:deleteItems', filePaths, permanent),
+  clipboardPaste: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => ipcRenderer.invoke('media:clipboardPaste', targetDir, sourcePaths, operation),
+  duplicateItem: (sourcePath: string) => ipcRenderer.invoke('media:duplicateItem', sourcePath),
+  getFileTags: () => ipcRenderer.invoke('media:getFileTags'),
+  setFileTag: (filePath: string, tagColor: string | null) => ipcRenderer.invoke('media:setFileTag', filePath, tagColor),
   readTextFile: (filePath: string, maxBytes?: number) => ipcRenderer.invoke('media:readTextFile', filePath, maxBytes),
   openSeparatePlayer: (filePath: string) => ipcRenderer.invoke('media:openSeparatePlayer', filePath),
   minimizeWindow: () => ipcRenderer.send('window:minimize'),

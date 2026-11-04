@@ -23,10 +23,16 @@ import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
 interface ExplorerTableProps {
   items: FsItem[];
   selectedPath: string | null;
-  onSelectItem: (item: FsItem) => void;
+  selectedPaths?: Set<string>;
+  cutPaths?: Set<string>;
+  renamingPath?: string | null;
+  colorTags?: Record<string, string>;
+  onSelectItem: (item: FsItem, e?: React.MouseEvent) => void;
   onOpenItem: (item: FsItem) => void;
   onQuickLook?: (item: FsItem) => void;
   onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
+  onCommitRename?: (item: FsItem, newName: string) => void;
+  onCancelRename?: () => void;
 }
 
 function TableVideoDuration({ item }: { item: FsItem }) {
@@ -69,11 +75,39 @@ function TableVideoDuration({ item }: { item: FsItem }) {
 export const ExplorerTable: React.FC<ExplorerTableProps> = ({
   items,
   selectedPath,
+  selectedPaths,
+  cutPaths,
+  renamingPath,
+  colorTags = {},
   onSelectItem,
   onOpenItem,
   onQuickLook,
-  onContextMenu
+  onContextMenu,
+  onCommitRename,
+  onCancelRename
 }) => {
+  const [tableRenameVal, setTableRenameVal] = useState('');
+  const tableRenameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renamingPath) {
+      const target = items.find(i => i.fullPath === renamingPath);
+      if (target) {
+        setTableRenameVal(target.name);
+        setTimeout(() => {
+          if (tableRenameRef.current) {
+            tableRenameRef.current.focus();
+            const dotIdx = target.name.lastIndexOf('.');
+            if (!target.isDir && dotIdx > 0) {
+              tableRenameRef.current.setSelectionRange(0, dotIdx);
+            } else {
+              tableRenameRef.current.select();
+            }
+          }
+        }, 50);
+      }
+    }
+  }, [renamingPath, items]);
   // Resizable table columns widths (in pixels)
   const [colWidths, setColWidths] = useState({
     name: 420,
@@ -201,7 +235,10 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
         </thead>
         <tbody>
           {items.map(item => {
-            const isSelected = selectedPath === item.fullPath;
+            const isSelected = selectedPaths ? selectedPaths.has(item.fullPath) : selectedPath === item.fullPath;
+            const isCut = cutPaths ? cutPaths.has(item.fullPath) : false;
+            const isRenaming = renamingPath === item.fullPath;
+            const tag = colorTags[item.fullPath] || null;
             const isRaw = isRawExtension(item.ext);
             const isPhoto = isPhotoExtension(item.ext);
             const isVideo = isVideoExtension(item.ext);
@@ -209,20 +246,27 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
             return (
               <tr
                 key={item.fullPath}
-                onClick={() => onSelectItem(item)}
+                onClick={e => onSelectItem(item, e)}
                 onDoubleClick={() => onOpenItem(item)}
                 onContextMenu={e => {
                   e.stopPropagation();
-                  onSelectItem(item);
+                  onSelectItem(item, e);
                   onContextMenu?.(e, item);
                 }}
                 className={`group cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors border-b border-[var(--mac-border-subtle)] ${
                   isSelected ? 'bg-indigo-600 text-white font-medium shadow-sm' : 'text-[var(--mac-text-primary)]'
-                } ${item.isHidden && !isSelected ? 'opacity-55 hover:opacity-100' : ''}`}
+                } ${item.isHidden && !isSelected ? 'opacity-55 hover:opacity-100' : ''} ${isCut ? 'opacity-40 filter grayscale-[40%]' : ''}`}
               >
                 {/* Name */}
                 <td className="py-2 px-3 truncate">
                   <div className="flex items-center gap-2.5 truncate">
+                    {tag && (
+                      <span
+                        style={{ backgroundColor: tag }}
+                        className="w-2 h-2 rounded-full shadow-sm ring-1 ring-white/30 flex-shrink-0"
+                        title={`Tag: ${tag}`}
+                      />
+                    )}
                     {item.isDir ? (
                       <MacFolderIcon size={18} className="flex-shrink-0" />
                     ) : isRaw ? (
@@ -239,9 +283,33 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                     ) : (
                       <MacDocumentIcon size={18} ext={item.ext} className="flex-shrink-0" />
                     )}
-                    <span className="truncate" title={item.name}>
-                      {item.name}
-                    </span>
+
+                    {isRenaming ? (
+                      <input
+                        ref={tableRenameRef}
+                        type="text"
+                        value={tableRenameVal}
+                        onChange={e => setTableRenameVal(e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                        onDoubleClick={e => e.stopPropagation()}
+                        onKeyDown={e => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            onCommitRename?.(item, tableRenameVal);
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            onCancelRename?.();
+                          }
+                        }}
+                        onBlur={() => onCommitRename?.(item, tableRenameVal)}
+                        className="w-full text-xs bg-white dark:bg-[#1a1c29] text-neutral-900 dark:text-white border-2 border-[var(--mac-accent)] rounded px-1.5 py-0.5 outline-none shadow font-medium"
+                      />
+                    ) : (
+                      <span className="truncate" title={item.name}>
+                        {item.name}
+                      </span>
+                    )}
                   </div>
                 </td>
 

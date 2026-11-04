@@ -8,3 +8,4 @@ export * from './ExplorerGallery';
 export * from './ExplorerInspector';
 export * from './QuickLookModal';
 export * from './ExplorerStatusBar';
+export * from './ExplorerTabBar';

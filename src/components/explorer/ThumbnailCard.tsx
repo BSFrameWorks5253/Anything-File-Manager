@@ -22,10 +22,15 @@ import { classifyFolder } from '../../utils/afmTaxonomy';
 interface ThumbnailCardProps {
   item: FsItem;
   isSelected?: boolean;
+  isCut?: boolean;
+  isRenaming?: boolean;
+  colorTag?: string | null;
   density?: 'compact' | 'normal' | 'broad';
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   onOpen: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  onCommitRename?: (newName: string) => void;
+  onCancelRename?: () => void;
 }
 
 function getFolderType(name: string): 'generic' | 'desktop' | 'downloads' | 'pictures' | 'videos' | 'documents' | 'home' {
@@ -42,10 +47,15 @@ function getFolderType(name: string): 'generic' | 'desktop' | 'downloads' | 'pic
 export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   item,
   isSelected = false,
+  isCut = false,
+  isRenaming = false,
+  colorTag = null,
   density = 'normal',
   onClick,
   onOpen,
-  onContextMenu
+  onContextMenu,
+  onCommitRename,
+  onCancelRename
 }) => {
   const isRaw = isRawExtension(item.ext);
   const isVideo = isVideoExtension(item.ext);
@@ -53,6 +63,25 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   const isAudio = isAudioExtension(item.ext);
   const isDoc = isDocExtension(item.ext);
   const isDirectBrowserPhoto = isPhoto && !isRaw;
+
+  const [renameVal, setRenameVal] = useState(item.name);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setRenameVal(item.name);
+  }, [item.name]);
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      const dotIdx = item.name.lastIndexOf('.');
+      if (!item.isDir && dotIdx > 0) {
+        renameInputRef.current.setSelectionRange(0, dotIdx);
+      } else {
+        renameInputRef.current.select();
+      }
+    }
+  }, [isRenaming, item.name, item.isDir]);
 
   const cached = thumbnailService.getCached(item.fullPath);
   const [thumb, setThumb] = useState<string | null>(cached?.thumb || null);
@@ -116,8 +145,17 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
         isSelected
           ? 'bg-black/[0.06] dark:bg-white/[0.08] ring-1 ring-[var(--mac-accent)]/40 shadow-sm'
           : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
-      } ${item.isHidden ? 'opacity-55 hover:opacity-100' : ''}`}
+      } ${item.isHidden ? 'opacity-55 hover:opacity-100' : ''} ${isCut ? 'opacity-40 filter grayscale-[40%]' : ''}`}
     >
+      {/* ── Apple Style Color Tag Badge ── */}
+      {colorTag && (
+        <span
+          style={{ backgroundColor: colorTag }}
+          className="absolute top-2 left-2 w-2.5 h-2.5 rounded-full shadow-sm ring-1 ring-white/30 z-20"
+          title={`Tag: ${colorTag}`}
+        />
+      )}
+
       {/* ── Icon / Thumbnail Canvas ── */}
       <div className={`w-full ${canvasHeight} flex items-center justify-center relative overflow-hidden`}>
         {item.isDir ? (
@@ -260,18 +298,41 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
         )}
       </div>
 
-      {/* ── macOS Finder Style Centered Label ── */}
+      {/* ── macOS Finder Style Centered Label or Inline Rename Input ── */}
       <div className="w-full mt-2 flex flex-col items-center text-center select-none px-1">
-        <span
-          className={`text-xs leading-snug line-clamp-2 px-1.5 py-0.5 rounded transition-all break-words ${labelMaxWidth} ${
-            isSelected
-              ? 'bg-[var(--mac-accent)] text-white font-medium shadow-sm'
-              : 'text-[var(--mac-text-primary)] font-normal group-hover:text-[var(--mac-accent)]'
-          }`}
-          title={item.name}
-        >
-          {item.name}
-        </span>
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            type="text"
+            value={renameVal}
+            onChange={e => setRenameVal(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            onDoubleClick={e => e.stopPropagation()}
+            onKeyDown={e => {
+              e.stopPropagation();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onCommitRename?.(renameVal);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                onCancelRename?.();
+              }
+            }}
+            onBlur={() => onCommitRename?.(renameVal)}
+            className="w-full text-xs bg-white dark:bg-[#1a1c29] text-neutral-900 dark:text-white border-2 border-[var(--mac-accent)] rounded-md px-1.5 py-0.5 outline-none shadow-xl text-center font-medium"
+          />
+        ) : (
+          <span
+            className={`text-xs leading-snug line-clamp-2 px-1.5 py-0.5 rounded transition-all break-words ${labelMaxWidth} ${
+              isSelected
+                ? 'bg-[var(--mac-accent)] text-white font-medium shadow-sm'
+                : 'text-[var(--mac-text-primary)] font-normal group-hover:text-[var(--mac-accent)]'
+            }`}
+            title={item.name}
+          >
+            {item.name}
+          </span>
+        )}
         <span className="text-[10.5px] text-[var(--mac-text-muted)] mt-0.5 font-normal tracking-tight">
           {item.isDir ? 'Folder' : formatBytes(item.size)}
         </span>

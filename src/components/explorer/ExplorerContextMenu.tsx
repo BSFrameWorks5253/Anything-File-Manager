@@ -14,7 +14,9 @@ import {
   Info,
   RefreshCw,
   FolderPlus,
-  EyeOff
+  EyeOff,
+  CopyPlus,
+  Check
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import { isVideoExtension } from '../../utils';
@@ -42,7 +44,27 @@ interface ExplorerContextMenuProps {
   onToggleHidden?: () => void;
   showHidden?: boolean;
   currentFolderItem?: FsItem | null;
+  // CRUD Actions
+  onCut?: (item: FsItem) => void;
+  onCopy?: (item: FsItem) => void;
+  onPaste?: () => void;
+  onDuplicate?: (item: FsItem) => void;
+  onRename?: (item: FsItem) => void;
+  onDelete?: (item: FsItem, permanent?: boolean) => void;
+  onSetColorTag?: (filePath: string, color: string | null) => void;
+  currentColorTag?: string | null;
+  canPaste?: boolean;
 }
+
+const MAC_TAGS = [
+  { name: 'Red', color: '#ef4444' },
+  { name: 'Orange', color: '#f97316' },
+  { name: 'Yellow', color: '#eab308' },
+  { name: 'Green', color: '#22c55e' },
+  { name: 'Blue', color: '#3b82f6' },
+  { name: 'Purple', color: '#a855f7' },
+  { name: 'Gray', color: '#6b7280' }
+];
 
 export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
   menu,
@@ -58,7 +80,16 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
   onNewFolder,
   onToggleHidden,
   showHidden,
-  currentFolderItem
+  currentFolderItem,
+  onCut,
+  onCopy,
+  onPaste,
+  onDuplicate,
+  onRename,
+  onDelete,
+  onSetColorTag,
+  currentColorTag,
+  canPaste = false
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -83,13 +114,12 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
   if (!menu.isOpen) return null;
 
   // Adjust menu coordinates so it doesn't overflow screen boundaries
-  const menuWidth = 240;
-  const menuHeight = menu.item ? 360 : 220;
+  const menuWidth = 250;
+  const menuHeight = menu.item ? 460 : 250;
   const adjustedX = Math.min(menu.x, window.innerWidth - menuWidth - 10);
   const adjustedY = Math.min(menu.y, window.innerHeight - menuHeight - 10);
 
   const { item } = menu;
-  const isVideo = item ? isVideoExtension(item.ext) : false;
 
   return (
     <div
@@ -98,7 +128,7 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
         left: `${adjustedX}px`,
         top: `${adjustedY}px`
       }}
-      className="fixed z-50 w-60 rounded-xl bg-white/95 dark:bg-[#1c1f2b]/95 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-2xl py-1.5 text-xs text-neutral-800 dark:text-neutral-200 select-none animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-50 w-64 rounded-xl bg-white/95 dark:bg-[#1a1d2c]/95 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-2xl py-1.5 text-xs text-neutral-800 dark:text-neutral-200 select-none animate-in fade-in zoom-in-95 duration-100"
     >
       {item ? (
         /* ── Item Context Menu (File or Folder) ── */
@@ -116,37 +146,6 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
             </div>
             <span className="text-[10px] opacity-60">Enter</span>
           </button>
-
-          {item.isDir && (
-            <>
-              <button
-                onClick={() => {
-                  onInspect(item);
-                  onClose();
-                }}
-                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
-              >
-                <div className="flex items-center gap-2">
-                  <Film className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
-                  <span>Inspect Production Session</span>
-                </div>
-              </button>
-
-              <button
-                onClick={async () => {
-                  onClose();
-                  await oneTapService.separatePhotosAndVideos(item.fullPath);
-                  if (onRefresh) onRefresh();
-                }}
-                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:text-white" />
-                  <span>Separate Photos & Videos (PV)</span>
-                </div>
-              </button>
-            </>
-          )}
 
           {!item.isDir && (
             <button
@@ -179,6 +178,181 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
             </button>
           )}
 
+          {item.isDir && (
+            <>
+              <button
+                onClick={() => {
+                  onInspect(item);
+                  onClose();
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <Film className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
+                  <span>Inspect Production Session</span>
+                </div>
+              </button>
+
+              <button
+                onClick={async () => {
+                  onClose();
+                  await oneTapService.separatePhotosAndVideos(item.fullPath);
+                  if (onRefresh) onRefresh();
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:text-white" />
+                  <span>Separate Photos & Videos (PV)</span>
+                </div>
+              </button>
+            </>
+          )}
+
+          {/* ── macOS Color Dot Tags ── */}
+          <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
+          <div className="px-3 py-1.5">
+            <div className="text-[10px] font-semibold text-[var(--mac-text-muted)] mb-1.5 uppercase tracking-wider">
+              Tags
+            </div>
+            <div className="flex items-center justify-between gap-1">
+              {MAC_TAGS.map(tag => {
+                const isSelected = currentColorTag === tag.color;
+                return (
+                  <button
+                    key={tag.name}
+                    onClick={() => {
+                      onSetColorTag?.(item.fullPath, isSelected ? null : tag.color);
+                      onClose();
+                    }}
+                    style={{ backgroundColor: tag.color }}
+                    className={`w-4 h-4 rounded-full flex items-center justify-center transition-transform hover:scale-125 shadow-sm ${
+                      isSelected ? 'ring-2 ring-offset-2 ring-white dark:ring-black scale-110' : ''
+                    }`}
+                    title={tag.name}
+                  >
+                    {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                  </button>
+                );
+              })}
+              {currentColorTag && (
+                <button
+                  onClick={() => {
+                    onSetColorTag?.(item.fullPath, null);
+                    onClose();
+                  }}
+                  className="text-[10px] text-gray-400 hover:text-red-400 ml-1 px-1 rounded"
+                  title="Remove Tag"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── Cut / Copy / Duplicate / Rename ── */}
+          <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
+
+          {onCut && (
+            <button
+              onClick={() => {
+                onCut(item);
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Scissors className="w-3.5 h-3.5 text-blue-400 group-hover:text-white" />
+                <span>Cut</span>
+              </div>
+              <span className="text-[10px] opacity-60">Ctrl+X</span>
+            </button>
+          )}
+
+          {onCopy && (
+            <button
+              onClick={() => {
+                onCopy(item);
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Copy className="w-3.5 h-3.5 text-indigo-400 group-hover:text-white" />
+                <span>Copy</span>
+              </div>
+              <span className="text-[10px] opacity-60">Ctrl+C</span>
+            </button>
+          )}
+
+          {onDuplicate && (
+            <button
+              onClick={() => {
+                onDuplicate(item);
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <CopyPlus className="w-3.5 h-3.5 text-amber-500 group-hover:text-white" />
+                <span>Duplicate</span>
+              </div>
+              <span className="text-[10px] opacity-60">Ctrl+D</span>
+            </button>
+          )}
+
+          {onRename && (
+            <button
+              onClick={() => {
+                onRename(item);
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
+                <span>Rename</span>
+              </div>
+              <span className="text-[10px] opacity-60">F2</span>
+            </button>
+          )}
+
+          {/* ── Recycle Bin / Permanent Delete ── */}
+          <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
+
+          {onDelete && (
+            <>
+              <button
+                onClick={() => {
+                  onDelete(item, false);
+                  onClose();
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-red-500 hover:text-white transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <Trash2 className="w-3.5 h-3.5 text-red-400 group-hover:text-white" />
+                  <span>Move to Trash</span>
+                </div>
+                <span className="text-[10px] opacity-60">Delete</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onDelete(item, true);
+                  onClose();
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-red-600 hover:text-white transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <Trash2 className="w-3.5 h-3.5 text-red-500 group-hover:text-white" />
+                  <span>Permanent Delete</span>
+                </div>
+                <span className="text-[10px] opacity-60">Shift+Delete</span>
+              </button>
+            </>
+          )}
+
+          {/* ── Properties & Utility ── */}
           <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
 
           <button
@@ -213,8 +387,6 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
             <span className="text-[10px] opacity-60">Alt+Enter</span>
           </button>
 
-          <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
-
           <button
             onClick={() => {
               onShowInExplorer(item.fullPath);
@@ -231,6 +403,43 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
       ) : (
         /* ── Canvas / Background Context Menu ── */
         <>
+          {onNewFolder && (
+            <button
+              onClick={() => {
+                onNewFolder();
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <FolderPlus className="w-3.5 h-3.5 text-emerald-500 group-hover:text-white" />
+                <span className="font-semibold">New Folder</span>
+              </div>
+              <span className="text-[10px] opacity-60">Ctrl+Shift+N</span>
+            </button>
+          )}
+
+          {onPaste && (
+            <button
+              onClick={() => {
+                if (canPaste) {
+                  onPaste();
+                  onClose();
+                }
+              }}
+              disabled={!canPaste}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white disabled:opacity-35 disabled:hover:bg-transparent transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Clipboard className="w-3.5 h-3.5 text-teal-400 group-hover:text-white" />
+                <span>Paste</span>
+              </div>
+              <span className="text-[10px] opacity-60">Ctrl+V</span>
+            </button>
+          )}
+
+          <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
+
           {onRefresh && (
             <button
               onClick={() => {

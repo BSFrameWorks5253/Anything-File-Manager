@@ -609,4 +609,220 @@ export function registerMediaIPC(
   });
 
   ipcMain.handle('media:getInitialFile', async () => getInitialFile());
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FULL CRUD FILE ENGINE (CROSS-DISK SUPPORT, RECYCLE BIN, DUPLICATION)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 1. Create New Folder
+  ipcMain.handle('media:createFolder', async (_event, parentDir: string, customName?: string) => {
+    try {
+      if (!parentDir || !fs.existsSync(parentDir)) {
+        return { ok: false, error: 'Parent directory does not exist' };
+      }
+      let folderName = customName?.trim() || 'New folder';
+      let targetPath = path.join(parentDir, folderName);
+      let count = 2;
+      while (fs.existsSync(targetPath)) {
+        targetPath = path.join(parentDir, `${folderName} (${count})`);
+        count++;
+      }
+      fs.mkdirSync(targetPath, { recursive: true });
+      return { ok: true, path: targetPath, name: path.basename(targetPath) };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  // 2. Create New Text / Code / Note File
+  ipcMain.handle('media:createFile', async (_event, parentDir: string, fileName?: string, defaultContent = '') => {
+    try {
+      if (!parentDir || !fs.existsSync(parentDir)) {
+        return { ok: false, error: 'Parent directory does not exist' };
+      }
+      let baseName = fileName?.trim() || 'New Document.txt';
+      let targetPath = path.join(parentDir, baseName);
+      const ext = path.extname(baseName);
+      const root = path.basename(baseName, ext);
+      let count = 2;
+      while (fs.existsSync(targetPath)) {
+        targetPath = path.join(parentDir, `${root} (${count})${ext}`);
+        count++;
+      }
+      fs.writeFileSync(targetPath, defaultContent, 'utf-8');
+      return { ok: true, path: targetPath, name: path.basename(targetPath) };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  // 3. Rename File or Folder
+  ipcMain.handle('media:renameItem', async (_event, oldPath: string, newName: string) => {
+    try {
+      if (!oldPath || !fs.existsSync(oldPath)) {
+        return { ok: false, error: 'Original item not found' };
+      }
+      const trimmed = newName?.trim();
+      if (!trimmed) return { ok: false, error: 'Filename cannot be empty' };
+
+      // Validate invalid Windows / OS filename characters
+      if (/[<>:"/\\|?*]/.test(trimmed)) {
+        return { ok: false, error: 'A filename cannot contain \\ / : * ? " < > |' };
+      }
+
+      const dir = path.dirname(oldPath);
+      const newPath = path.join(dir, trimmed);
+      if (newPath.toLowerCase() !== oldPath.toLowerCase() && fs.existsSync(newPath)) {
+        return { ok: false, error: `An item named "${trimmed}" already exists.` };
+      }
+
+      fs.renameSync(oldPath, newPath);
+      return { ok: true, newPath, name: trimmed };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  // 4. Delete Items (Native Recycle Bin / Trash or Permanent)
+  ipcMain.handle('media:deleteItems', async (_event, filePaths: string[], permanent = false) => {
+    let deletedCount = 0;
+    const errors: string[] = [];
+
+    for (const p of filePaths) {
+      try {
+        if (!fs.existsSync(p)) continue;
+        if (permanent) {
+          fs.rmSync(p, { recursive: true, force: true });
+        } else {
+          // Send to native OS Recycle Bin / Trash
+          await shell.trashItem(p);
+        }
+        deletedCount++;
+      } catch (err: any) {
+        errors.push(`${path.basename(p)}: ${err.message || String(err)}`);
+      }
+    }
+
+    return {
+      ok: errors.length === 0,
+      deletedCount,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  });
+
+  // 5. Cross-Disk File Clipboard Engine (Copy & Move across different drives)
+  ipcMain.handle('media:clipboardPaste', async (_event, targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => {
+    try {
+      if (!targetDir || !fs.existsSync(targetDir)) {
+        return { ok: false, error: 'Target directory not found', pastedCount: 0 };
+      }
+      let pastedCount = 0;
+      const errors: string[] = [];
+
+      for (const src of sourcePaths) {
+        try {
+          if (!fs.existsSync(src)) continue;
+          const originalName = path.basename(src);
+          const ext = path.extname(originalName);
+          const base = path.basename(originalName, ext);
+
+          // Calculate destination path with collision handling
+          let dst = path.join(targetDir, originalName);
+          if (fs.existsSync(dst)) {
+            let counter = 2;
+            const prefix = operation === 'copy' && path.dirname(src) === targetDir ? ' - Copy' : '';
+            dst = path.join(targetDir, `${base}${prefix}${ext}`);
+            while (fs.existsSync(dst)) {
+              dst = path.join(targetDir, `${base}${prefix} (${counter})${ext}`);
+              counter++;
+            }
+          }
+
+          if (operation === 'copy') {
+            fs.cpSync(src, dst, { recursive: true });
+          } else {
+            // Move: check if same filesystem or cross-disk (EXDEV)
+            try {
+              fs.renameSync(src, dst);
+            } catch (renameErr: any) {
+              if (renameErr.code === 'EXDEV' || renameErr.code === 'EPERM' || renameErr.code === 'EACCES') {
+                // Cross-disk move (e.g. C: to D:): copy then remove source
+                fs.cpSync(src, dst, { recursive: true });
+                fs.rmSync(src, { recursive: true, force: true });
+              } else {
+                throw renameErr;
+              }
+            }
+          }
+          pastedCount++;
+        } catch (itemErr: any) {
+          errors.push(`${path.basename(src)}: ${itemErr.message || String(itemErr)}`);
+        }
+      }
+
+      return {
+        ok: errors.length === 0,
+        pastedCount,
+        errors: errors.length > 0 ? errors : undefined
+      };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err), pastedCount: 0 };
+    }
+  });
+
+  // 6. Duplicate File / Folder (macOS Cmd+D style)
+  ipcMain.handle('media:duplicateItem', async (_event, sourcePath: string) => {
+    try {
+      if (!sourcePath || !fs.existsSync(sourcePath)) {
+        return { ok: false, error: 'Source item does not exist' };
+      }
+      const dir = path.dirname(sourcePath);
+      const originalName = path.basename(sourcePath);
+      const ext = path.extname(originalName);
+      const base = path.basename(originalName, ext);
+
+      let candidate = path.join(dir, `${base} - Copy${ext}`);
+      let counter = 2;
+      while (fs.existsSync(candidate)) {
+        candidate = path.join(dir, `${base} - Copy (${counter})${ext}`);
+        counter++;
+      }
+
+      fs.cpSync(sourcePath, candidate, { recursive: true });
+      return { ok: true, newPath: candidate, name: path.basename(candidate) };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  // 7. Apple macOS Style Color Tags
+  const getTagsFilePath = () => path.join(app.getPath('userData'), 'file-color-tags.json');
+  ipcMain.handle('media:getFileTags', async () => {
+    try {
+      const p = getTagsFilePath();
+      if (fs.existsSync(p)) {
+        return JSON.parse(fs.readFileSync(p, 'utf-8'));
+      }
+    } catch {}
+    return {};
+  });
+
+  ipcMain.handle('media:setFileTag', async (_event, filePath: string, tagColor: string | null) => {
+    try {
+      const p = getTagsFilePath();
+      let map: Record<string, string> = {};
+      if (fs.existsSync(p)) {
+        try { map = JSON.parse(fs.readFileSync(p, 'utf-8')); } catch {}
+      }
+      if (tagColor) {
+        map[filePath] = tagColor;
+      } else {
+        delete map[filePath];
+      }
+      fs.writeFileSync(p, JSON.stringify(map, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
 }
