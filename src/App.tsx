@@ -86,10 +86,11 @@ export default function App() {
     } : null);
 
     if (folder) {
+      const isTargetCurrentFolder = currentPath && folder.fullPath.toLowerCase() === currentPath.toLowerCase();
       setPreflightTarget({
         folderPath: folder.fullPath,
         folderName: folder.name,
-        clipCount: items.filter(i => isVideoExtension(i.ext)).length,
+        clipCount: isTargetCurrentFolder ? items.filter(i => isVideoExtension(i.ext)).length : undefined,
         duration: 0
       });
       setIsPreflightOpen(true);

@@ -480,9 +480,9 @@ export function registerAfmIPC(): void {
       // Collect video files for fast duration estimation & background probing
       const videoFilesToProbe: { path: string; size: number }[] = [];
 
-      // Fast recursive crawler (up to 4 levels)
+      // Fast recursive crawler (up to 12 levels deep for nested camera card structures)
       const crawlDir = (dir: string, depth: number, currentSlotInfo?: any) => {
-        if (depth > 4) return;
+        if (depth > 12) return;
         try {
           const entries = fs.readdirSync(dir, { withFileTypes: true });
           for (const e of entries) {
@@ -744,6 +744,37 @@ export function registerAfmIPC(): void {
       const subfolders: SubfolderPreflightItem[] = [];
       const entries = fs.readdirSync(folderPath, { withFileTypes: true });
 
+      // First, scan direct video/photo files in folderPath itself!
+      let rootClipCount = 0;
+      let rootPhotoCount = 0;
+      let rootTotalBytes = 0;
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          const ext = path.extname(entry.name).toLowerCase().replace('.', '');
+          const fp = path.join(folderPath, entry.name);
+          try {
+            const st = fs.statSync(fp);
+            rootTotalBytes += st.size;
+            if (VIDEO_EXTS.has(ext)) rootClipCount++;
+            else if (PHOTO_EXTS.has(ext)) rootPhotoCount++;
+          } catch {}
+        }
+      }
+
+      if (rootClipCount > 0 || rootPhotoCount > 0) {
+        subfolders.push({
+          name: '(Root / Direct Clips)',
+          relPath: '.',
+          fullPath: folderPath,
+          clipCount: rootClipCount,
+          photoCount: rootPhotoCount,
+          totalBytes: rootTotalBytes,
+          isOutputFolder: false,
+          defaultExcluded: false
+        });
+      }
+
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
         if (SYSTEM_IGNORE_FOLDERS.has(entry.name.toLowerCase())) continue;
@@ -753,14 +784,15 @@ export function registerAfmIPC(): void {
         let photoCount = 0;
         let totalBytes = 0;
 
-        const scanSub = (dir: string) => {
+        const scanSub = (dir: string, curDepth = 0) => {
+          if (curDepth > 12) return;
           try {
             const items = fs.readdirSync(dir, { withFileTypes: true });
             for (const it of items) {
               const fp = path.join(dir, it.name);
               if (it.isDirectory()) {
                 if (!SYSTEM_IGNORE_FOLDERS.has(it.name.toLowerCase())) {
-                  scanSub(fp);
+                  scanSub(fp, curDepth + 1);
                 }
               } else {
                 const ext = path.extname(it.name).toLowerCase().replace('.', '');
@@ -775,7 +807,7 @@ export function registerAfmIPC(): void {
           } catch {}
         };
 
-        scanSub(subPath);
+        scanSub(subPath, 0);
 
         const lowerName = entry.name.toLowerCase();
         const isOutputFolder = knownOutputNames.has(lowerName);
@@ -874,7 +906,8 @@ export function registerAfmIPC(): void {
         }
         const rawClips: RawClipEntry[] = [];
 
-        const scanClips = (dir: string, currentSubfolder: string) => {
+        const scanClips = (dir: string, currentSubfolder: string, depth = 0) => {
+          if (depth > 12) return;
           const list = fs.readdirSync(dir, { withFileTypes: true });
           for (const item of list) {
             const p = path.join(dir, item.name);
@@ -882,8 +915,11 @@ export function registerAfmIPC(): void {
             const relPath = currentSubfolder ? `${currentSubfolder}/${item.name}`.toLowerCase() : lowerName;
             if (item.isDirectory() && !SYSTEM_IGNORE_FOLDERS.has(lowerName) && !excludedSet.has(lowerName) && !excludedSet.has(relPath)) {
               const sub = currentSubfolder ? `${currentSubfolder}/${item.name}` : item.name;
-              scanClips(p, sub);
+              scanClips(p, sub, depth + 1);
             } else if (!item.isDirectory()) {
+              if (currentSubfolder === '' && (excludedSet.has('.') || excludedSet.has('(root / direct clips)'))) {
+                continue;
+              }
               const ext = path.extname(item.name).toLowerCase().replace('.', '');
               if (VIDEO_EXTS.has(ext)) {
                 rawClips.push({
@@ -896,7 +932,7 @@ export function registerAfmIPC(): void {
           }
         };
 
-        scanClips(folderPath, '');
+        scanClips(folderPath, '', 0);
 
         if (rawClips.length === 0) {
           return { ok: false, error: 'No supported video clips found in the selected folder.' };

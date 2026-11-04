@@ -73,6 +73,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
   const [subfolders, setSubfolders] = useState<SubfolderItem[]>([]);
   const [loadingSubfolders, setLoadingSubfolders] = useState(false);
   const [excludedFolderNames, setExcludedFolderNames] = useState<Set<string>>(new Set());
+  const [analytics, setAnalytics] = useState<any>(null);
 
   // Execution State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -92,7 +93,15 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     if (!folderPath) return;
     setLoadingSubfolders(true);
     try {
-      const res = await mediaService.getSubfoldersPreflight(folderPath);
+      const [res, afmData] = await Promise.all([
+        mediaService.getSubfoldersPreflight(folderPath),
+        mediaService.analyzeAfmFolder(folderPath)
+      ]);
+
+      if (afmData) {
+        setAnalytics(afmData);
+      }
+
       if (res && res.ok && Array.isArray(res.subfolders)) {
         setSubfolders(res.subfolders);
         // Exclude output folders by default
@@ -170,12 +179,20 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
           includedCount++;
         }
       }
-    } else {
+    }
+
+    // Ensure we don't undercount if analytics found clips in camera structures or root
+    if (analytics && analytics.videoClipCount > 0) {
+      if (totalClips === 0 || subfolders.length === 0) {
+        totalClips = analytics.videoClipCount;
+        totalBytes = analytics.totalStorageBytes || 0;
+      }
+    } else if (totalClips === 0 && initialClipCount) {
       totalClips = initialClipCount;
     }
 
     return { totalClips, totalBytes, includedCount, totalSubfolders: subfolders.length };
-  }, [subfolders, excludedFolderNames, initialClipCount]);
+  }, [subfolders, excludedFolderNames, analytics, initialClipCount]);
 
   if (!isOpen) return null;
 
