@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Film, RefreshCw } from 'lucide-react';
+import { Film, RefreshCw, X, Tag } from 'lucide-react';
 import { FsItem, FilterCategory, ViewMode, SortField, SortOrder } from './types';
 import { isPhotoExtension, isVideoExtension } from './utils';
 import { mediaService, thumbnailService } from './services';
 import { useMediaNavigation } from './hooks';
 import {
   ExplorerSidebar,
+  APPLE_TAGS,
   ExplorerToolbar,
   ExplorerGrid,
   ExplorerTable,
@@ -79,6 +80,7 @@ export default function App() {
   const [clipboard, setClipboard] = useState<{ paths: string[]; operation: 'copy' | 'move' } | null>(null);
   const [colorTags, setColorTags] = useState<Record<string, string>>({});
   const [selectedTagColor, setSelectedTagColor] = useState<string | null>(null);
+  const [tagItems, setTagItems] = useState<FsItem[]>([]);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     isOpen: false,
@@ -126,9 +128,54 @@ export default function App() {
     });
   }, [currentPath]);
 
+  // Fetch all items matching selected tag color across system (macOS Finder Smart Tag view)
+  useEffect(() => {
+    if (!selectedTagColor) {
+      setTagItems([]);
+      return;
+    }
+    const targetLower = selectedTagColor.toLowerCase();
+    const matchingPaths = Object.entries(colorTags)
+      .filter(([_, color]) => color && color.toLowerCase() === targetLower)
+      .map(([fp]) => fp);
+
+    if (matchingPaths.length === 0) {
+      setTagItems([]);
+      return;
+    }
+
+    mediaService.getItemsByPaths(matchingPaths).then(fetched => {
+      setTagItems(fetched || []);
+    });
+  }, [selectedTagColor, colorTags]);
+
   // Filter items by category & search term
   const filteredItems = useMemo(() => {
-    let list = items;
+    let list: FsItem[] = [];
+
+    if (selectedTagColor) {
+      const targetLower = selectedTagColor.toLowerCase();
+      const normalizePath = (p: string) => p.replace(/[\/\\]+/g, '\\').toLowerCase().replace(/\\$/, '');
+      const matchingPaths = new Set(
+        Object.entries(colorTags)
+          .filter(([_, color]) => color && color.toLowerCase() === targetLower)
+          .map(([p]) => normalizePath(p))
+      );
+
+      // 1. Look for matching items in the current directory
+      const localMatches = items.filter(i => matchingPaths.has(normalizePath(i.fullPath)));
+      if (localMatches.length > 0) {
+        list = localMatches;
+      } else if (tagItems.length > 0) {
+        // 2. If none in current folder, display all system-wide items with this tag (macOS Finder Smart Tag view)
+        list = tagItems;
+      } else {
+        list = [];
+      }
+    } else {
+      list = items;
+    }
+
     if (!showHidden) {
       list = list.filter(i => !i.isHidden);
     }
@@ -149,10 +196,6 @@ export default function App() {
       });
     }
 
-    if (selectedTagColor) {
-      list = list.filter(i => colorTags[i.fullPath]?.toLowerCase() === selectedTagColor.toLowerCase());
-    }
-
     // Sort items (folders always on top)
     return [...list].sort((a, b) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
@@ -168,7 +211,7 @@ export default function App() {
       }
       return sortOrder === 'asc' ? cmp : -cmp;
     });
-  }, [items, search, filterCategory, sortField, sortOrder, showHidden]);
+  }, [items, tagItems, selectedTagColor, colorTags, search, filterCategory, sortField, sortOrder, showHidden]);
 
   // Selected item object (reliable across folders and columns)
   const selectedItem = useMemo(() => {
@@ -759,6 +802,32 @@ export default function App() {
           onContextMenu={e => handleContextMenu(e, null)}
           className="flex-1 overflow-hidden flex flex-col mac-content min-w-0 transition-colors duration-200"
         >
+          {/* Active Tag Filter Indicator Bar (Apple macOS Finder Style) */}
+          {selectedTagColor && (
+            <div className="flex items-center justify-between px-4 py-2 bg-blue-500/10 dark:bg-blue-500/15 border-b border-blue-500/20 text-xs text-[var(--mac-text-primary)] select-none">
+              <div className="flex items-center gap-2">
+                <span
+                  style={{ backgroundColor: selectedTagColor }}
+                  className="w-2.5 h-2.5 rounded-full ring-2 ring-white/60 shadow-xs flex-shrink-0"
+                />
+                <span className="font-semibold">
+                  Tag: {APPLE_TAGS.find(t => t.color.toLowerCase() === selectedTagColor.toLowerCase())?.label || 'Selected Tag'}
+                </span>
+                <span className="text-[var(--mac-text-muted)] font-mono text-[11px]">
+                  ({filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'})
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedTagColor(null)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300 hover:bg-black/5 dark:hover:bg-white/10 px-2 py-0.5 rounded-md transition-colors"
+                title="Clear Tag Filter"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Show All Items</span>
+              </button>
+            </div>
+          )}
+
           {!currentPath ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Film className="w-16 h-16 mb-4 opacity-20" />
@@ -769,8 +838,20 @@ export default function App() {
               <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading assets...
             </div>
           ) : filteredItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500">
-              <p className="text-sm">No media files in this folder</p>
+            <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
+              <p className="text-sm">
+                {selectedTagColor
+                  ? 'No files or folders tagged with this color'
+                  : 'No media files in this folder'}
+              </p>
+              {selectedTagColor && (
+                <button
+                  onClick={() => setSelectedTagColor(null)}
+                  className="text-xs text-[var(--mac-accent)] hover:underline font-medium"
+                >
+                  Clear tag filter and show all items
+                </button>
+              )}
             </div>
           ) : viewMode === 'grid' ? (
             <div className="flex-1 overflow-auto p-4">

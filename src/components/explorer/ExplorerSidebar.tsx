@@ -193,19 +193,25 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
               onClick={() => onSelectTagColor?.(isSelected ? null : t.color)}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 isSelected
-                  ? 'bg-blue-600/20 text-white font-semibold ring-1 ring-blue-500/40'
+                  ? 'bg-[#007AFF] text-white font-semibold shadow-xs'
                   : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
               }`}
             >
               <div className="flex items-center gap-2.5">
                 <span
                   style={{ backgroundColor: t.color }}
-                  className="w-2.5 h-2.5 rounded-full ring-1 ring-white/30 shadow-sm flex-shrink-0"
+                  className={`w-2.5 h-2.5 rounded-full shadow-sm flex-shrink-0 ${
+                    isSelected ? 'ring-2 ring-white' : 'ring-1 ring-white/30'
+                  }`}
                 />
                 <span>{t.label}</span>
               </div>
               {count > 0 && (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 text-[var(--mac-text-muted)]">
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    isSelected ? 'bg-white/25 text-white' : 'bg-black/10 dark:bg-white/10 text-[var(--mac-text-muted)]'
+                  }`}
+                >
                   {count}
                 </span>
               )}

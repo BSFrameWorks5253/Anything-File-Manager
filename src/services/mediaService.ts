@@ -83,6 +83,11 @@ export const mediaService = {
     return api.getFileTags();
   },
 
+  async getItemsByPaths(filePaths: string[]): Promise<FsItem[]> {
+    if (!api?.getItemsByPaths) return [];
+    return api.getItemsByPaths(filePaths);
+  },
+
   async setFileTag(filePath: string, tagColor: string | null): Promise<{ ok: boolean; error?: string }> {
     if (!api?.setFileTag) return { ok: false, error: 'API unavailable' };
     return api.setFileTag(filePath, tagColor);

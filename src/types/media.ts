@@ -79,6 +79,7 @@ export interface MediaViewerAPI {
   deleteItems?: (filePaths: string[], permanent?: boolean) => Promise<{ ok: boolean; deletedCount: number; errors?: string[] }>;
   clipboardPaste?: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => Promise<{ ok: boolean; pastedCount: number; errors?: string[] }>;
   duplicateItem?: (sourcePath: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;
+  getItemsByPaths?: (filePaths: string[]) => Promise<FsItem[]>;
   getFileTags?: () => Promise<Record<string, string>>;
   setFileTag?: (filePath: string, tagColor: string | null) => Promise<{ ok: boolean; error?: string }>;
 }

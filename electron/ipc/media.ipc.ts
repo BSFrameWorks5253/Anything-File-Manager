@@ -928,4 +928,35 @@ function isRootOrSystemPath(p: string): boolean {
       return { ok: false, error: err.message || String(err) };
     }
   });
+
+  ipcMain.handle('media:getItemsByPaths', async (_event, filePaths: string[]) => {
+    const results: any[] = [];
+    for (const fp of filePaths) {
+      try {
+        if (!fs.existsSync(fp)) continue;
+        const stat = fs.statSync(fp);
+        const isDir = stat.isDirectory();
+        let childCount: number | undefined = undefined;
+        if (isDir) {
+          try {
+            childCount = fs.readdirSync(fp).length;
+          } catch {}
+        }
+        const parsed = path.parse(fp);
+        results.push({
+          name: parsed.base || fp,
+          fullPath: fp,
+          isDir,
+          size: stat.size,
+          mtime: stat.mtimeMs,
+          ext: isDir ? '' : parsed.ext.replace(/^\./, '').toLowerCase(),
+          isHidden: parsed.base.startsWith('.'),
+          childCount
+        });
+      } catch (err) {
+        console.warn('[AFM getItemsByPaths] stat error for:', fp, err);
+      }
+    }
+    return results;
+  });
 }

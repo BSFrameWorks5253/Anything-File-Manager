@@ -41,6 +41,7 @@ export interface MediaViewerAPI {
   deleteItems?: (filePaths: string[], permanent?: boolean) => Promise<{ ok: boolean; deletedCount: number; errors?: string[] }>;
   clipboardPaste?: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => Promise<{ ok: boolean; pastedCount: number; errors?: string[] }>;
   duplicateItem?: (sourcePath: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;
+  getItemsByPaths?: (filePaths: string[]) => Promise<any[]>;
   getFileTags?: () => Promise<Record<string, string>>;
   setFileTag?: (filePath: string, tagColor: string | null) => Promise<{ ok: boolean; error?: string }>;
 }
@@ -52,6 +53,7 @@ const api: MediaViewerAPI = {
   deleteItems: (filePaths: string[], permanent?: boolean) => ipcRenderer.invoke('media:deleteItems', filePaths, permanent),
   clipboardPaste: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => ipcRenderer.invoke('media:clipboardPaste', targetDir, sourcePaths, operation),
   duplicateItem: (sourcePath: string) => ipcRenderer.invoke('media:duplicateItem', sourcePath),
+  getItemsByPaths: (filePaths: string[]) => ipcRenderer.invoke('media:getItemsByPaths', filePaths),
   getFileTags: () => ipcRenderer.invoke('media:getFileTags'),
   setFileTag: (filePath: string, tagColor: string | null) => ipcRenderer.invoke('media:setFileTag', filePath, tagColor),
   readTextFile: (filePath: string, maxBytes?: number) => ipcRenderer.invoke('media:readTextFile', filePath, maxBytes),
