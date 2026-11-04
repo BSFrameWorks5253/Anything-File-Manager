@@ -42,7 +42,7 @@ export const MacStandaloneMediaPlayer: React.FC<MacStandaloneMediaPlayerProps> =
   const [isLooping, setIsLooping] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsTimeoutRef = useRef<any>(null);
 
   // Image zoom/pan state
   const [zoom, setZoom] = useState(1);

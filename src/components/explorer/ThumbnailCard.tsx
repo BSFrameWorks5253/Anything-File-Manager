@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Clock,
   Film,
@@ -167,7 +167,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
               if (afm.type === 'slot_item_a' || afm.type === 'slot_item_b') {
                 return (
                   <span className="absolute -top-1 -right-1 bg-indigo-600/90 text-white text-[8.5px] font-bold px-1.5 py-0.5 rounded-full shadow border border-white/20 tracking-wider">
-                    SLOT {afm.slotNumber || ''}
+                    SLOT {afm.slotTokens?.slotNo || ''}
                   </span>
                 );
               }

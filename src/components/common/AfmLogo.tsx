@@ -17,7 +17,7 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
   const activeOpen = hovered ? !isOpen : isOpen;
 
   return (
-    <div className={`flex items-center gap-2 select-none ${className}`}>
+    <div className={`flex items-center gap-2.5 select-none ${className}`}>
       <div
         className="relative cursor-pointer transition-transform duration-200 hover:scale-105 flex-shrink-0"
         style={{ width: size, height: size }}
@@ -34,126 +34,188 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
           className="drop-shadow-md transition-all duration-300"
         >
           <defs>
-            {/* Premier Back Plate Gradient (Apple Emerald) */}
-            <linearGradient id="afmBackPlate" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#014D4B"/>
-              <stop offset="30%" stopColor="#026A66"/>
-              <stop offset="70%" stopColor="#048A7B"/>
-              <stop offset="100%" stopColor="#07B38C"/>
+            {/* Deep Dimension Back Plate Gradient */}
+            <linearGradient id="afmBackGrad" x1="15%" y1="10%" x2="85%" y2="90%">
+              <stop offset="0%" stopColor="#00E5A3"/>
+              <stop offset="35%" stopColor="#00B4D8"/>
+              <stop offset="70%" stopColor="#0077B6"/>
+              <stop offset="100%" stopColor="#03045E"/>
             </linearGradient>
 
-            {/* Premier Front Flap Gradient */}
-            <linearGradient id="afmFrontFlap" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#048A7B"/>
-              <stop offset="45%" stopColor="#07BA90"/>
-              <stop offset="100%" stopColor="#12E5A8"/>
+            {/* Glossy Rim Glow */}
+            <linearGradient id="afmRimGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.8"/>
+              <stop offset="40%" stopColor="#64DFDF" stopOpacity="0.9"/>
+              <stop offset="80%" stopColor="#00E5A3" stopOpacity="0.8"/>
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.5"/>
             </linearGradient>
 
-            {/* Metallic Gloss Lip */}
-            <linearGradient id="afmLipGloss" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.4"/>
-              <stop offset="50%" stopColor="#FFFFFF" stopOpacity="0.95"/>
-              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.4"/>
+            {/* Front Glass Visor Gradient */}
+            <linearGradient id="afmFrontGlass" x1="10%" y1="0%" x2="90%" y2="100%">
+              <stop offset="0%" stopColor="#00F5A0" stopOpacity="0.88"/>
+              <stop offset="45%" stopColor="#00B4D8" stopOpacity="0.82"/>
+              <stop offset="85%" stopColor="#0077B6" stopOpacity="0.92"/>
+              <stop offset="100%" stopColor="#023E8A" stopOpacity="0.96"/>
             </linearGradient>
 
-            {/* Inner Folder Cavity */}
-            <linearGradient id="afmCavity" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#001F1E" stopOpacity="0.96"/>
-              <stop offset="100%" stopColor="#024D46" stopOpacity="0.25"/>
+            {/* Glass Specular Highlight */}
+            <linearGradient id="afmGlassGloss" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.3"/>
+              <stop offset="25%" stopColor="#FFFFFF" stopOpacity="0.95"/>
+              <stop offset="70%" stopColor="#FFFFFF" stopOpacity="0.9"/>
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.3"/>
+            </linearGradient>
+
+            {/* Prism Sheet Gradient */}
+            <linearGradient id="afmSheetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FFFFFF"/>
+              <stop offset="100%" stopColor="#E2E8F0"/>
+            </linearGradient>
+
+            {/* Secondary Hologram Sheet */}
+            <linearGradient id="afmHoloSheet" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#7209B7"/>
+              <stop offset="50%" stopColor="#4361EE"/>
+              <stop offset="100%" stopColor="#4CC9F0"/>
+            </linearGradient>
+
+            {/* Play Button Gradient */}
+            <linearGradient id="afmPlayGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#00F5A0"/>
+              <stop offset="100%" stopColor="#00B4D8"/>
             </linearGradient>
           </defs>
 
-          {/* 1. Back Folder Plate */}
+          {/* 1. Main Folder Backplate */}
           <path d="
             M 190 190
-            L 390 190
-            C 445 190 475 215 515 275
-            C 535 298 560 304 600 304
-            L 834 304
-            C 888 304 904 320 904 374
-            L 904 786
-            C 904 840 888 856 834 856
-            L 190 856
-            C 136 856 120 840 120 786
-            L 120 260
-            C 120 206 136 190 190 190
+            L 410 190
+            C 455 190 480 220 520 280
+            C 540 306 568 312 608 312
+            L 834 312
+            C 892 312 914 334 914 392
+            L 914 786
+            C 914 844 892 866 834 866
+            L 190 866
+            C 132 866 110 844 110 786
+            L 110 270
+            C 110 212 132 190 190 190
             Z
-          " fill="url(#afmBackPlate)" stroke="#013A38" strokeWidth="6"/>
+          " fill="url(#afmBackGrad)" stroke="#003554" strokeWidth="6"/>
 
-          {/* Top Tab Highlight */}
-          <path d="M 190 194 L 388 194 C 440 194 470 218 510 278" stroke="rgba(255,255,255,0.4)" strokeWidth="6" strokeLinecap="round"/>
+          {/* Tab Rim Specular Light */}
+          <path d="M 190 195 L 408 195 C 452 195 478 222 516 282" stroke="url(#afmRimGlow)" strokeWidth="7" strokeLinecap="round"/>
 
           {activeOpen ? (
-            /* Open Folder State with Crisp White File Sheet */
+            /* Open State */
             <>
-              {/* Inner Cavity */}
-              <rect x="124" y="304" width="776" height="340" fill="url(#afmCavity)"/>
+              {/* Deep Inner Cavity */}
+              <rect x="116" y="312" width="792" height="340" fill="#03071E" opacity="0.85"/>
 
-              {/* Peeking Document Sheet */}
-              <g transform="rotate(-3.5 512 380)">
-                <path d="
-                  M 250 130
-                  L 640 130
-                  L 770 260
-                  L 770 660
-                  C 770 678 756 692 738 692
-                  L 250 692
-                  C 232 692 218 678 218 660
-                  L 218 162
-                  C 218 144 232 130 250 130
-                  Z
-                " fill="#FFFFFF" stroke="#64748B" strokeWidth="5"/>
-                <path d="M 640 130 L 640 242 C 640 256 652 260 666 260 L 770 260 Z" fill="#CBD5E1"/>
-                <path d="M 640 130 L 770 260" stroke="#94A3B8" strokeWidth="4"/>
-                <rect x="270" y="210" width="160" height="34" rx="17" fill="#048A7B"/>
-                <polygon points="296,220 296,234 310,227" fill="#FFFFFF"/>
-                <rect x="270" y="280" width="380" height="18" rx="9" fill="#64748B" opacity="0.65"/>
-                <rect x="270" y="318" width="300" height="16" rx="8" fill="#94A3B8" opacity="0.5"/>
+              {/* Back Secondary Media Prism Sheet */}
+              <g transform="rotate(7 512 400)">
+                <rect x="360" y="160" width="460" height="490" rx="28" fill="url(#afmHoloSheet)" stroke="#FFFFFF" strokeOpacity="0.4" strokeWidth="3"/>
+                <rect x="390" y="200" width="180" height="20" rx="10" fill="#FFFFFF" opacity="0.6"/>
+                <rect x="390" y="235" width="280" height="14" rx="7" fill="#FFFFFF" opacity="0.4"/>
               </g>
 
-              {/* Angled Front Flap (Open) */}
+              {/* Primary Front High-Contrast Media Sheet */}
+              <g transform="rotate(-3.5 512 390)">
+                <path d="
+                  M 240 140
+                  L 620 140
+                  L 760 280
+                  L 760 670
+                  C 760 690 744 706 724 706
+                  L 240 706
+                  C 220 706 204 690 204 670
+                  L 204 176
+                  C 204 156 220 140 240 140
+                  Z
+                " fill="url(#afmSheetGrad)" stroke="#CBD5E1" strokeWidth="4"/>
+                <path d="M 620 140 L 620 256 C 620 270 632 280 646 280 L 760 280 Z" fill="#94A3B8"/>
+                <path d="M 620 140 L 760 280" stroke="#64748B" strokeWidth="3"/>
+
+                <rect x="256" y="212" width="180" height="40" rx="20" fill="url(#afmPlayGrad)"/>
+                <polygon points="286,224 286,240 302,232" fill="#FFFFFF"/>
+
+                <rect x="256" y="280" width="450" height="16" rx="8" fill="#0077B6" opacity="0.8"/>
+                <rect x="256" y="312" width="360" height="14" rx="7" fill="#0096C7" opacity="0.5"/>
+                <rect x="256" y="342" width="400" height="14" rx="7" fill="#48CAE4" opacity="0.4"/>
+
+                {/* Waveform Visualizer Bars */}
+                <g opacity="0.75" transform="translate(256, 380)">
+                  <rect x="0" y="16" width="6" height="24" rx="3" fill="#00B4D8"/>
+                  <rect x="14" y="8" width="6" height="32" rx="3" fill="#00B4D8"/>
+                  <rect x="28" y="2" width="6" height="38" rx="3" fill="#00F5A0"/>
+                  <rect x="42" y="12" width="6" height="28" rx="3" fill="#00B4D8"/>
+                  <rect x="56" y="0" width="6" height="40" rx="3" fill="#00F5A0"/>
+                  <rect x="70" y="18" width="6" height="22" rx="3" fill="#00B4D8"/>
+                  <rect x="84" y="6" width="6" height="34" rx="3" fill="#00F5A0"/>
+                  <rect x="98" y="14" width="6" height="26" rx="3" fill="#00B4D8"/>
+                  <rect x="112" y="4" width="6" height="36" rx="3" fill="#00F5A0"/>
+                </g>
+              </g>
+
+              {/* Angled Front Flap */}
               <path d="
-                M 150 490
-                C 150 466 168 450 200 450
-                L 824 450
-                C 856 450 874 466 874 490
-                L 908 786
-                C 912 840 888 860 834 860
-                L 190 860
-                C 136 860 112 840 116 786
+                M 146 480
+                C 146 454 166 436 200 436
+                L 824 436
+                C 858 436 878 454 878 480
+                L 914 786
+                C 918 844 892 866 834 866
+                L 190 866
+                C 132 866 106 844 110 786
                 Z
-              " fill="url(#afmFrontFlap)" stroke="#035B54" strokeWidth="7"/>
-              <path d="M 198 454 L 826 454" stroke="url(#afmLipGloss)" strokeWidth="9" strokeLinecap="round"/>
+              " fill="url(#afmFrontGlass)" stroke="#003554" strokeWidth="7"/>
+
+              <path d="M 198 440 L 826 440" stroke="url(#afmGlassGloss)" strokeWidth="10" strokeLinecap="round"/>
+              <path d="M 210 448 L 814 448" stroke="#FFFFFF" strokeOpacity="0.3" strokeWidth="2" strokeLinecap="round"/>
+
+              {/* Center AFM Emblem */}
+              <g transform="translate(512, 650)">
+                <circle cx="0" cy="0" r="74" fill="#03045E" stroke="url(#afmRimGlow)" strokeWidth="4" opacity="0.9"/>
+                <path d="M -30 38 L 0 -38 L 30 38 L 12 38 L 0 8 L -12 38 Z" fill="url(#afmPlayGrad)"/>
+                <circle cx="0" cy="3" r="5" fill="#FFFFFF"/>
+              </g>
             </>
           ) : (
-            /* Closed Folder State (Snug fit with crescent opening slit) */
+            /* Closed State */
             <>
-              {/* Crescent Opening Slit */}
+              {/* Crescent Inset */}
               <path d="
-                M 132 400
-                C 150 364 190 350 240 350
-                L 784 350
-                C 834 350 874 364 892 400
-                C 874 376 834 364 784 364
-                L 240 364
-                C 190 364 150 376 132 400
+                M 130 388
+                C 152 352 195 336 248 336
+                L 776 336
+                C 829 336 872 352 894 388
+                C 872 364 829 350 776 350
+                L 248 350
+                C 195 350 152 364 130 388
                 Z
-              " fill="#FFFFFF" opacity="0.95"/>
+              " fill="#FFFFFF" opacity="0.9"/>
 
-              {/* Front Flap (Closed) */}
               <path d="
-                M 190 380
-                L 834 380
-                C 888 380 904 396 904 450
-                L 904 786
-                C 904 840 888 856 834 856
-                L 190 856
-                C 136 856 120 840 120 786
-                L 120 450
-                C 120 396 136 380 190 380
+                M 190 364
+                L 834 364
+                C 892 364 914 382 914 440
+                L 914 786
+                C 914 844 892 866 834 866
+                L 190 866
+                C 132 866 110 844 110 786
+                L 110 440
+                C 110 382 132 364 190 364
                 Z
-              " fill="url(#afmFrontFlap)" stroke="#035B54" strokeWidth="7"/>
-              <path d="M 190 384 L 834 384" stroke="url(#afmLipGloss)" strokeWidth="8" strokeLinecap="round"/>
+              " fill="url(#afmFrontGlass)" stroke="#003554" strokeWidth="7"/>
+
+              <path d="M 190 368 L 834 368" stroke="url(#afmGlassGloss)" strokeWidth="10" strokeLinecap="round"/>
+              <path d="M 210 376 L 814 376" stroke="#FFFFFF" strokeOpacity="0.25" strokeWidth="2" strokeLinecap="round"/>
+
+              <g transform="translate(512, 615)">
+                <circle cx="0" cy="0" r="82" fill="#03045E" stroke="url(#afmRimGlow)" strokeWidth="4.5" opacity="0.9"/>
+                <path d="M -34 42 L 0 -42 L 34 42 L 14 42 L 0 8 L -14 42 Z" fill="url(#afmPlayGrad)"/>
+                <circle cx="0" cy="3" r="6" fill="#FFFFFF"/>
+              </g>
             </>
           )}
         </svg>

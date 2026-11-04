@@ -56,8 +56,8 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
 
       // Fetch One Tap tracker metrics for this session/folder
       const otRes = await oneTapService.getTaskTrackerStats(folderName);
-      if (otRes.ok && otRes.stats) {
-        setOneTapStats(otRes.stats);
+      if (otRes.ok) {
+        setOneTapStats(otRes);
       }
     } catch (err) {
       console.error('[AfmInspector] Error:', err);
@@ -83,7 +83,7 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
     try {
       const res = await oneTapService.separatePhotosAndVideos(folderPath);
       if (res.ok) {
-        setActionFeedback(`Done! Moved ${res.photosMoved || 0} photos & ${res.videosMoved || 0} videos.`);
+        setActionFeedback(`Done! Moved ${res.photoCount || 0} photos & ${res.videoCount || 0} videos.`);
         if (onRefresh) onRefresh();
       } else {
         setActionFeedback(res.error || 'Failed to separate files.');

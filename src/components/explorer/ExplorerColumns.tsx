@@ -34,7 +34,7 @@ interface ExplorerColumnsProps {
   onSelectItem: (item: FsItem) => void;
   onOpenItem: (item: FsItem) => void;
   onQuickLook?: (item: FsItem) => void;
-  onContextMenu?: (e: React.MouseEvent, item: FsItem) => void;
+  onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
 }
 
 function ColumnVideoDuration({ item, isSelected }: { item: FsItem; isSelected: boolean }) {

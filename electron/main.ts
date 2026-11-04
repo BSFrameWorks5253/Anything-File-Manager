@@ -93,12 +93,17 @@ function getAppIndexPath(): string {
 }
 
 function getAppIconPath(state: 'open' | 'closed' = 'open'): string {
-  const fileName = state === 'open' ? 'icon-open.png' : 'icon-closed.png';
+  const ext = process.platform === 'win32' ? 'ico' : 'png';
+  const fileName = state === 'open' ? `icon-open.${ext}` : `icon-closed.${ext}`;
+  const fallbackIco = `icon.${ext}`;
   const candidates = [
     path.join(__dirname, '../build', fileName),
     path.join(__dirname, '../../build', fileName),
     path.join(process.cwd(), 'build', fileName),
-    path.join(app.getAppPath(), 'build', fileName)
+    path.join(app.getAppPath(), 'build', fileName),
+    path.join(__dirname, '../build', fallbackIco),
+    path.join(__dirname, '../build', 'icon-open.png'),
+    path.join(__dirname, '../build', 'icon.png')
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;

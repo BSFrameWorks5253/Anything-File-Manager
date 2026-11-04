@@ -169,6 +169,11 @@ export const mediaService = {
     return api.generatePremiereProject(payload);
   },
 
+  async sendToTitleAdder(folderPath: string): Promise<{ ok: boolean; error?: string }> {
+    if (!api?.sendToTitleAdder) return { ok: false, error: 'Title Adder API not available' };
+    return api.sendToTitleAdder(folderPath);
+  },
+
   async openSeparatePlayer(filePath: string): Promise<{ ok: boolean; error?: string }> {
     if (!api?.openSeparatePlayer) return { ok: false, error: 'API not available' };
     return api.openSeparatePlayer(filePath);

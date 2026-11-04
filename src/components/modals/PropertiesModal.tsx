@@ -319,9 +319,9 @@ export const PropertiesModal: React.FC<PropertiesModalProps> = ({
                     {classification?.type.replace('_', ' ')}
                   </p>
                 </div>
-                {classification?.sessionCode && (
+                {classification?.slotTokens?.session && (
                   <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white font-mono font-bold text-[10px]">
-                    {classification.sessionCode}
+                    {classification.slotTokens.session}
                   </span>
                 )}
               </div>

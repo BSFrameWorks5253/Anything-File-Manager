@@ -296,11 +296,11 @@ export default function App() {
   const handleCreateFolder = useCallback(async () => {
     if (!currentPath) return;
     const res = await mediaService.createFolder(currentPath);
-    if (res.ok && res.folderPath) {
+    if (res.ok && res.path) {
       await refresh();
-      setSelectedPaths(new Set([res.folderPath]));
-      setSelectedPath(res.folderPath);
-      setRenamingPath(res.folderPath);
+      setSelectedPaths(new Set([res.path]));
+      setSelectedPath(res.path);
+      setRenamingPath(res.path);
     }
   }, [currentPath, refresh]);
 
@@ -358,8 +358,8 @@ export default function App() {
         setClipboard(null);
       }
       await refresh();
-    } else if (res.error) {
-      alert(`Paste failed: ${res.error}`);
+    } else if (res.errors && res.errors.length > 0) {
+      alert(`Paste failed: ${res.errors.join(', ')}`);
     }
   }, [clipboard, currentPath, refresh]);
 
@@ -388,8 +388,8 @@ export default function App() {
     if (res.ok) {
       handleClearSelection();
       await refresh();
-    } else if (res.error) {
-      alert(`Delete failed: ${res.error}`);
+    } else if (res.errors && res.errors.length > 0) {
+      alert(`Delete failed: ${res.errors.join(', ')}`);
     }
   }, [selectedPaths, selectedPath, handleClearSelection, refresh]);
 

@@ -26,7 +26,8 @@ import {
   Volume2,
   VolumeX,
   Sparkles,
-  Sliders
+  Sliders,
+  FolderOpen
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import {
