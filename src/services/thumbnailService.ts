@@ -6,7 +6,7 @@ class ThumbnailService {
   private pending = new Map<string, Promise<VideoThumbnailData | null>>();
   private queue: (() => void)[] = [];
   private activeWorkers = 0;
-  private maxConcurrency = 8; // High-throughput parallel extraction
+  private maxConcurrency = 2; // Smooth UI without thread starvation
 
   getCached(filePath: string): VideoThumbnailData | undefined {
     return this.cache.get(filePath);
@@ -43,77 +43,19 @@ class ThumbnailService {
           }
         } catch {}
 
-        // 2. Fallback: Browser DOM HTML5 video tag
-        try {
-          const v = document.createElement('video');
-          v.src = mediaService.toLocalResourceUrl(filePath);
-          v.preload = 'metadata';
-          v.muted = true;
-
-          let timeoutId = setTimeout(() => {
-            cleanup();
-            resolve(null);
-          }, 3000);
-
-          const cleanup = () => {
-            clearTimeout(timeoutId);
-            v.onloadedmetadata = null;
-            v.onseeked = null;
-            v.onerror = null;
-            v.src = '';
-          };
-
-          v.onloadedmetadata = () => {
-            const dur = v.duration || 0;
-            const targetTime = Math.min(Math.max(0.5, dur * 0.1), dur > 1 ? dur - 0.2 : 0);
-            v.currentTime = targetTime;
-          };
-
-          v.onseeked = () => {
-            try {
-              const canvas = document.createElement('canvas');
-              const w = v.videoWidth || 320;
-              const h = v.videoHeight || 180;
-              canvas.width = Math.min(320, w);
-              canvas.height = Math.round((canvas.width / w) * h);
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-                const result: VideoThumbnailData = {
-                  thumb: dataUrl,
-                  duration: v.duration || 0
-                };
-                this.cache.set(filePath, result);
-                cleanup();
-                resolve(result);
-                return;
-              }
-            } catch {}
-            cleanup();
-            resolve(null);
-          };
-
-          v.onerror = () => {
-            cleanup();
-            resolve(null);
-          };
-        } catch {
-          resolve(null);
-        }
+        // In Electron, if native extraction produces nothing, resolve cleanly to avoid Chromium thread freezing
+        resolve(null);
       };
 
-      this.queue.push(async () => {
-        try {
-          await execute();
-        } finally {
+      this.queue.push(() => {
+        execute().finally(() => {
           this.activeWorkers--;
+          this.pending.delete(filePath);
           this.runNext();
-        }
+        });
       });
+
       this.runNext();
-    }).finally(() => {
-      this.pending.delete(filePath);
     });
 
     this.pending.set(filePath, promise);

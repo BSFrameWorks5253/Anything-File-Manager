@@ -182,5 +182,10 @@ export const mediaService = {
   async openSeparatePlayer(filePath: string): Promise<{ ok: boolean; error?: string }> {
     if (!api?.openSeparatePlayer) return { ok: false, error: 'API not available' };
     return api.openSeparatePlayer(filePath);
+  },
+
+  async getVideoDuration(filePath: string): Promise<number> {
+    if (!api?.getVideoDuration) return 0;
+    return api.getVideoDuration(filePath);
   }
 };

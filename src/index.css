@@ -94,6 +94,58 @@ html[data-theme="light"] select option {
   color: #1c1c1e;
 }
 
+html[data-theme="light"] .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+html[data-theme="light"] .border-white\/20 {
+  border-color: rgba(0, 0, 0, 0.18) !important;
+}
+
+html[data-theme="light"] .bg-black\/40 {
+  background-color: rgba(245, 245, 247, 0.95) !important;
+}
+
+html[data-theme="light"] .bg-black\/60 {
+  background-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+html[data-theme="light"] .bg-\[\#141620\],
+html[data-theme="light"] .bg-\[\#151824\] {
+  background-color: #f7f7f9 !important;
+  color: #1c1c1e !important;
+}
+
+html[data-theme="light"] .text-white\/80,
+html[data-theme="light"] .text-white\/90 {
+  color: #1c1c1e !important;
+}
+
+html[data-theme="light"] tr.bg-\[\#007AFF\] .text-white\/90,
+html[data-theme="light"] tr.bg-\[\#007AFF\] .text-white\/80 {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+html[data-theme="light"] .bg-purple-500\/15,
+html[data-theme="light"] .bg-purple-500\/20 {
+  background-color: rgba(147, 51, 234, 0.12) !important;
+}
+
+html[data-theme="light"] .bg-amber-500\/15,
+html[data-theme="light"] .bg-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.14) !important;
+}
+
+html[data-theme="light"] .bg-blue-500\/15,
+html[data-theme="light"] .bg-blue-500\/20 {
+  background-color: rgba(37, 99, 235, 0.12) !important;
+}
+
+html[data-theme="light"] .bg-rose-500\/15,
+html[data-theme="light"] .bg-rose-500\/20 {
+  background-color: rgba(225, 29, 72, 0.12) !important;
+}
+
 body {
   margin: 0;
   background-color: var(--mac-bg-window);

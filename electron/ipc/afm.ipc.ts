@@ -6,6 +6,7 @@ import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import crypto from 'crypto';
 import zlib from 'zlib';
+import { readFastMp4Duration, getCachedVideoDuration, setCachedVideoDuration } from './media.ipc';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -40,7 +41,10 @@ function getOneTapPythonScript(scriptName: string): string | null {
 
 // Supported Media Extensions
 const VIDEO_EXTS = new Set([
-  'mp4', 'mov', 'avi', 'mkv', 'mts', 'm2ts', 'mxf', 'wmv', 'flv', 'webm', 'm4v', 'mpg', 'mpeg', '3gp', 'braw', 'crm', 'r3d'
+  'mp4', 'mov', 'avi', 'mkv', 'mts', 'm2ts', 'mxf', 'wmv', 'flv', 'webm', 'm4v', 'mpg', 'mpeg', '3gp',
+  'braw', 'crm', 'r3d', 'ari', 'arx', 'cine', 'ts', 'tp', 'm2t', 'mod', 'tod', 'divx', 'dv', 'dif',
+  'hevc', 'h264', 'h265', '264', '265', 'f4v', 'asf', 'mp4v', 'insv', 'lrf', 'lrv', 'dat',
+  'm2v', 'm4p', 'nev', 'qt', 'rm', 'rmvb', 'vro', 'wtv', 'dvr-ms', 'ogm', 'mpe', 'mpv', 'm2p', '3g2', 'avchd'
 ]);
 
 const PHOTO_EXTS = new Set([
@@ -134,15 +138,37 @@ async function getFastVideoDuration(filePath: string): Promise<number> {
       return durationCache.get(cacheKey)!;
     }
 
+    // 1. Check persistent disk cache
+    const diskCached = getCachedVideoDuration(cacheKey);
+    if (diskCached !== undefined && diskCached > 0) {
+      durationCache.set(cacheKey, diskCached);
+      return diskCached;
+    }
+
+    // 2. Instant container atom parsing for MP4/MOV (0.1ms)
+    const ext = path.extname(filePath).toLowerCase().replace('.', '');
+    if (['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'qt'].includes(ext)) {
+      const fastDur = readFastMp4Duration(filePath);
+      if (fastDur && fastDur > 0) {
+        durationCache.set(cacheKey, fastDur);
+        setCachedVideoDuration(cacheKey, fastDur);
+        return fastDur;
+      }
+    }
+
+    // 3. Fallback: ffprobe with real binary location
+    const ffprobeBin = findFfprobeBinary();
     const { stdout } = await execFileAsync(
-      'ffprobe',
+      ffprobeBin,
       ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath],
       { timeout: 3500 }
     );
     const parsed = parseFloat(stdout.trim());
     if (isFinite(parsed) && parsed > 0) {
-      durationCache.set(cacheKey, parsed);
-      return parsed;
+      const rounded = Math.round(parsed * 10) / 10;
+      durationCache.set(cacheKey, rounded);
+      setCachedVideoDuration(cacheKey, rounded);
+      return rounded;
     }
   } catch {}
   return 0;
@@ -478,7 +504,7 @@ export function registerAfmIPC(): void {
       const malformedItsList: string[] = [];
 
       // Collect video files for fast duration estimation & background probing
-      const videoFilesToProbe: { path: string; size: number }[] = [];
+      const videoFilesToProbe: { path: string; size: number; cacheKey: string; slot?: any }[] = [];
 
       // Fast recursive crawler (up to 12 levels deep for nested camera card structures)
       const crawlDir = (dir: string, depth: number, currentSlotInfo?: any) => {
@@ -574,19 +600,31 @@ export function registerAfmIPC(): void {
                   videoClipCount++;
                   if (currentSlotInfo) currentSlotInfo.clipCount++;
 
-                  // Check if cached
                   const cacheKey = `${fullP}:${stat.size}:${stat.mtimeMs}`;
-                  if (durationCache.has(cacheKey)) {
-                    const dur = durationCache.get(cacheKey)!;
+                  let dur = durationCache.get(cacheKey);
+
+                  if (dur === undefined) {
+                    // 1. Check persistent disk cache
+                    dur = getCachedVideoDuration(cacheKey);
+                  }
+
+                  if (dur === undefined) {
+                    // 2. Instant header container parsing (0.1ms for MP4/MOV)
+                    if (['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'qt'].includes(ext)) {
+                      const fast = readFastMp4Duration(fullP);
+                      if (fast && fast > 0) {
+                        dur = fast;
+                        setCachedVideoDuration(cacheKey, dur);
+                      }
+                    }
+                  }
+
+                  if (dur !== undefined && dur > 0) {
+                    durationCache.set(cacheKey, dur);
                     cumulativeDurationSeconds += dur;
                     if (currentSlotInfo) currentSlotInfo.duration += dur;
                   } else {
-                    // Instant estimated duration based on file size (~35 Mbps average video stream)
-                    // size_bytes * 8 / (35 * 1024 * 1024)
-                    const estimatedDur = Math.max(1, Math.round((stat.size * 8) / (32 * 1024 * 1024)));
-                    cumulativeDurationSeconds += estimatedDur;
-                    if (currentSlotInfo) currentSlotInfo.duration += estimatedDur;
-                    videoFilesToProbe.push({ path: fullP, size: stat.size });
+                    videoFilesToProbe.push({ path: fullP, size: stat.size, cacheKey, slot: currentSlotInfo });
                   }
                 } else if (PHOTO_EXTS.has(ext)) {
                   stillPhotoCount++;
@@ -599,16 +637,41 @@ export function registerAfmIPC(): void {
 
       crawlDir(folderPath, 0);
 
-      // Asynchronously probe actual durations in the background so future calls are cached
+      // Deterministic probing: probe up to 32 uncached clips concurrently
       if (videoFilesToProbe.length > 0) {
-        setTimeout(async () => {
-          const sample = videoFilesToProbe.slice(0, 24); // probe up to 24 clips in parallel
-          for (const item of sample) {
+        const toProbeNow = videoFilesToProbe.slice(0, 32);
+        await Promise.all(
+          toProbeNow.map(async (item) => {
             try {
-              await getFastVideoDuration(item.path);
+              const probed = await getFastVideoDuration(item.path);
+              if (probed > 0) {
+                durationCache.set(item.cacheKey, probed);
+                setCachedVideoDuration(item.cacheKey, probed);
+                cumulativeDurationSeconds += probed;
+                if (item.slot) item.slot.duration += probed;
+              }
             } catch {}
+          })
+        );
+
+        // If very large folder has remaining unprobed clips, add deterministic stable duration
+        if (videoFilesToProbe.length > 32) {
+          const remaining = videoFilesToProbe.slice(32);
+          for (const item of remaining) {
+            // Deterministic file-size calculation (fixed 35 Mbps)
+            const fallbackDur = Math.max(1, Math.round((item.size * 8) / (35 * 1024 * 1024)));
+            cumulativeDurationSeconds += fallbackDur;
+            if (item.slot) item.slot.duration += fallbackDur;
           }
-        }, 50);
+          // Queue background completion for the rest
+          setTimeout(async () => {
+            for (const item of remaining.slice(0, 64)) {
+              try {
+                await getFastVideoDuration(item.path);
+              } catch {}
+            }
+          }, 100);
+        }
       }
 
       // Check for duplicate ITS numbers
@@ -1151,32 +1214,34 @@ ${emptyVTrackXml}
         const xmlFilePath = path.join(folderPath, `${cleanProjectName}.xml`);
         fs.writeFileSync(xmlFilePath, xmlContent, 'utf8');
 
-        // Write Native Adobe Premiere Pro Project (.prproj) binary
+        // Write Native Adobe Premiere Pro Project (.prproj) binary with clean universal template
         const prprojFilePath = path.join(folderPath, `${cleanProjectName}.prproj`);
         const prprojBuffer = buildPrprojBuffer(cleanProjectName);
         fs.writeFileSync(prprojFilePath, prprojBuffer);
 
-        // Optional Python automation if create_premiere_projects.py is present
-        const pyScript = getOneTapPythonScript('create_premiere_projects.py');
-        const templatePath = findTemplatePrprojPath();
-        if (pyScript) {
-          try {
-            const pyArgs = ['--folder', folderPath, '--json'];
-            if (templatePath) {
-              pyArgs.push('--template', templatePath);
-            }
-            await new Promise<void>((resolve) => {
-              execFile('python', [pyScript, ...pyArgs], { timeout: 15000 }, (err) => {
-                if (err) console.warn('[afm:generatePremiereProject] Python note:', err.message);
-                resolve();
-              });
-            });
-          } catch {}
-        }
+        // Update One Tap & Premiere Pro Extension recent XML tracker files
+        try {
+          const osMod = require('os');
+          const tmpTrk = path.join(osMod.tmpdir(), '.onetap_recent_xml.txt');
+          const tmpTrk2 = path.join(osMod.tmpdir(), 'recent_xml.txt');
+          const entry = `${cleanProjectName}=${xmlFilePath}`;
+          let existing = '';
+          if (fs.existsSync(tmpTrk)) {
+            try { existing = fs.readFileSync(tmpTrk, 'utf-8'); } catch {}
+          }
+          const lines = existing.split(/\r?\n/).filter(l => l.trim() && !l.startsWith(entry) && l.trim() !== xmlFilePath);
+          const newContent = [xmlFilePath, entry, ...lines].slice(0, 50).join('\n');
+          fs.writeFileSync(tmpTrk, newContent, 'utf-8');
+          fs.writeFileSync(tmpTrk2, newContent, 'utf-8');
+          const userDir = app.getPath('userData');
+          if (userDir) {
+            fs.writeFileSync(path.join(userDir, 'recent_xml.txt'), newContent, 'utf-8');
+          }
+        } catch {}
 
         // Open if user requested
         if (openAfterCreate) {
-          if (fs.existsSync(prprojFilePath) && fs.statSync(prprojFilePath).size > 1000) {
+          if (fs.existsSync(prprojFilePath)) {
             shell.openPath(prprojFilePath);
           } else {
             shell.openPath(xmlFilePath);

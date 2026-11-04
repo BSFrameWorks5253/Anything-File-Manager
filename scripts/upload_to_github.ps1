@@ -22,16 +22,21 @@ $headers = @{
     "User-Agent"    = "PowerShell-AFM"
 }
 
-# 1. Ensure setup.exe is copied
-Copy-Item -Path "release\Anything-File-Manager-Setup-V-26.11.8.exe" -Destination "release\setup.exe" -Force
-Write-Host "Copied Anything-File-Manager-Setup-V-26.11.8.exe -> release\setup.exe"
+# 1. Locate the latest generated installer in release/
+$installer = Get-ChildItem -Path "release" -Filter "Anything-File-Manager-Setup-V-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $installer) {
+    Write-Error "No installer found matching Anything-File-Manager-Setup-V-*.exe in release directory."
+}
+
+Copy-Item -Path $installer.FullName -Destination "release\setup.exe" -Force
+Write-Host "Copied $($installer.Name) -> release\setup.exe"
 
 # 2. Get current assets from release
 $releaseUrl = "https://api.github.com/repos/$repo/releases/$releaseId"
 $release = Invoke-RestMethod -Uri $releaseUrl -Headers $headers
 
-# Delete existing setup.exe and installer if already present
-$targetNames = @("setup.exe", "Anything-File-Manager-Setup-V-26.11.8.exe")
+# Delete existing setup.exe and installer with the same name if already present
+$targetNames = @("setup.exe", $installer.Name)
 foreach ($asset in $release.assets) {
     if ($targetNames -contains $asset.name) {
         Write-Host "Deleting old asset $($asset.name) (ID: $($asset.id))..."
@@ -44,7 +49,7 @@ foreach ($asset in $release.assets) {
 # 3. Upload new assets
 $uploadBase = "https://uploads.github.com/repos/$repo/releases/$releaseId/assets"
 
-foreach ($file in @("release\setup.exe", "release\Anything-File-Manager-Setup-V-26.11.8.exe")) {
+foreach ($file in @("release\setup.exe", $installer.FullName)) {
     $fileName = [System.IO.Path]::GetFileName($file)
     $uploadUrl = "$uploadBase`?name=$fileName"
     Write-Host "Uploading $fileName ($((Get-Item $file).Length) bytes)..."

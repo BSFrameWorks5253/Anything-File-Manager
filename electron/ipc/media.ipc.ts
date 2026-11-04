@@ -14,7 +14,10 @@ const RAW_EXTS = new Set([
 ]);
 
 const VIDEO_EXTS = new Set([
-  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'wmv', 'flv', 'm2ts', 'mts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv'
+  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'wmv', 'flv', 'm2ts', 'mts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv',
+  'braw', 'crm', 'r3d', 'ari', 'arx', 'cine', 'ts', 'tp', 'm2t', 'mod', 'tod', 'divx', 'dv', 'dif',
+  'hevc', 'h264', 'h265', '264', '265', 'f4v', 'asf', 'mp4v', 'insv', 'lrf', 'lrv', 'dat',
+  'm2v', 'm4p', 'nev', 'qt', 'rm', 'rmvb', 'vro', 'wtv', 'dvr-ms', 'ogm', 'mpe', 'mpv', 'm2p', '3g2', 'avchd'
 ]);
 
 const AUDIO_EXTS = new Set([
@@ -161,11 +164,129 @@ function extractEmbeddedRawJpeg(filePath: string, forThumbnail = true): Buffer |
   }
 }
 
+// Concurrency Limiter to prevent CPU starvation when extracting video frames
+class ConcurrencyLimiter {
+  private queue: (() => void)[] = [];
+  private active = 0;
+  constructor(private maxConcurrent = 2) {}
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.active >= this.maxConcurrent) {
+      await new Promise<void>(resolve => {
+        this.queue.push(resolve);
+      });
+    }
+    this.active++;
+    try {
+      return await fn();
+    } finally {
+      this.active--;
+      const next = this.queue.shift();
+      if (next) next();
+    }
+  }
+}
+
+const ffmpegLimiter = new ConcurrencyLimiter(2);
+
+// Persistent Video Duration Disk Cache
+let durationDiskCache: Record<string, number> | null = null;
+let saveDurationTimer: NodeJS.Timeout | null = null;
+
+function getDurationDiskCacheFile(): string {
+  return path.join(app.getPath('userData'), 'video_duration_cache.json');
+}
+
+export function getCachedVideoDuration(cacheKey: string): number | undefined {
+  if (!durationDiskCache) {
+    try {
+      const p = getDurationDiskCacheFile();
+      if (fs.existsSync(p)) {
+        durationDiskCache = JSON.parse(fs.readFileSync(p, 'utf8'));
+      } else {
+        durationDiskCache = {};
+      }
+    } catch {
+      durationDiskCache = {};
+    }
+  }
+  return durationDiskCache![cacheKey];
+}
+
+export function setCachedVideoDuration(cacheKey: string, dur: number): void {
+  if (!durationDiskCache) durationDiskCache = {};
+  durationDiskCache[cacheKey] = dur;
+  if (!saveDurationTimer) {
+    saveDurationTimer = setTimeout(() => {
+      saveDurationTimer = null;
+      try {
+        fs.writeFileSync(getDurationDiskCacheFile(), JSON.stringify(durationDiskCache));
+      } catch {}
+    }, 2000);
+  }
+}
+
 /**
- * Extract video duration (in seconds) via ffprobe or Windows Shell COM (Safe from shell injection)
+ * Fast MP4/MOV header duration reader without spawning any child processes.
+ * Reads first 128KB of file and extracts timescale & duration from 'mvhd' atom.
+ * Executes in ~0.2 milliseconds.
  */
-async function extractDuration(filePath: string): Promise<number> {
+export function readFastMp4Duration(filePath: string): number | null {
+  let fd: number | null = null;
   try {
+    fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(131072);
+    const bytesRead = fs.readSync(fd, buf, 0, 131072, 0);
+    const idx = buf.indexOf(Buffer.from('mvhd'));
+    if (idx !== -1 && idx + 28 <= bytesRead) {
+      const version = buf[idx + 4];
+      let timescale = 0;
+      let duration = 0;
+      if (version === 0) {
+        timescale = buf.readUInt32BE(idx + 16);
+        duration = buf.readUInt32BE(idx + 20);
+      } else if (version === 1) {
+        timescale = buf.readUInt32BE(idx + 24);
+        duration = Number(buf.readBigUInt64BE(idx + 28));
+      }
+      if (timescale > 0 && duration > 0) {
+        return Math.round((duration / timescale) * 10) / 10;
+      }
+    }
+  } catch {
+  } finally {
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch {}
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract video duration (in seconds) via container atom or ffprobe
+ */
+export async function extractDuration(filePath: string): Promise<number> {
+  try {
+    const stat = fs.statSync(filePath);
+    const cacheKey = `${filePath}:${stat.size}:${stat.mtimeMs}`;
+
+    // 1. Check persistent disk cache
+    const cached = getCachedVideoDuration(cacheKey);
+    if (cached !== undefined && cached > 0) {
+      return cached;
+    }
+
+    // 2. Instant container atom parsing for MP4/MOV (0.1ms)
+    const ext = path.extname(filePath).toLowerCase().replace('.', '');
+    if (['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'qt'].includes(ext)) {
+      const fastDur = readFastMp4Duration(filePath);
+      if (fastDur && fastDur > 0) {
+        setCachedVideoDuration(cacheKey, fastDur);
+        return fastDur;
+      }
+    }
+
+    // 3. Fallback: ffprobe
     const ffprobeBin = findFfprobeBinary();
     const { stdout } = await execFileAsync(
       ffprobeBin,
@@ -174,51 +295,55 @@ async function extractDuration(filePath: string): Promise<number> {
     );
     const parsed = parseFloat(stdout.trim());
     if (isFinite(parsed) && parsed > 0) {
-      return Math.round(parsed * 10) / 10;
+      const val = Math.round(parsed * 10) / 10;
+      setCachedVideoDuration(cacheKey, val);
+      return val;
     }
   } catch {}
   return 0;
 }
 
 /**
- * Extract video thumbnail frame via ffmpeg directly to buffer (Safe binary execFile)
+ * Extract video thumbnail frame via ffmpeg directly to buffer with strict concurrency limit
  */
 async function extractVideoFrameBuffer(filePath: string, duration: number): Promise<Buffer | null> {
-  let seekSecs = 0.5;
-  if (duration > 1) {
-    seekSecs = Math.min(Math.max(1, duration * 0.1), duration - 0.2);
-  }
-  const seekFormatted = new Date(seekSecs * 1000).toISOString().substr(11, 8) + '.' + String(Math.floor((seekSecs % 1) * 1000)).padStart(3, '0');
+  return ffmpegLimiter.run(async () => {
+    let seekSecs = 0.5;
+    if (duration > 1) {
+      seekSecs = Math.min(Math.max(1, duration * 0.1), duration - 0.2);
+    }
+    const seekFormatted = new Date(seekSecs * 1000).toISOString().substr(11, 8) + '.' + String(Math.floor((seekSecs % 1) * 1000)).padStart(3, '0');
 
-  try {
-    const ffmpegBin = findFfmpegBinary();
-    const { stdout: buf } = await execFileAsync(
-      ffmpegBin,
-      ['-ss', seekFormatted, '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
-      {
-        encoding: 'buffer',
-        maxBuffer: 15 * 1024 * 1024,
-        timeout: 4000
-      }
-    );
-    if (buf && buf.length > 0) return buf;
-  } catch {}
+    try {
+      const ffmpegBin = findFfmpegBinary();
+      const { stdout: buf } = await execFileAsync(
+        ffmpegBin,
+        ['-ss', seekFormatted, '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
+        {
+          encoding: 'buffer',
+          maxBuffer: 15 * 1024 * 1024,
+          timeout: 4000
+        }
+      );
+      if (buf && buf.length > 0) return buf;
+    } catch {}
 
-  try {
-    const ffmpegBin = findFfmpegBinary();
-    const { stdout: buf } = await execFileAsync(
-      ffmpegBin,
-      ['-ss', '00:00:00.100', '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
-      {
-        encoding: 'buffer',
-        maxBuffer: 15 * 1024 * 1024,
-        timeout: 3000
-      }
-    );
-    if (buf && buf.length > 0) return buf;
-  } catch {}
+    try {
+      const ffmpegBin = findFfmpegBinary();
+      const { stdout: buf } = await execFileAsync(
+        ffmpegBin,
+        ['-ss', '00:00:00.100', '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
+        {
+          encoding: 'buffer',
+          maxBuffer: 15 * 1024 * 1024,
+          timeout: 3000
+        }
+      );
+      if (buf && buf.length > 0) return buf;
+    } catch {}
 
-  return null;
+    return null;
+  });
 }
 
 /**
@@ -429,6 +554,18 @@ export function registerMediaIPC(
       if (fd !== null) {
         try { fs.closeSync(fd); } catch {}
       }
+    }
+  });
+
+  /**
+   * Fast Video Duration lookup (uses MP4 header atom in 0.1ms or disk cache)
+   */
+  ipcMain.handle('media:getVideoDuration', async (_event, filePath: string) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return 0;
+      return await extractDuration(filePath);
+    } catch {
+      return 0;
     }
   });
 

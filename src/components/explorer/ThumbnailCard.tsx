@@ -88,9 +88,39 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   const [duration, setDuration] = useState<number>(cached?.duration || 0);
   const [loadingMeta, setLoadingMeta] = useState<boolean>(!cached && !isDirectBrowserPhoto && !item.isDir);
   const [imgError, setImgError] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Lazy observer: only extract thumbnail frames when the card is in or near viewport
+  useEffect(() => {
+    if (isDirectBrowserPhoto || item.isDir) {
+      setIsVisible(true);
+      return;
+    }
+    const node = cardRef.current;
+    if (!node) return;
+
+    if (!('IntersectionObserver' in window)) {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0]?.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [item.fullPath, isDirectBrowserPhoto, item.isDir]);
 
   useEffect(() => {
-    if (isDirectBrowserPhoto || item.isDir) return;
+    if (isDirectBrowserPhoto || item.isDir || !isVisible) return;
 
     const currentCached = thumbnailService.getCached(item.fullPath);
     if (currentCached && currentCached.thumb) {
@@ -126,7 +156,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
     return () => {
       isCurrent = false;
     };
-  }, [item.fullPath, isDirectBrowserPhoto, item.isDir, isRaw]);
+  }, [item.fullPath, isDirectBrowserPhoto, item.isDir, isRaw, isVisible]);
 
   const directPhotoUrl = isDirectBrowserPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
 
@@ -140,6 +170,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
 
   return (
     <div
+      ref={cardRef}
       data-item-path={item.fullPath}
       onClick={onClick}
       onDoubleClick={onOpen}

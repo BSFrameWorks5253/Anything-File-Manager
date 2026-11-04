@@ -12,6 +12,7 @@ export interface MediaViewerAPI {
   openExternal: (filePath: string) => Promise<boolean>;
   getInitialFile: () => Promise<string | null>;
   getVideoMetadata: (filePath: string) => Promise<{ ok: boolean; duration: number; thumb: string; error?: string }>;
+  getVideoDuration?: (filePath: string) => Promise<number>;
   toLocalResourceUrl: (filePath: string) => string;
   onOpenTarget: (cb: (targetPath: string) => void) => () => void;
   // Shell & Windows File Explorer default app integration
@@ -85,6 +86,7 @@ const api: MediaViewerAPI = {
   openExternal: (filePath: string) => ipcRenderer.invoke('media:openExternal', filePath),
   getInitialFile: () => ipcRenderer.invoke('media:getInitialFile'),
   getVideoMetadata: (filePath: string) => ipcRenderer.invoke('media:getVideoMetadata', filePath),
+  getVideoDuration: (filePath: string) => ipcRenderer.invoke('media:getVideoDuration', filePath),
   toLocalResourceUrl: (filePath: string) => {
     const f = filePath.replace(/\\/g, '/');
     return `local-resource:///${encodeURI(f).replace(/^\//, '')}`;

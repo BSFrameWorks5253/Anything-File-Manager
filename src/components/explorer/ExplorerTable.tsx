@@ -15,7 +15,7 @@ import {
   formatDate,
   formatTimelapse
 } from '../../utils';
-import { thumbnailService } from '../../services';
+import { mediaService, thumbnailService } from '../../services';
 import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
 import { classifyFolder } from '../../utils/afmTaxonomy';
 
@@ -67,9 +67,10 @@ function VideoDurationBadge({ item }: { item: FsItem }) {
       return;
     }
     let isCurrent = true;
-    thumbnailService.extractVideoThumbnail(item.fullPath).then(res => {
-      if (isCurrent && res && res.duration > 0) {
-        setDuration(res.duration);
+    // Fast 0.1ms duration lookup from container atom without generating video frames
+    mediaService.getVideoDuration(item.fullPath).then(dur => {
+      if (isCurrent && dur > 0) {
+        setDuration(dur);
       }
     });
     return () => {
