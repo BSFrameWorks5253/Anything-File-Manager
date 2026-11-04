@@ -16,6 +16,7 @@ interface ExplorerGridProps {
   onCommitRename?: (item: FsItem, newName: string) => void;
   onCancelRename?: () => void;
   onClearSelection?: () => void;
+  onSelectMultiple?: (paths: string[]) => void;
 }
 
 export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
@@ -31,7 +32,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onContextMenu,
   onCommitRename,
   onCancelRename,
-  onClearSelection
+  onClearSelection,
+  onSelectMultiple
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragBox, setDragBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -58,13 +60,38 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+    const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const currentX = e.clientX - rect.left + containerRef.current.scrollLeft;
     const currentY = e.clientY - rect.top + containerRef.current.scrollTop;
 
     setDragBox(prev => prev ? { ...prev, x2: currentX, y2: currentY } : null);
+
+    // Dynamic selection intersection with cards
+    if (dragBox && onSelectMultiple) {
+      const boxX1 = Math.min(dragBox.x1, currentX);
+      const boxX2 = Math.max(dragBox.x1, currentX);
+      const boxY1 = Math.min(dragBox.y1, currentY);
+      const boxY2 = Math.max(dragBox.y1, currentY);
+
+      if (Math.abs(currentX - dragBox.x1) > 3 || Math.abs(currentY - dragBox.y1) > 3) {
+        const cardEls = containerRef.current.querySelectorAll<HTMLElement>('[data-item-path]');
+        const matched: string[] = [];
+        cardEls.forEach(el => {
+          const cLeft = el.offsetLeft;
+          const cTop = el.offsetTop;
+          const cRight = cLeft + el.offsetWidth;
+          const cBottom = cTop + el.offsetHeight;
+
+          if (boxX1 <= cRight && boxX2 >= cLeft && boxY1 <= cBottom && boxY2 >= cTop) {
+            const p = el.getAttribute('data-item-path');
+            if (p) matched.push(p);
+          }
+        });
+        onSelectMultiple(matched);
+      }
+    }
   };
 
   const handleMouseUp = () => {

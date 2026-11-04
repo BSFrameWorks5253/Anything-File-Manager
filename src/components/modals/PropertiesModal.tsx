@@ -234,8 +234,8 @@ export const PropertiesModal: React.FC<PropertiesModalProps> = ({
                   <span className="w-28 text-[var(--mac-text-muted)] font-medium">Size:</span>
                   <span className="flex-1 font-mono text-[var(--mac-text-primary)]">
                     {item.isDir
-                      ? afmStats ? `${formatBytes(afmStats.totalSizeBytes)} (${afmStats.totalSizeBytes.toLocaleString()} bytes)` : 'Calculating...'
-                      : `${formatBytes(item.size)} (${item.size.toLocaleString()} bytes)`}
+                      ? afmStats ? `${formatBytes(afmStats.totalSizeBytes ?? 0)} (${(afmStats.totalSizeBytes ?? 0).toLocaleString()} bytes)` : 'Calculating...'
+                      : `${formatBytes(item.size ?? 0)} (${(item.size ?? 0).toLocaleString()} bytes)`}
                   </span>
                 </div>
 

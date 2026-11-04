@@ -446,6 +446,9 @@ export function registerAfmIPC(): void {
   /**
    * 1. Analyze Production Folder & Calculate Metrics
    */
+  /**
+   * 1. Analyze Production Folder & Calculate Metrics (Blazing Fast & Robust)
+   */
   ipcMain.handle('afm:analyzeFolder', async (_event, folderPath: string): Promise<AfmFolderAnalytics | null> => {
     try {
       if (!folderPath || !fs.existsSync(folderPath)) return null;
@@ -471,230 +474,141 @@ export function registerAfmIPC(): void {
 
       const slots: SlotBreakdownItem[] = [];
       const dates: DateBreakdownItem[] = [];
-      const itsSeen = new Map<string, string[]>(); // its -> [slotPath]
+      const itsSeen = new Map<string, string[]>();
       const malformedItsList: string[] = [];
 
-      // ── Scenarios Based on Folder Hierarchy ──
+      // Collect video files for fast duration estimation & background probing
+      const videoFilesToProbe: { path: string; size: number }[] = [];
 
-      if (folderType === 'master_safar') {
-        // Scans all Date Sessions inside Master Safar
-        const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+      // Fast recursive crawler (up to 4 levels)
+      const crawlDir = (dir: string, depth: number, currentSlotInfo?: any) => {
+        if (depth > 4) return;
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const e of entries) {
+            const fullP = path.join(dir, e.name);
+            const lower = e.name.toLowerCase();
 
-        for (const e of entries) {
-          if (!e.isDirectory()) continue;
-          if (SYSTEM_IGNORE_FOLDERS.has(e.name.toLowerCase())) continue;
-          if (e.name.toLowerCase() === 'final') continue;
+            if (e.isDirectory()) {
+              if (SYSTEM_IGNORE_FOLDERS.has(lower) || lower === 'final' || lower === 'renders' || lower === 'dvd') continue;
+              subfolderCount++;
 
-          subfolderCount++;
-          const datePath = path.join(folderPath, e.name);
+              // Check if directory matches a slot or date session
+              let slotContext = currentSlotInfo;
+              const matchA = e.name.match(SLOT_FORMAT_A_REGEX);
+              const matchB = e.name.match(SLOT_FORMAT_B_REGEX);
+              const matchDate = e.name.match(DATE_SESSION_REGEX);
 
-          // Deep scan date folder for video clips & stats
-          let dateVideos = 0;
-          let dateItems = 0;
-          let dateBytes = 0;
-          let dateSecs = 0;
-          let datePrproj = false;
-
-          const dateEntries = fs.readdirSync(datePath, { withFileTypes: true });
-          for (const de of dateEntries) {
-            if (de.isDirectory()) {
-              if (SYSTEM_IGNORE_FOLDERS.has(de.name.toLowerCase()) || de.name.toLowerCase() === 'dvd') continue;
-              dateItems++;
-              // scan inside slots
-              const slotPath = path.join(datePath, de.name);
-              try {
-                const slotSubs = fs.readdirSync(slotPath, { withFileTypes: true });
-                for (const sub of slotSubs) {
-                  const targetScanDir = sub.isDirectory() ? path.join(slotPath, sub.name) : slotPath;
-                  const files = sub.isDirectory() ? fs.readdirSync(targetScanDir) : [sub.name];
-                  for (const f of files) {
-                    const ext = path.extname(f).toLowerCase().replace('.', '');
-                    const fp = path.join(targetScanDir, f);
-                    try {
-                      const stat = fs.statSync(fp);
-                      dateBytes += stat.size;
-                      if (VIDEO_EXTS.has(ext)) {
-                        dateVideos++;
-                        const dur = await getFastVideoDuration(fp);
-                        dateSecs += dur;
-                      } else if (PHOTO_EXTS.has(ext)) {
-                        stillPhotoCount++;
-                      }
-                    } catch {}
-                  }
-                  if (!sub.isDirectory()) break; // already read
+              if (matchA) {
+                const slotNo = matchA[2];
+                const eventCode = matchA[4]?.toUpperCase() || 'GEN';
+                const its = matchA[5];
+                const isValidIts = /^\d{5,8}$/.test(its);
+                if (!isValidIts) malformedItsList.push(its);
+                if (its) {
+                  const prev = itsSeen.get(its) || [];
+                  prev.push(e.name);
+                  itsSeen.set(its, prev);
                 }
-              } catch {}
+                slotContext = {
+                  slotFolder: e.name,
+                  slotPath: fullP,
+                  slotNo,
+                  eventCode,
+                  its,
+                  isValidIts,
+                  personName: '—',
+                  clipCount: 0,
+                  duration: 0,
+                  size: 0
+                };
+                slots.push(slotContext);
+              } else if (matchB) {
+                const slotNo = matchB[2];
+                const eventCode = matchB[3]?.toUpperCase() || 'H';
+                slotContext = {
+                  slotFolder: e.name,
+                  slotPath: fullP,
+                  slotNo,
+                  eventCode,
+                  its: null,
+                  isValidIts: true,
+                  personName: '—',
+                  clipCount: 0,
+                  duration: 0,
+                  size: 0
+                };
+                slots.push(slotContext);
+              } else if (matchDate && folderType === 'master_safar') {
+                const dateMeta = getOrInferMetadata(fullP);
+                dates.push({
+                  dateFolder: e.name,
+                  datePath: fullP,
+                  dateLabel: e.name,
+                  itemCount: 0,
+                  clipCount: 0,
+                  duration: 0,
+                  size: 0,
+                  stage: dateMeta.stage,
+                  prprojExists: false
+                });
+              }
+
+              crawlDir(fullP, depth + 1, slotContext);
             } else {
-              const ext = path.extname(de.name).toLowerCase().replace('.', '');
-              if (ext === 'prproj') datePrproj = true;
+              const ext = path.extname(e.name).toLowerCase().replace('.', '');
+              if (ext === 'prproj') {
+                hasPrproj = true;
+                if (!prprojName) prprojName = e.name;
+              }
+
               try {
-                const stat = fs.statSync(path.join(datePath, de.name));
-                dateBytes += stat.size;
+                const stat = fs.statSync(fullP);
+                totalStorageBytes += stat.size;
+
+                if (currentSlotInfo) {
+                  currentSlotInfo.size += stat.size;
+                }
+
+                if (VIDEO_EXTS.has(ext)) {
+                  videoClipCount++;
+                  if (currentSlotInfo) currentSlotInfo.clipCount++;
+
+                  // Check if cached
+                  const cacheKey = `${fullP}:${stat.size}:${stat.mtimeMs}`;
+                  if (durationCache.has(cacheKey)) {
+                    const dur = durationCache.get(cacheKey)!;
+                    cumulativeDurationSeconds += dur;
+                    if (currentSlotInfo) currentSlotInfo.duration += dur;
+                  } else {
+                    // Instant estimated duration based on file size (~35 Mbps average video stream)
+                    // size_bytes * 8 / (35 * 1024 * 1024)
+                    const estimatedDur = Math.max(1, Math.round((stat.size * 8) / (32 * 1024 * 1024)));
+                    cumulativeDurationSeconds += estimatedDur;
+                    if (currentSlotInfo) currentSlotInfo.duration += estimatedDur;
+                    videoFilesToProbe.push({ path: fullP, size: stat.size });
+                  }
+                } else if (PHOTO_EXTS.has(ext)) {
+                  stillPhotoCount++;
+                }
               } catch {}
             }
           }
+        } catch {}
+      };
 
-          videoClipCount += dateVideos;
-          totalStorageBytes += dateBytes;
-          cumulativeDurationSeconds += dateSecs;
+      crawlDir(folderPath, 0);
 
-          const dateMeta = getOrInferMetadata(datePath);
-          dates.push({
-            dateFolder: e.name,
-            datePath,
-            dateLabel: e.name,
-            itemCount: dateItems,
-            clipCount: dateVideos,
-            duration: Math.round(dateSecs * 10) / 10,
-            size: dateBytes,
-            stage: dateMeta.stage,
-            prprojExists: datePrproj
-          });
-        }
-      } else if (folderType === 'date_session' || folderType === 'category') {
-        // Scans all Item / Slot Folders within Date Session
-        const entries = fs.readdirSync(folderPath, { withFileTypes: true });
-
-        // Find .prproj in date folder
-        for (const e of entries) {
-          if (!e.isDirectory() && e.name.toLowerCase().endsWith('.prproj')) {
-            hasPrproj = true;
-            prprojName = e.name;
-          }
-        }
-
-        // Helper to inspect a single slot
-        const processSlot = async (slotName: string, slotPath: string) => {
-          subfolderCount++;
-          let slotClips = 0;
-          let slotBytes = 0;
-          let slotSecs = 0;
-          let personName = '—';
-
-          // Extract slot tokens
-          const matchA = slotName.match(SLOT_FORMAT_A_REGEX);
-          const matchB = slotName.match(SLOT_FORMAT_B_REGEX);
-          let slotNo = '00';
-          let eventCode = 'GEN';
-          let its: string | null = null;
-          let isValidIts = true;
-
-          if (matchA) {
-            slotNo = matchA[2];
-            eventCode = matchA[4]?.toUpperCase() || 'GEN';
-            its = matchA[5];
-            isValidIts = /^\d{5,8}$/.test(its);
-            if (!isValidIts) malformedItsList.push(its);
-            if (its) {
-              const prev = itsSeen.get(its) || [];
-              prev.push(slotName);
-              itsSeen.set(its, prev);
-            }
-          } else if (matchB) {
-            slotNo = matchB[2];
-            eventCode = matchB[3]?.toUpperCase() || 'H';
-            its = null;
-          }
-
-          try {
-            const slotSubs = fs.readdirSync(slotPath, { withFileTypes: true });
-            for (const sub of slotSubs) {
-              if (sub.isDirectory() && !SYSTEM_IGNORE_FOLDERS.has(sub.name.toLowerCase())) {
-                personName = sub.name; // Level 5 Person Name Folder
-                const personDir = path.join(slotPath, sub.name);
-                const mediaFiles = fs.readdirSync(personDir);
-                for (const mf of mediaFiles) {
-                  const ext = path.extname(mf).toLowerCase().replace('.', '');
-                  const mfp = path.join(personDir, mf);
-                  try {
-                    const stat = fs.statSync(mfp);
-                    slotBytes += stat.size;
-                    if (VIDEO_EXTS.has(ext)) {
-                      slotClips++;
-                      const dur = await getFastVideoDuration(mfp);
-                      slotSecs += dur;
-                    } else if (PHOTO_EXTS.has(ext)) {
-                      stillPhotoCount++;
-                    }
-                  } catch {}
-                }
-              } else if (!sub.isDirectory()) {
-                const ext = path.extname(sub.name).toLowerCase().replace('.', '');
-                const sfp = path.join(slotPath, sub.name);
-                try {
-                  const stat = fs.statSync(sfp);
-                  slotBytes += stat.size;
-                  if (VIDEO_EXTS.has(ext)) {
-                    slotClips++;
-                    const dur = await getFastVideoDuration(sfp);
-                    slotSecs += dur;
-                  } else if (PHOTO_EXTS.has(ext)) {
-                    stillPhotoCount++;
-                  }
-                } catch {}
-              }
-            }
-          } catch {}
-
-          videoClipCount += slotClips;
-          totalStorageBytes += slotBytes;
-          cumulativeDurationSeconds += slotSecs;
-
-          slots.push({
-            slotFolder: slotName,
-            slotPath,
-            slotNo,
-            eventCode,
-            its,
-            isValidIts,
-            personName,
-            clipCount: slotClips,
-            duration: Math.round(slotSecs * 10) / 10,
-            size: slotBytes
-          });
-        };
-
-        for (const e of entries) {
-          if (!e.isDirectory()) continue;
-          if (SYSTEM_IGNORE_FOLDERS.has(e.name.toLowerCase()) || e.name.toLowerCase() === 'dvd') continue;
-
-          const childPath = path.join(folderPath, e.name);
-
-          // If child is a category folder (e.g. 01-Mumbai-Bethak), traverse it
-          if (CATEGORY_REGEX.test(e.name)) {
-            const nested = fs.readdirSync(childPath, { withFileTypes: true });
-            for (const ne of nested) {
-              if (ne.isDirectory()) {
-                await processSlot(ne.name, path.join(childPath, ne.name));
-              }
-            }
-          } else {
-            await processSlot(e.name, childPath);
-          }
-        }
-      } else {
-        // Generic or single slot folder
-        const entries = fs.readdirSync(folderPath, { withFileTypes: true });
-        for (const e of entries) {
-          const fp = path.join(folderPath, e.name);
-          if (e.isDirectory()) {
-            subfolderCount++;
-          } else {
-            const ext = path.extname(e.name).toLowerCase().replace('.', '');
+      // Asynchronously probe actual durations in the background so future calls are cached
+      if (videoFilesToProbe.length > 0) {
+        setTimeout(async () => {
+          const sample = videoFilesToProbe.slice(0, 24); // probe up to 24 clips in parallel
+          for (const item of sample) {
             try {
-              const stat = fs.statSync(fp);
-              totalStorageBytes += stat.size;
-              if (VIDEO_EXTS.has(ext)) {
-                videoClipCount++;
-                const dur = await getFastVideoDuration(fp);
-                cumulativeDurationSeconds += dur;
-              } else if (PHOTO_EXTS.has(ext)) {
-                stillPhotoCount++;
-              }
+              await getFastVideoDuration(item.path);
             } catch {}
           }
-        }
+        }, 50);
       }
 
       // Check for duplicate ITS numbers
@@ -728,9 +642,6 @@ export function registerAfmIPC(): void {
     }
   });
 
-  /**
-   * 2. Set Production Stage Tag & Sync with One Tap Task Tracker DB
-   */
   ipcMain.handle('afm:setStage', async (_event, folderPath: string, stage: ProductionStage): Promise<boolean> => {
     try {
       if (!folderPath || !fs.existsSync(folderPath)) return false;

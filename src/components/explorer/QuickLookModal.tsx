@@ -953,9 +953,100 @@ function ArchiveQuickLook({ item }: { item: FsItem }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 10. GENERIC UNIVERSAL FILE INSPECTOR (ANY OTHER FILE TYPE)
+// 10. GENERIC UNIVERSAL FILE CONTENT VIEWER (ANY FILE CONTENT)
 // ═══════════════════════════════════════════════════════════════════════════
 function GenericFileQuickLook({ item }: { item: FsItem }) {
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let isCurrent = true;
+    setLoading(true);
+    mediaService.readTextFile(item.fullPath, 512 * 1024).then(res => {
+      if (isCurrent) {
+        if (res.ok && res.content !== undefined && res.content.trim().length > 0) {
+          setContent(res.content);
+        } else {
+          setContent(null);
+        }
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (isCurrent) {
+        setContent(null);
+        setLoading(false);
+      }
+    });
+    return () => { isCurrent = false; };
+  }, [item.fullPath]);
+
+  const handleCopy = () => {
+    if (content) {
+      navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const lines = useMemo(() => (content ? content.split('\n') : []), [content]);
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0a0c14] text-gray-400">
+        <Sparkles className="w-8 h-8 animate-pulse text-indigo-400 mb-2" />
+        <span className="text-xs">Reading file contents...</span>
+      </div>
+    );
+  }
+
+  // If text/code content is readable, display full content with line numbers!
+  if (content !== null) {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-[#0d1017] text-gray-200">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-[#161a24] text-xs">
+          <div className="flex items-center gap-2">
+            <FileCode className="w-4 h-4 text-indigo-400" />
+            <span className="font-semibold text-gray-300">{item.name}</span>
+            <span className="text-[10px] text-gray-500 font-mono">({lines.length} lines)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span className="text-[11px]">{copied ? 'Copied' : 'Copy'}</span>
+            </button>
+            <button
+              onClick={() => mediaService.openExternal(item.fullPath)}
+              className="px-2.5 py-1 rounded bg-[var(--mac-accent)] text-white font-medium text-[11px]"
+            >
+              Open File
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed bg-[#0a0c14] text-gray-300">
+          <table className="w-full border-collapse">
+            <tbody>
+              {lines.map((line, i) => (
+                <tr key={i} className="hover:bg-white/[0.04]">
+                  <td className="w-10 pr-3 select-none text-right text-gray-600 font-mono text-[11px]">
+                    {i + 1}
+                  </td>
+                  <td className="whitespace-pre-wrap break-all text-gray-200 pl-2">
+                    {line || ' '}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Binary or opaque file inspection
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0f111c] text-center">
       <div className="mb-4">
@@ -970,7 +1061,7 @@ function GenericFileQuickLook({ item }: { item: FsItem }) {
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-sm w-full text-xs text-left space-y-2 mb-6 font-mono">
         <div className="flex justify-between">
           <span className="text-gray-400">Size:</span>
-          <span className="text-white">{formatBytes(item.size)} ({item.size.toLocaleString()} bytes)</span>
+          <span className="text-white">{formatBytes(item.size ?? 0)} ({(item.size ?? 0).toLocaleString()} bytes)</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Location:</span>
@@ -1003,7 +1094,7 @@ function GenericFileQuickLook({ item }: { item: FsItem }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 11. FOLDER / DIRECTORY QUICK LOOK
+// 11. FOLDER / DIRECTORY CONTENT PREVIEW
 // ═══════════════════════════════════════════════════════════════════════════
 function FolderQuickLook({
   item,
@@ -1012,41 +1103,78 @@ function FolderQuickLook({
   item: FsItem;
   onClose: () => void;
 }) {
+  const [children, setChildren] = useState<FsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isCurrent = true;
+    mediaService.listDir(item.fullPath).then(res => {
+      if (isCurrent) {
+        setChildren(res);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (isCurrent) setLoading(false);
+    });
+    return () => { isCurrent = false; };
+  }, [item.fullPath]);
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0f111c] text-center">
-      <div className="mb-4 drop-shadow-2xl">
-        <MacFolderIcon size={110} />
-      </div>
-
-      <h2 className="text-xl font-bold text-white mb-1 truncate max-w-md" title={item.name}>
-        {item.name}
-      </h2>
-      <p className="text-xs text-emerald-400 font-mono uppercase mb-6 tracking-wider">Folder / Directory</p>
-
-      <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-md w-full text-xs text-left space-y-2 mb-6 font-mono">
-        <div className="flex justify-between">
-          <span className="text-gray-400">Path:</span>
-          <span className="text-gray-200 truncate max-w-[240px]" title={item.fullPath}>
-            {item.fullPath}
-          </span>
+    <div className="flex-1 flex flex-col h-full bg-[#0d1017] text-white">
+      {/* Folder Header */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-[#161a24]">
+        <div className="flex items-center gap-3">
+          <MacFolderIcon size={28} />
+          <div>
+            <h2 className="text-sm font-bold text-white truncate max-w-md">{item.name}</h2>
+            <span className="text-[11px] text-gray-400 font-mono">{children.length} items inside</span>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Last Modified:</span>
-          <span className="text-white">{formatDate(item.mtime)}</span>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3">
         <button
           onClick={() => {
             onClose();
             mediaService.openInExplorer(item.fullPath);
           }}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white flex items-center gap-1.5 transition-colors"
         >
-          <FolderOpen className="w-4 h-4" />
-          <span>Show in Windows Explorer</span>
+          <FolderOpen className="w-3.5 h-3.5" />
+          <span>Open in Explorer</span>
         </button>
+      </div>
+
+      {/* Children list preview */}
+      <div className="flex-1 overflow-auto p-4">
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+            Loading folder contents...
+          </div>
+        ) : children.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-gray-500 text-xs">
+            Folder is empty
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {children.map(child => (
+              <div
+                key={child.fullPath}
+                className="flex items-center gap-2 p-2 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
+                title={child.name}
+              >
+                {child.isDir ? (
+                  <MacFolderIcon size={20} className="flex-shrink-0" />
+                ) : (
+                  <MacDocumentIcon size={20} ext={child.ext} className="flex-shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs text-gray-200 block truncate">{child.name}</span>
+                  <span className="text-[10px] text-gray-500 font-mono block">
+                    {child.isDir ? 'Folder' : formatBytes(child.size ?? 0)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

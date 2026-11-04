@@ -119,8 +119,6 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     }
   }, [isOpen, loadSubfolders]);
 
-  if (!isOpen) return null;
-
   // Toggle single folder exclusion
   const toggleFolderExclusion = (name: string) => {
     const lower = name.toLowerCase();
@@ -158,7 +156,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     setExcludedFolderNames(next);
   };
 
-  // Calculate active included clips & size
+  // Calculate active included clips & size (Unconditionally called hook)
   const activeMetrics = useMemo(() => {
     let totalClips = 0;
     let totalBytes = 0;
@@ -178,6 +176,8 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
 
     return { totalClips, totalBytes, includedCount, totalSubfolders: subfolders.length };
   }, [subfolders, excludedFolderNames, initialClipCount]);
+
+  if (!isOpen) return null;
 
   // Execute sequence creation using One Tap Engine
   const handleGenerate = async () => {

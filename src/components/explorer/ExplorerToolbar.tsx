@@ -28,7 +28,8 @@ import {
   Trash2,
   CopyPlus,
   MoreHorizontal,
-  Info
+  Info,
+  Film
 } from 'lucide-react';
 import { ViewMode, SortField, SortOrder } from '../../types';
 import { useTheme } from '../../context/ThemeContext';

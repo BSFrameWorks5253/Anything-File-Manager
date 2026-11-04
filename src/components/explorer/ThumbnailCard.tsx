@@ -140,6 +140,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
 
   return (
     <div
+      data-item-path={item.fullPath}
       onClick={onClick}
       onDoubleClick={onOpen}
       onContextMenu={onContextMenu}

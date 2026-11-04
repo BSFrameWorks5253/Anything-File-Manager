@@ -337,6 +337,16 @@ export default function App() {
     }
   }, [filteredItems, lastSelectedPath, selectedPaths]);
 
+
+  const handleSelectMultiple = useCallback((paths: string[]) => {
+    setSelectedPaths(new Set(paths));
+    if (paths.length > 0) {
+      const lastPath = paths[paths.length - 1];
+      setSelectedPath(lastPath);
+      const found = items.find(i => i.fullPath === lastPath);
+      if (found) setSelectedItemState(found);
+    }
+  }, [items]);
   const handleClearSelection = useCallback(() => {
     setSelectedPaths(new Set());
     setSelectedPath(null);
@@ -902,6 +912,7 @@ export default function App() {
                 onCommitRename={handleCommitRename}
                 onCancelRename={handleCancelRename}
                 onClearSelection={handleClearSelection}
+                onSelectMultiple={handleSelectMultiple}
               />
             </div>
           ) : viewMode === 'table' ? (
