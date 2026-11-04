@@ -34,21 +34,32 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
           className="drop-shadow-md transition-all duration-300"
         >
           <defs>
+            {/* Premier Back Plate Gradient (Apple Emerald) */}
             <linearGradient id="afmBackPlate" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#026361"/>
-              <stop offset="45%" stopColor="#048A7B"/>
+              <stop offset="0%" stopColor="#014D4B"/>
+              <stop offset="30%" stopColor="#026A66"/>
+              <stop offset="70%" stopColor="#048A7B"/>
               <stop offset="100%" stopColor="#07B38C"/>
             </linearGradient>
 
+            {/* Premier Front Flap Gradient */}
             <linearGradient id="afmFrontFlap" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#05A384"/>
-              <stop offset="40%" stopColor="#08C296"/>
+              <stop offset="0%" stopColor="#048A7B"/>
+              <stop offset="45%" stopColor="#07BA90"/>
               <stop offset="100%" stopColor="#12E5A8"/>
             </linearGradient>
 
+            {/* Metallic Gloss Lip */}
+            <linearGradient id="afmLipGloss" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.4"/>
+              <stop offset="50%" stopColor="#FFFFFF" stopOpacity="0.95"/>
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.4"/>
+            </linearGradient>
+
+            {/* Inner Folder Cavity */}
             <linearGradient id="afmCavity" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#012422" stopOpacity="0.95"/>
-              <stop offset="100%" stopColor="#024D46" stopOpacity="0.2"/>
+              <stop offset="0%" stopColor="#001F1E" stopOpacity="0.96"/>
+              <stop offset="100%" stopColor="#024D46" stopOpacity="0.25"/>
             </linearGradient>
           </defs>
 
@@ -67,7 +78,10 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
             L 120 260
             C 120 206 136 190 190 190
             Z
-          " fill="url(#afmBackPlate)" stroke="#024744" strokeWidth="6"/>
+          " fill="url(#afmBackPlate)" stroke="#013A38" strokeWidth="6"/>
+
+          {/* Top Tab Highlight */}
+          <path d="M 190 194 L 388 194 C 440 194 470 218 510 278" stroke="rgba(255,255,255,0.4)" strokeWidth="6" strokeLinecap="round"/>
 
           {activeOpen ? (
             /* Open Folder State with Crisp White File Sheet */
@@ -91,7 +105,7 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
                 " fill="#FFFFFF" stroke="#64748B" strokeWidth="5"/>
                 <path d="M 640 130 L 640 242 C 640 256 652 260 666 260 L 770 260 Z" fill="#CBD5E1"/>
                 <path d="M 640 130 L 770 260" stroke="#94A3B8" strokeWidth="4"/>
-                <rect x="270" y="210" width="160" height="34" rx="17" fill="#4F46E5"/>
+                <rect x="270" y="210" width="160" height="34" rx="17" fill="#048A7B"/>
                 <polygon points="296,220 296,234 310,227" fill="#FFFFFF"/>
                 <rect x="270" y="280" width="380" height="18" rx="9" fill="#64748B" opacity="0.65"/>
                 <rect x="270" y="318" width="300" height="16" rx="8" fill="#94A3B8" opacity="0.5"/>
@@ -109,7 +123,7 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
                 C 136 860 112 840 116 786
                 Z
               " fill="url(#afmFrontFlap)" stroke="#035B54" strokeWidth="7"/>
-              <path d="M 198 454 L 826 454" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" opacity="0.9"/>
+              <path d="M 198 454 L 826 454" stroke="url(#afmLipGloss)" strokeWidth="9" strokeLinecap="round"/>
             </>
           ) : (
             /* Closed Folder State (Snug fit with crescent opening slit) */
@@ -139,7 +153,7 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
                 C 120 396 136 380 190 380
                 Z
               " fill="url(#afmFrontFlap)" stroke="#035B54" strokeWidth="7"/>
-              <path d="M 190 384 L 834 384" stroke="#FFFFFF" strokeWidth="7" strokeLinecap="round" opacity="0.8"/>
+              <path d="M 190 384 L 834 384" stroke="url(#afmLipGloss)" strokeWidth="8" strokeLinecap="round"/>
             </>
           )}
         </svg>
@@ -151,8 +165,8 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
             <span className="text-xs font-bold text-[var(--mac-text-primary)] tracking-tight whitespace-nowrap">
               Anything File Manager
             </span>
-            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
-              AFM
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              Pro
             </span>
           </div>
         </div>

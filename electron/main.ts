@@ -9,7 +9,7 @@ import { resolveChildAppLoaderConfig, showChildAppSplash, closeChildAppSplash } 
 
 // Windows Taskbar & Action Center Model ID
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.anything.mediaviewer');
+  app.setAppUserModelId('com.anything.filemanager');
 }
 
 // Windows High-DPI Support for crisp video and image rendering
@@ -18,11 +18,22 @@ app.commandLine.appendSwitch('high-dpi-support', '1');
 // Register privileged local-resource protocol
 registerLocalResourceProtocol();
 
+const isDev = process.env.NODE_ENV === 'development' && !!process.env.VITE_DEV_SERVER_URL;
+
+try {
+  const appDataRoot = app.getPath('appData');
+  const targetUserData = path.join(appDataRoot, isDev ? 'AnythingFileManager_Dev' : 'AnythingFileManager');
+  app.setPath('userData', targetUserData);
+} catch (err) {
+  console.warn('[AnythingFileManager] Warning setting userData path:', err);
+}
+
 let mainWindow: BrowserWindow | null = null;
 let splashCompleted = false;
+let isMainWindowReady = false;
 let initialFileToOpen: string | null = null;
 
-// Parse file passed in CLI arguments (e.g. Explorer double click or "mediaviewer.exe photo.jpg")
+// Parse file passed in CLI arguments (e.g. Explorer double click or "anything-file-manager.exe photo.jpg")
 const MEDIA_EXTS = new Set([
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.avif', '.ico', '.tiff', '.tif',
   '.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf',
@@ -67,16 +78,6 @@ app.on('second-instance', (_event, argv) => {
     }
   }
 });
-
-const isDev = process.env.NODE_ENV === 'development' && !!process.env.VITE_DEV_SERVER_URL;
-
-try {
-  const appDataRoot = app.getPath('appData');
-  const targetUserData = path.join(appDataRoot, isDev ? 'MediaViewStudio_Dev' : 'MediaViewStudio');
-  app.setPath('userData', targetUserData);
-} catch (err) {
-  console.warn('[MediaViewStudio] Warning setting userData path:', err);
-}
 
 function getAppIndexPath(): string {
   const candidates = [
@@ -163,12 +164,19 @@ function createWindow(showImmediately = false) {
   }
 
   mainWindow.once('ready-to-show', () => {
-    if (splashCompleted) {
-      mainWindow?.show();
+    isMainWindowReady = true;
+    if (splashCompleted && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
     }
   });
 
   mainWindow.webContents.once('did-finish-load', () => {
+    isMainWindowReady = true;
+    if (splashCompleted && mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
     if (initialFileToOpen && mainWindow) {
       setTimeout(() => {
         mainWindow?.webContents.send('media:openTarget', initialFileToOpen);
@@ -189,11 +197,15 @@ function createWindow(showImmediately = false) {
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const isAllowedDev = isDev && process.env.VITE_DEV_SERVER_URL && url.startsWith(process.env.VITE_DEV_SERVER_URL);
+    const isAllowedDev = isDev && (
+      url.startsWith('http://localhost:') ||
+      url.startsWith('http://127.0.0.1:') ||
+      (process.env.VITE_DEV_SERVER_URL ? url.startsWith(process.env.VITE_DEV_SERVER_URL) : false)
+    );
     const isAllowedFile = url.startsWith('file://');
     if (!isAllowedDev && !isAllowedFile) {
       event.preventDefault();
-      if (url.startsWith('https:') || url.startsWith('http:')) {
+      if (url.startsWith('https:') || url.startsWith('http:') || url.startsWith('mailto:')) {
         shell.openExternal(url);
       }
     }
@@ -257,7 +269,11 @@ app.whenReady().then(() => {
     });
 
     playerWin.webContents.on('will-navigate', (event, url) => {
-      const isAllowedDev = isDev && process.env.VITE_DEV_SERVER_URL && url.startsWith(process.env.VITE_DEV_SERVER_URL);
+      const isAllowedDev = isDev && (
+        url.startsWith('http://localhost:') ||
+        url.startsWith('http://127.0.0.1:') ||
+        (process.env.VITE_DEV_SERVER_URL ? url.startsWith(process.env.VITE_DEV_SERVER_URL) : false)
+      );
       const isAllowedFile = url.startsWith('file://');
       if (!isAllowedDev && !isAllowedFile) {
         event.preventDefault();
