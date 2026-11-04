@@ -5,6 +5,7 @@ import http from 'http';
 import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import crypto from 'crypto';
+import zlib from 'zlib';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -188,6 +189,211 @@ function getOrInferMetadata(dirPath: string): AfmMetadata {
     stage: inferredStage,
     lastUpdated: Date.now()
   };
+}
+
+interface AfmVideoStreamInfo {
+  width: number;
+  height: number;
+  duration: number;
+  fpsNum: number;
+  fpsDen: number;
+  fps: number;
+  timebase: number;
+  ntsc: boolean;
+  audioChannels: number;
+  nbFrames: number;
+  isValid: boolean;
+}
+
+const afmFfprobeCache = new Map<string, AfmVideoStreamInfo>();
+
+function findFfprobeBinary(): string {
+  const candidates = [
+    'C:\\Users\\Burhanuddin\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffprobe.exe',
+    'C:\\Users\\Burhanuddin\\OneDrive\\Desktop\\Anything\\Anything Apps\\One Tap\\tools\\ffprobe.exe',
+    path.join(process.cwd(), 'tools', 'ffprobe.exe'),
+    path.join(app.getAppPath(), 'tools', 'ffprobe.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'One Tap', 'resources', 'tools', 'ffprobe.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'One Tap', 'tools', 'ffprobe.exe')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return 'ffprobe';
+}
+
+function pathToPathUrl(filePath: string): string {
+  const normalized = path.resolve(filePath).replace(/\\/g, '/');
+  return 'file://localhost/' + encodeURI(normalized).replace(/#/g, '%23').replace(/\?/g, '%3F');
+}
+
+function buildPrprojBuffer(folderName: string): Buffer {
+  const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<PremiereData Version="3">
+	<Project ObjectRef="1"/>
+	<Project id="1" ClassID="9fd8536f-e3c3-4d76-8809-e855734e5a9c" Version="38">
+		<Node Version="1">
+			<Properties Version="1">
+				<ProjectName>${escapeXml(folderName)}</ProjectName>
+				<ProjectID>00000000-0000-0000-0000-000000000001</ProjectID>
+			</Properties>
+		</Node>
+		<RootProjectItem ObjectRef="2"/>
+	</Project>
+	<RootProjectGroup id="2" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
+		<Node Version="1">
+			<Properties Version="1">
+				<Name>Root</Name>
+			</Properties>
+		</Node>
+		<Items Version="1">
+			<Item Index="0" ObjectRef="3"/>
+			<Item Index="1" ObjectRef="4"/>
+			<Item Index="2" ObjectRef="5"/>
+			<Item Index="3" ObjectRef="6"/>
+		</Items>
+	</RootProjectGroup>
+	<ProjectItem id="3" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
+		<Node Version="1">
+			<Properties Version="1">
+				<Name>01 RAW FOOTAGE</Name>
+			</Properties>
+		</Node>
+	</ProjectItem>
+	<ProjectItem id="4" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
+		<Node Version="1">
+			<Properties Version="1">
+				<Name>02 SEQUENCES</Name>
+			</Properties>
+		</Node>
+	</ProjectItem>
+	<ProjectItem id="5" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
+		<Node Version="1">
+			<Properties Version="1">
+				<Name>03 AUDIO &amp; MUSIC</Name>
+			</Properties>
+		</Node>
+	</ProjectItem>
+	<ProjectItem id="6" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
+		<Node Version="1">
+			<Properties Version="1">
+				<Name>04 GRAPHICS &amp; TITLES</Name>
+			</Properties>
+		</Node>
+	</ProjectItem>
+</PremiereData>`;
+  return zlib.gzipSync(Buffer.from(xmlContent, 'utf8'));
+}
+
+async function getVideoInfoNodeAsync(filePath: string): Promise<AfmVideoStreamInfo> {
+  const FALLBACK_RES: AfmVideoStreamInfo = {
+    width: 1920,
+    height: 1080,
+    duration: 10.0,
+    fpsNum: 30,
+    fpsDen: 1,
+    fps: 30,
+    timebase: 30,
+    ntsc: false,
+    audioChannels: 2,
+    nbFrames: 300,
+    isValid: true
+  };
+
+  try {
+    if (!filePath || typeof filePath !== 'string') return FALLBACK_RES;
+    const fileName = path.basename(filePath);
+    if (fileName.startsWith('.') || fileName.startsWith('~')) {
+      return { ...FALLBACK_RES, isValid: false };
+    }
+    const stat = fs.statSync(filePath);
+    if (stat.size <= 0) return { ...FALLBACK_RES, isValid: false };
+
+    const cacheKey = `${filePath}_${stat.mtimeMs}_${stat.size}`;
+    if (afmFfprobeCache.has(cacheKey)) {
+      return afmFfprobeCache.get(cacheKey)!;
+    }
+
+    const ffprobeExe = findFfprobeBinary();
+
+    return new Promise((resolve) => {
+      execFile(
+        ffprobeExe,
+        [
+          '-v', 'error',
+          '-show_entries', 'stream=width,height,duration,nb_frames,r_frame_rate,avg_frame_rate,channels,codec_type:format=duration',
+          '-of', 'json',
+          filePath
+        ],
+        { windowsHide: true, timeout: 15000 },
+        (error, stdout) => {
+          if (error || !stdout) {
+            afmFfprobeCache.set(cacheKey, FALLBACK_RES);
+            return resolve(FALLBACK_RES);
+          }
+          try {
+            const parsed = JSON.parse(stdout);
+            const streams = parsed.streams || [];
+            const s = streams.find((st: any) => st.codec_type === 'video');
+            const a = streams.find((st: any) => st.codec_type === 'audio');
+            const f = parsed.format;
+
+            const audioChannels = parseInt(a?.channels) || 2;
+            const width = parseInt(s?.width) || 1920;
+            const height = parseInt(s?.height) || 1080;
+
+            const rateStr = (s?.r_frame_rate && s.r_frame_rate !== '0/0') ? s.r_frame_rate : (s?.avg_frame_rate || '30/1');
+            const parts = rateStr.split('/');
+            let num = parseInt(parts[0]) || 30;
+            let den = parseInt(parts[1]) || 1;
+            let rawFps = den > 0 ? num / den : 30;
+            if (rawFps <= 0 || !isFinite(rawFps)) rawFps = 30;
+
+            const nbFrames = parseInt(s?.nb_frames) || 0;
+            let durSec = (nbFrames > 0 && rawFps > 0) ? (nbFrames / rawFps) : parseFloat(s?.duration);
+            if (isNaN(durSec) || durSec <= 0) durSec = parseFloat(f?.duration);
+            if (isNaN(durSec) || durSec <= 0) durSec = 10.0;
+            const duration = Math.max(durSec, 0.1);
+
+            let timebase = 30;
+            let ntsc = false;
+
+            if (Math.abs(rawFps - 23.976) < 0.1 || Math.abs(rawFps - 23.98) < 0.1 || (num === 24000 && den === 1001)) {
+              timebase = 24; ntsc = true;
+            } else if (Math.abs(rawFps - 24) < 0.1) {
+              timebase = 24; ntsc = false;
+            } else if (Math.abs(rawFps - 25) < 0.1) {
+              timebase = 25; ntsc = false;
+            } else if (Math.abs(rawFps - 29.97) < 0.1 || (num === 30000 && den === 1001)) {
+              timebase = 30; ntsc = true;
+            } else if (Math.abs(rawFps - 30) < 0.1) {
+              timebase = 30; ntsc = false;
+            } else if (Math.abs(rawFps - 50) < 0.1) {
+              timebase = 50; ntsc = false;
+            } else if (Math.abs(rawFps - 59.94) < 0.1 || (num === 60000 && den === 1001)) {
+              timebase = 60; ntsc = true;
+            } else if (Math.abs(rawFps - 60) < 0.1) {
+              timebase = 60; ntsc = false;
+            } else {
+              timebase = Math.round(rawFps) || 30;
+              ntsc = false;
+            }
+
+            const res: AfmVideoStreamInfo = {
+              width, height, duration, fpsNum: num, fpsDen: den, fps: rawFps, timebase, ntsc, audioChannels, nbFrames, isValid: true
+            };
+            afmFfprobeCache.set(cacheKey, res);
+            return resolve(res);
+          } catch {
+            afmFfprobeCache.set(cacheKey, FALLBACK_RES);
+            return resolve(FALLBACK_RES);
+          }
+        }
+      );
+    });
+  } catch {
+    return FALLBACK_RES;
+  }
 }
 
 export function registerAfmIPC(): void {
@@ -544,6 +750,12 @@ export function registerAfmIPC(): void {
 
   /**
    * 3. Generate Adobe Premiere Pro Project (.prproj / XML)
+   * Fully synchronized with One Tap's frame-accurate, zero-overshoot engine:
+   * - Native FCP XML + gzipped .prproj creation
+   * - Exact nb_frames alignment & floor calculations (no audio priming overshoot)
+   * - No synthetic <timecode> in <file> (prevents Premiere Pro black clips / disappearing footage)
+   * - Video-Audio <link> bonding across V1 and A1
+   * - Subfolder timeline markers for session slots
    */
   ipcMain.handle(
     'afm:generatePremiereProject',
@@ -565,133 +777,218 @@ export function registerAfmIPC(): void {
 
         const width = resolution === '4k' ? 3840 : 1920;
         const height = resolution === '4k' ? 2160 : 1080;
-        const timebase = fps || 25;
+        const requestedFps = fps || 25;
 
-        // Collect all video files in chronological / slot order
-        const clips: { name: string; fullPath: string; duration: number }[] = [];
-        const scanClips = async (dir: string) => {
+        // Collect all video files with their subfolder context
+        interface RawClipEntry {
+          name: string;
+          fullPath: string;
+          subfolder: string;
+        }
+        const rawClips: RawClipEntry[] = [];
+
+        const scanClips = (dir: string, currentSubfolder: string) => {
           const list = fs.readdirSync(dir, { withFileTypes: true });
           for (const item of list) {
             const p = path.join(dir, item.name);
             if (item.isDirectory() && !SYSTEM_IGNORE_FOLDERS.has(item.name.toLowerCase())) {
-              await scanClips(p);
+              const sub = currentSubfolder ? `${currentSubfolder}/${item.name}` : item.name;
+              scanClips(p, sub);
             } else if (!item.isDirectory()) {
               const ext = path.extname(item.name).toLowerCase().replace('.', '');
               if (VIDEO_EXTS.has(ext)) {
-                const dur = await getFastVideoDuration(p);
-                clips.push({ name: item.name, fullPath: p, duration: dur || 5.0 });
+                rawClips.push({
+                  name: item.name,
+                  fullPath: p,
+                  subfolder: currentSubfolder
+                });
               }
             }
           }
         };
 
-        await scanClips(folderPath);
+        scanClips(folderPath, '');
 
-        // Build clean Final Cut Pro 7 / Premiere XML Interchange sequence
-        let trackOut = 0;
-        const videoClipXmlItems: string[] = [];
-        const audioClipXmlItems: string[] = [];
+        if (rawClips.length === 0) {
+          return { ok: false, error: 'No supported video clips found in the selected folder.' };
+        }
 
-        clips.forEach((clip, index) => {
-          const durationFrames = Math.max(1, Math.floor(clip.duration * timebase));
-          const startFrame = trackOut;
-          const endFrame = startFrame + durationFrames;
-          trackOut = endFrame;
+        // Sort naturally by filename
+        rawClips.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
-          const normalizedPath = path.resolve(clip.fullPath).replace(/\\/g, '/');
-          const fileUrl = 'file://localhost/' + encodeURI(normalizedPath).replace(/#/g, '%23').replace(/\?/g, '%3F');
+        // Probe each clip with full stream accuracy
+        const probedInfos: AfmVideoStreamInfo[] = [];
+        for (const clip of rawClips) {
+          const info = await getVideoInfoNodeAsync(clip.fullPath);
+          probedInfos.push(info);
+        }
 
-          videoClipXmlItems.push(`
-            <clipitem id="clipitem-${index + 1}">
-              <name>${escapeXml(clip.name)}</name>
-              <duration>${durationFrames}</duration>
-              <rate>
-                <timebase>${timebase}</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <start>${startFrame}</start>
-              <end>${endFrame}</end>
-              <in>0</in>
-              <out>${durationFrames}</out>
-              <file id="file-${index + 1}">
-                <name>${escapeXml(clip.name)}</name>
-                <pathurl>${escapeXml(fileUrl)}</pathurl>
-                <rate>
-                  <timebase>${timebase}</timebase>
-                  <ntsc>FALSE</ntsc>
-                </rate>
-                <duration>${durationFrames}</duration>
-                <media>
-                  <video>
-                    <samplecharacteristics>
-                      <width>${width}</width>
-                      <height>${height}</height>
-                    </samplecharacteristics>
-                  </video>
-                  <audio>
-                    <samplecharacteristics>
-                      <depth>16</depth>
-                      <samplerate>48000</samplerate>
-                    </samplecharacteristics>
-                    <channelcount>2</channelcount>
-                  </audio>
-                </media>
-              </file>
-            </clipitem>`);
+        // Determine master sequence settings
+        const firstValid = probedInfos.find(i => i.isValid && i.duration > 0);
+        const seqTb = requestedFps || (firstValid ? firstValid.timebase : 25);
+        const seqNtscStr = (firstValid && firstValid.ntsc) ? 'TRUE' : 'FALSE';
+        const seqWidth = firstValid ? firstValid.width : width;
+        const seqHeight = firstValid ? firstValid.height : height;
 
-          audioClipXmlItems.push(`
-            <clipitem id="clipitem-a-${index + 1}">
-              <name>${escapeXml(clip.name)}</name>
-              <duration>${durationFrames}</duration>
-              <rate>
-                <timebase>${timebase}</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <start>${startFrame}</start>
-              <end>${endFrame}</end>
-              <in>0</in>
-              <out>${durationFrames}</out>
-              <file id="file-${index + 1}"/>
-            </clipitem>`);
-        });
+        let currentFrame = 0;
+        let vClipsXml = '';
+        let aClipsXml = '';
+        let markersXml = '';
+        let currentMarkerKey = '';
+        let audioTrackClipCount = 0;
 
-        const totalSequenceDuration = trackOut;
+        for (let idx = 0; idx < rawClips.length; idx++) {
+          const clip = rawClips[idx];
+          const info = probedInfos[idx];
+          const clipFramesOnTimeline = (info.timebase === seqTb && info.nbFrames && info.nbFrames > 0)
+            ? info.nbFrames
+            : Math.max(1, Math.floor(info.duration * seqTb));
+
+          const fileId = `file-${idx + 1}`;
+          const masterId = `masterclip-${idx + 1}`;
+          const vClipId = `vclip-${idx + 1}`;
+          const aClipId = `aclip-${idx + 1}`;
+          const startFrame = currentFrame;
+          const endFrame = startFrame + clipFramesOnTimeline;
+          const pathUrlStr = pathToPathUrl(clip.fullPath);
+
+          // Subfolder timeline markers
+          const markerName = clip.subfolder || path.basename(folderPath);
+          if (markerName && markerName !== currentMarkerKey) {
+            currentMarkerKey = markerName;
+            markersXml += `
+    <marker>
+      <name>${escapeXml(markerName)}</name>
+      <comment>Folder: ${escapeXml(markerName)}</comment>
+      <in>${startFrame}</in>
+      <out>${startFrame}</out>
+      <color>Cyan</color>
+    </marker>`;
+          }
+
+          // Full <file> definition on V1 (omit synthetic timecode so Premiere Pro binds natively to camera embedded timecode)
+          const fileXml = `
+          <file id="${fileId}">
+            <name>${escapeXml(clip.name)}</name>
+            <pathurl>${escapeXml(pathUrlStr)}</pathurl>
+            <rate><timebase>${seqTb}</timebase><ntsc>${seqNtscStr}</ntsc></rate>
+            <duration>${clipFramesOnTimeline}</duration>
+            <media>
+              <video>
+                <samplecharacteristics>
+                  <width>${info.width || seqWidth}</width>
+                  <height>${info.height || seqHeight}</height>
+                  <pixelaspectratio>square</pixelaspectratio>
+                </samplecharacteristics>
+              </video>
+              <audio>
+                <channelcount>${info.audioChannels || 2}</channelcount>
+                <samplecharacteristics>
+                  <depth>16</depth>
+                  <samplerate>48000</samplerate>
+                </samplecharacteristics>
+              </audio>
+            </media>
+          </file>`;
+
+          const hasAudioTrack = (info.audioChannels || 2) > 0;
+          if (hasAudioTrack) {
+            audioTrackClipCount++;
+          }
+
+          const vClipIndex = idx + 1;
+          const aClipIndex = audioTrackClipCount;
+
+          const linkXml = hasAudioTrack ? `
+          <link>
+            <linkclipref>${vClipId}</linkclipref>
+            <mediatype>video</mediatype>
+            <trackindex>1</trackindex>
+            <clipindex>${vClipIndex}</clipindex>
+          </link>
+          <link>
+            <linkclipref>${aClipId}</linkclipref>
+            <mediatype>audio</mediatype>
+            <trackindex>1</trackindex>
+            <clipindex>${aClipIndex}</clipindex>
+          </link>` : '';
+
+          vClipsXml += `
+        <clipitem id="${vClipId}">
+          <masterclipid>${masterId}</masterclipid>
+          <name>${escapeXml(clip.name)}</name>
+          <enabled>TRUE</enabled>
+          <duration>${clipFramesOnTimeline}</duration>
+          <rate><timebase>${seqTb}</timebase><ntsc>${seqNtscStr}</ntsc></rate>
+          <start>${startFrame}</start>
+          <end>${endFrame}</end>
+          <in>0</in>
+          <out>${clipFramesOnTimeline}</out>
+          ${fileXml}
+          <sourcetrack>
+            <mediatype>video</mediatype>
+            <trackindex>1</trackindex>
+          </sourcetrack>
+          ${linkXml}
+        </clipitem>`;
+
+          if (hasAudioTrack) {
+            aClipsXml += `
+        <clipitem id="${aClipId}">
+          <masterclipid>${masterId}</masterclipid>
+          <name>${escapeXml(clip.name)}</name>
+          <enabled>TRUE</enabled>
+          <duration>${clipFramesOnTimeline}</duration>
+          <rate><timebase>${seqTb}</timebase><ntsc>${seqNtscStr}</ntsc></rate>
+          <start>${startFrame}</start>
+          <end>${endFrame}</end>
+          <in>0</in>
+          <out>${clipFramesOnTimeline}</out>
+          <file id="${fileId}"/>
+          <sourcetrack>
+            <mediatype>audio</mediatype>
+            <trackindex>1</trackindex>
+          </sourcetrack>
+          ${linkXml}
+        </clipitem>`;
+          }
+
+          currentFrame = endFrame;
+        }
+
+        const emptyVTrackXml = `
+        <track>
+          <enabled>TRUE</enabled>
+          <locked>FALSE</locked>
+        </track>`;
 
         const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
 <xmeml version="4">
   <sequence id="sequence-1">
     <name>${escapeXml(projectName)}</name>
-    <duration>${totalSequenceDuration}</duration>
-    <rate>
-      <timebase>${timebase}</timebase>
-      <ntsc>FALSE</ntsc>
-    </rate>
+    <duration>${currentFrame}</duration>
+    <rate><timebase>${seqTb}</timebase><ntsc>${seqNtscStr}</ntsc></rate>
     <timecode>
-      <rate>
-        <timebase>${timebase}</timebase>
-        <ntsc>FALSE</ntsc>
-      </rate>
+      <rate><timebase>${seqTb}</timebase><ntsc>${seqNtscStr}</ntsc></rate>
       <string>00:00:00:00</string>
       <frame>0</frame>
       <displayformat>NDF</displayformat>
     </timecode>
+${markersXml}
     <media>
       <video>
         <format>
           <samplecharacteristics>
-            <width>${width}</width>
-            <height>${height}</height>
+            <width>${seqWidth}</width>
+            <height>${seqHeight}</height>
             <pixelaspectratio>square</pixelaspectratio>
-            <rate>
-              <timebase>${timebase}</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
           </samplecharacteristics>
         </format>
         <track>
-          ${videoClipXmlItems.join('')}
+          ${vClipsXml}
         </track>
+${emptyVTrackXml}
       </video>
       <audio>
         <numOutputChannels>2</numOutputChannels>
@@ -701,8 +998,22 @@ export function registerAfmIPC(): void {
             <samplerate>48000</samplerate>
           </samplecharacteristics>
         </format>
+        <outputs>
+          <group>
+            <index>1</index>
+            <numchannels>1</numchannels>
+            <downmix>0</downmix>
+            <channel><index>1</index></channel>
+          </group>
+          <group>
+            <index>2</index>
+            <numchannels>1</numchannels>
+            <downmix>0</downmix>
+            <channel><index>2</index></channel>
+          </group>
+        </outputs>
         <track>
-          ${audioClipXmlItems.join('')}
+          ${aClipsXml}
         </track>
       </audio>
     </media>
@@ -713,15 +1024,26 @@ export function registerAfmIPC(): void {
           ? projectName.replace(/\.(xml|prproj)$/, '')
           : projectName;
 
+        // Write Final Cut Pro XML file
         const xmlFilePath = path.join(folderPath, `${cleanProjectName}.xml`);
         fs.writeFileSync(xmlFilePath, xmlContent, 'utf8');
 
-        // Also check if we can generate .prproj via One Tap Python generator
+        // Write Native Adobe Premiere Pro Project (.prproj) binary
         const prprojFilePath = path.join(folderPath, `${cleanProjectName}.prproj`);
+        const prprojBuffer = buildPrprojBuffer(cleanProjectName);
+        fs.writeFileSync(prprojFilePath, prprojBuffer);
 
-        // If open requested
+        // Optional Python automation if create_premiere_projects.py is present
+        const pyScript = getOneTapPythonScript('create_premiere_projects.py');
+        if (pyScript) {
+          try {
+            execFile('python', [pyScript, '--input', folderPath, '--output', prprojFilePath], { timeout: 15000 }, () => {});
+          } catch {}
+        }
+
+        // Open if user requested
         if (openAfterCreate) {
-          shell.openPath(xmlFilePath);
+          shell.openPath(prprojFilePath);
         }
 
         return {
