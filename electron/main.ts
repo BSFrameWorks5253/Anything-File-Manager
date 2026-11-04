@@ -44,16 +44,17 @@ function extractMediaFromArgv(argv: string[]): string | null {
   for (let i = argv.length - 1; i >= 1; i--) {
     const arg = argv[i];
     if (arg.startsWith('--')) continue;
-    const lower = arg.toLowerCase();
-    const dot = lower.lastIndexOf('.');
-    if (dot !== -1 && MEDIA_EXTS.has(lower.slice(dot))) {
-      return arg.replace(/^["']|["']$/g, '');
-    }
+    const clean = arg.replace(/^["']|["']$/g, '');
     try {
-      if (fs.existsSync(arg) && fs.statSync(arg).isDirectory()) {
-        return arg;
+      if (fs.existsSync(clean)) {
+        return clean;
       }
     } catch {}
+    const lower = clean.toLowerCase();
+    const dot = lower.lastIndexOf('.');
+    if (dot !== -1 && MEDIA_EXTS.has(lower.slice(dot))) {
+      return clean;
+    }
   }
   return null;
 }

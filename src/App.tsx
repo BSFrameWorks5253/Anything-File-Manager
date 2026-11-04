@@ -488,27 +488,33 @@ export default function App() {
 
   // Handle external open target (CLI arg or Explorer double-click)
   const handleOpenTarget = useCallback(async (target: string) => {
-    const isFile = isPhotoExtension((target.split('.').pop() || '').toLowerCase()) ||
-                   isVideoExtension((target.split('.').pop() || '').toLowerCase());
-    if (isFile) {
-      const parentDir = target.substring(0, target.lastIndexOf('\\')) || target.substring(0, target.lastIndexOf('/'));
-      if (parentDir) {
+    if (!target) return;
+    const clean = target.replace(/^["']|["']$/g, '');
+    const lastSlash = Math.max(clean.lastIndexOf('\\'), clean.lastIndexOf('/'));
+    const baseName = lastSlash !== -1 ? clean.substring(lastSlash + 1) : clean;
+    const hasExt = baseName.includes('.') && !baseName.startsWith('.');
+
+    if (hasExt) {
+      const parentDir = clean.substring(0, lastSlash) || clean;
+      if (parentDir && parentDir !== clean) {
         await navigate(parentDir);
-        const ext = (target.split('.').pop() || '').toLowerCase();
+        const ext = (baseName.split('.').pop() || '').toLowerCase();
         const itemObj: FsItem = {
-          name: target.split(/[\\/]/).pop() || '',
+          name: baseName,
           isDir: false,
           size: 0,
           mtime: Date.now(),
           ext,
-          fullPath: target
+          fullPath: clean
         };
-        setSelectedPath(target);
-        setSelectedPaths(new Set([target]));
+        setSelectedPath(clean);
+        setSelectedPaths(new Set([clean]));
         setActiveItem(itemObj);
+      } else {
+        navigate(clean);
       }
     } else {
-      navigate(target);
+      navigate(clean);
     }
   }, [navigate]);
 
