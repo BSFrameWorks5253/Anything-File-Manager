@@ -74,6 +74,39 @@ function getCacheKey(filePath: string, stat: fs.Stats): string {
 }
 
 // In-memory cache for ultra-fast UI rendering
+
+function findFfprobeBinary(): string {
+  const candidates = [
+    'C:\\Users\\Burhanuddin\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffprobe.exe',
+    'C:\\Users\\Burhanuddin\\OneDrive\\Desktop\\Anything\\Anything Apps\\One Tap\\tools\\ffprobe.exe',
+    path.join(process.cwd(), 'tools', 'ffprobe.exe'),
+    path.join(app.getAppPath(), 'tools', 'ffprobe.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'ffprobe.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'One Tap', 'resources', 'tools', 'ffprobe.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'One Tap', 'tools', 'ffprobe.exe')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return 'ffprobe';
+}
+
+function findFfmpegBinary(): string {
+  const candidates = [
+    'C:\\Users\\Burhanuddin\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffmpeg.exe',
+    'C:\\Users\\Burhanuddin\\OneDrive\\Desktop\\Anything\\Anything Apps\\One Tap\\tools\\ffmpeg.exe',
+    path.join(process.cwd(), 'tools', 'ffmpeg.exe'),
+    path.join(app.getAppPath(), 'tools', 'ffmpeg.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'ffmpeg.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'One Tap', 'resources', 'tools', 'ffmpeg.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'One Tap', 'tools', 'ffmpeg.exe')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return 'ffmpeg';
+}
+
 const memThumbCache = new Map<string, { thumb: string; duration?: number }>();
 
 /**
@@ -132,10 +165,10 @@ function extractEmbeddedRawJpeg(filePath: string, forThumbnail = true): Buffer |
  * Extract video duration (in seconds) via ffprobe or Windows Shell COM (Safe from shell injection)
  */
 async function extractDuration(filePath: string): Promise<number> {
-  // 1. Try ffprobe directly via execFile (immune to shell injection, handles spaces/quotes)
   try {
+    const ffprobeBin = findFfprobeBinary();
     const { stdout } = await execFileAsync(
-      'ffprobe',
+      ffprobeBin,
       ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath],
       { timeout: 3500 }
     );
@@ -144,38 +177,6 @@ async function extractDuration(filePath: string): Promise<number> {
       return Math.round(parsed * 10) / 10;
     }
   } catch {}
-
-  // 2. Fallback: Windows Shell COM (Property 27 = Duration) using parameterized PowerShell
-  if (process.platform === 'win32') {
-    try {
-      const dir = path.dirname(filePath);
-      const leaf = path.basename(filePath);
-      const psScript = `
-        $shell = New-Object -ComObject Shell.Application
-        $folder = $shell.Namespace($args[0])
-        if ($folder) {
-          $item = $folder.ParseName($args[1])
-          if ($item) {
-            $folder.GetDetailsOf($item, 27)
-          }
-        }
-      `;
-      const { stdout } = await execFileAsync(
-        'powershell',
-        ['-NoProfile', '-NonInteractive', '-Command', psScript, dir, leaf],
-        { timeout: 3500 }
-      );
-      const raw = stdout.trim();
-      if (raw && raw.includes(':')) {
-        const parts = raw.split(':').map(p => parseInt(p, 10));
-        if (parts.length === 3 && parts.every(p => !isNaN(p))) {
-          const totalSecs = parts[0] * 3600 + parts[1] * 60 + parts[2];
-          if (totalSecs > 0) return totalSecs;
-        }
-      }
-    } catch {}
-  }
-
   return 0;
 }
 
@@ -190,8 +191,9 @@ async function extractVideoFrameBuffer(filePath: string, duration: number): Prom
   const seekFormatted = new Date(seekSecs * 1000).toISOString().substr(11, 8) + '.' + String(Math.floor((seekSecs % 1) * 1000)).padStart(3, '0');
 
   try {
+    const ffmpegBin = findFfmpegBinary();
     const { stdout: buf } = await execFileAsync(
-      'ffmpeg',
+      ffmpegBin,
       ['-ss', seekFormatted, '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
       {
         encoding: 'buffer',
@@ -203,8 +205,9 @@ async function extractVideoFrameBuffer(filePath: string, duration: number): Prom
   } catch {}
 
   try {
+    const ffmpegBin = findFfmpegBinary();
     const { stdout: buf } = await execFileAsync(
-      'ffmpeg',
+      ffmpegBin,
       ['-ss', '00:00:00.100', '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
       {
         encoding: 'buffer',
@@ -532,8 +535,9 @@ export function registerMediaIPC(
 
         // Extract embedded album art via ffmpeg
         try {
+          const ffmpegBin = findFfmpegBinary();
           const { stdout: artBuf } = await execFileAsync(
-            'ffmpeg',
+            ffmpegBin,
             ['-ss', '0', '-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', '-update', '1', 'pipe:1'],
             { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024, timeout: 3500 }
           );
@@ -563,8 +567,9 @@ export function registerMediaIPC(
       if (ext === 'pdf') {
         let thumb = '';
         try {
+          const ffmpegBin = findFfmpegBinary();
           const { stdout: pdfBuf } = await execFileAsync(
-            'ffmpeg',
+            ffmpegBin,
             ['-i', filePath, '-vframes', '1', '-vf', 'scale=360:-1', '-f', 'image2', 'pipe:1'],
             { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024, timeout: 4000 }
           );

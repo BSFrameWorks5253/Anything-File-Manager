@@ -31,6 +31,8 @@ interface ExplorerColumnsProps {
   currentPath: string;
   initialItems: FsItem[];
   isInspectorOpen?: boolean;
+  colorTags?: Record<string, string>;
+  selectedTagColor?: string | null;
   onSelectItem: (item: FsItem) => void;
   onOpenItem: (item: FsItem) => void;
   onQuickLook?: (item: FsItem) => void;
@@ -81,6 +83,8 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
   currentPath,
   initialItems,
   isInspectorOpen = false,
+  colorTags = {},
+  selectedTagColor = null,
   onSelectItem,
   onOpenItem,
   onQuickLook,
@@ -109,6 +113,18 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
     setPreviewItem(null);
   }, [currentPath, initialItems]);
 
+    const filterByTag = (itemList: FsItem[]) => {
+    if (!selectedTagColor) return itemList;
+    const target = selectedTagColor.toLowerCase();
+    const normalize = (p: string) => p.replace(/[\/\\]+/g, '\\').toLowerCase().replace(/\\$/, '');
+    const taggedPaths = new Set(
+      Object.entries(colorTags || {})
+        .filter(([_, c]) => c && c.toLowerCase() === target)
+        .map(([p]) => normalize(p))
+    );
+    return itemList.filter(i => taggedPaths.has(normalize(i.fullPath)));
+  };
+
   const handleColumnClick = async (columnIndex: number, item: FsItem) => {
     onSelectItem(item);
 
@@ -121,7 +137,7 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
       const subItems = await mediaService.listDir(item.fullPath);
       nextCols.push({
         path: item.fullPath,
-        items: subItems,
+        items: filterByTag(subItems),
         selectedItem: null
       });
       setColumns(nextCols);

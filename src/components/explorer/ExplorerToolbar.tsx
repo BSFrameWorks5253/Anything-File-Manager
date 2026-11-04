@@ -55,6 +55,7 @@ interface ExplorerToolbarProps {
   sortField: SortField;
   sortOrder: SortOrder;
   onSetSort: (field: SortField) => void;
+  onOpenProperties?: () => void;
   isInspectorOpen: boolean;
   onToggleInspector: () => void;
   isSidebarVisible?: boolean;
@@ -97,6 +98,7 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   sortField,
   sortOrder,
   onSetSort,
+  onOpenProperties,
   isInspectorOpen,
   onToggleInspector,
   isSidebarVisible = true,
@@ -568,13 +570,13 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
 
         {/* macOS Info / Inspector Toggle Button */}
         <button
-          onClick={onToggleInspector}
+          onClick={() => onOpenProperties ? onOpenProperties() : onToggleInspector()}
           className={`p-1.5 h-8 w-8 flex items-center justify-center rounded-lg border transition-all ${
             isInspectorOpen
               ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-xs'
               : 'border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.06] text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)]'
           }`}
-          title="Toggle Inspector (Cmd+I or Ctrl+I)"
+          title="Get Info / Properties (Ctrl+I or Cmd+I)"
         >
           <Info className="w-3.5 h-3.5" />
         </button>

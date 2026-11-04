@@ -162,16 +162,16 @@ export default function App() {
           .map(([p]) => normalizePath(p))
       );
 
-      // 1. Look for matching items in the current directory
+      // In macOS Finder Smart Tag view: show ONLY files and folders that have this tag
       const localMatches = items.filter(i => matchingPaths.has(normalizePath(i.fullPath)));
-      if (localMatches.length > 0) {
-        list = localMatches;
-      } else if (tagItems.length > 0) {
-        // 2. If none in current folder, display all system-wide items with this tag (macOS Finder Smart Tag view)
-        list = tagItems;
-      } else {
-        list = [];
+      const systemMatches = tagItems.filter(i => matchingPaths.has(normalizePath(i.fullPath)));
+      const combined = [...localMatches];
+      for (const sm of systemMatches) {
+        if (!combined.some(c => normalizePath(c.fullPath) === normalizePath(sm.fullPath))) {
+          combined.push(sm);
+        }
       }
+      list = combined;
     } else {
       list = items;
     }
@@ -754,6 +754,7 @@ export default function App() {
         sortOrder={sortOrder}
         onSetSort={handleSortToggle}
         isInspectorOpen={isInspectorOpen}
+        onOpenProperties={() => handleOpenProperties(selectedItem)}
         onToggleInspector={() => setIsInspectorOpen(prev => !prev)}
         isSidebarVisible={isSidebarVisible}
         onToggleSidebar={() => setIsSidebarVisible(prev => !prev)}
@@ -899,6 +900,8 @@ export default function App() {
               <ExplorerColumns
                 currentPath={currentPath}
                 initialItems={filteredItems}
+                colorTags={colorTags}
+                selectedTagColor={selectedTagColor}
                 isInspectorOpen={isInspectorOpen}
                 onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}

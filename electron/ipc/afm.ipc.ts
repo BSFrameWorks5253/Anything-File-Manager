@@ -207,6 +207,35 @@ interface AfmVideoStreamInfo {
 
 const afmFfprobeCache = new Map<string, AfmVideoStreamInfo>();
 
+
+function findTemplatePrprojPath(): string | null {
+  const candidates = [
+    path.join(process.cwd(), 'build', 'templates', 'premiere_clean_template.prproj'),
+    path.join(app.getAppPath(), 'build', 'templates', 'premiere_clean_template.prproj'),
+    path.join(path.dirname(app.getAppPath()), 'build', 'templates', 'premiere_clean_template.prproj'),
+    path.join(__dirname, '..', '..', 'build', 'templates', 'premiere_clean_template.prproj'),
+    path.join(__dirname, '..', 'build', 'templates', 'premiere_clean_template.prproj'),
+    'C:\\Users\\Burhanuddin\\OneDrive\\Desktop\\Anything\\Anything Apps\\Media Viewer\\build\\templates\\premiere_clean_template.prproj'
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+async function mapConcurrent<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let index = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const i = index++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 function findFfprobeBinary(): string {
   const candidates = [
     'C:\\Users\\Burhanuddin\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffprobe.exe',
@@ -228,6 +257,23 @@ function pathToPathUrl(filePath: string): string {
 }
 
 function buildPrprojBuffer(folderName: string): Buffer {
+  const templatePath = findTemplatePrprojPath();
+  if (templatePath) {
+    try {
+      const templateBuf = fs.readFileSync(templatePath);
+      let xml = '';
+      if (templateBuf[0] === 0x1f && templateBuf[1] === 0x8b) {
+        xml = zlib.gunzipSync(templateBuf).toString('utf8');
+      } else {
+        xml = templateBuf.toString('utf8');
+      }
+      xml = xml.replace(/<ProjectName>[\s\S]*?<\/ProjectName>/g, `<ProjectName>${escapeXml(folderName)}</ProjectName>`);
+      return zlib.gzipSync(Buffer.from(xml, 'utf8'));
+    } catch (e) {
+      console.warn('[buildPrprojBuffer] Error adapting template, returning verbatim:', e);
+      return fs.readFileSync(templatePath);
+    }
+  }
   const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <PremiereData Version="3">
 	<Project ObjectRef="1"/>
@@ -817,11 +863,9 @@ export function registerAfmIPC(): void {
         rawClips.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
         // Probe each clip with full stream accuracy
-        const probedInfos: AfmVideoStreamInfo[] = [];
-        for (const clip of rawClips) {
-          const info = await getVideoInfoNodeAsync(clip.fullPath);
-          probedInfos.push(info);
-        }
+        const probedInfos = await mapConcurrent(rawClips, 8, async (clip) => {
+          return await getVideoInfoNodeAsync(clip.fullPath);
+        });
 
         // Determine master sequence settings
         const firstValid = probedInfos.find(i => i.isValid && i.duration > 0);
@@ -1035,15 +1079,29 @@ ${emptyVTrackXml}
 
         // Optional Python automation if create_premiere_projects.py is present
         const pyScript = getOneTapPythonScript('create_premiere_projects.py');
+        const templatePath = findTemplatePrprojPath();
         if (pyScript) {
           try {
-            execFile('python', [pyScript, '--input', folderPath, '--output', prprojFilePath], { timeout: 15000 }, () => {});
+            const pyArgs = ['--folder', folderPath, '--json'];
+            if (templatePath) {
+              pyArgs.push('--template', templatePath);
+            }
+            await new Promise<void>((resolve) => {
+              execFile('python', [pyScript, ...pyArgs], { timeout: 15000 }, (err) => {
+                if (err) console.warn('[afm:generatePremiereProject] Python note:', err.message);
+                resolve();
+              });
+            });
           } catch {}
         }
 
         // Open if user requested
         if (openAfterCreate) {
-          shell.openPath(prprojFilePath);
+          if (fs.existsSync(prprojFilePath) && fs.statSync(prprojFilePath).size > 1000) {
+            shell.openPath(prprojFilePath);
+          } else {
+            shell.openPath(xmlFilePath);
+          }
         }
 
         return {

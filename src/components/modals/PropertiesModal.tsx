@@ -121,7 +121,7 @@ export const PropertiesModal: React.FC<PropertiesModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150" onClick={onClose}>
       <div
         className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#161823] border border-black/10 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden text-neutral-800 dark:text-neutral-100 select-none animate-in zoom-in-95 duration-200"
         onClick={e => e.stopPropagation()}
