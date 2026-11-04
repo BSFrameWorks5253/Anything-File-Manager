@@ -77,6 +77,7 @@ interface ExplorerToolbarProps {
   selectedCount?: number;
   clipboardCount?: number;
   clipboardOp?: 'copy' | 'move' | null;
+  onOpenSequenceMaker?: () => void;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -118,7 +119,8 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   onDuplicate,
   selectedCount = 0,
   clipboardCount = 0,
-  clipboardOp = null
+  clipboardOp = null,
+  onOpenSequenceMaker
 }) => {
   const { actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -487,6 +489,21 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
 
               <div className="h-px bg-black/5 dark:bg-white/10 my-1" />
 
+
+              {onOpenSequenceMaker && (
+                <button
+                  onClick={() => {
+                    setIsActionMenuOpen(false);
+                    onOpenSequenceMaker();
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white text-[var(--mac-text-primary)] transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Film className="w-3.5 h-3.5 text-purple-500" />
+                    <span className="font-semibold text-purple-600 dark:text-purple-300">One Tap Sequence Maker...</span>
+                  </div>
+                </button>
+              )}
               {onToggleShowHidden && (
                 <button
                   onClick={() => {

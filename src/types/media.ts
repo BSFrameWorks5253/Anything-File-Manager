@@ -64,6 +64,8 @@ export interface MediaViewerAPI {
   analyzeAfmFolder?: (folderPath: string) => Promise<any>;
   setAfmStage?: (folderPath: string, stage: string) => Promise<boolean>;
   generatePremiereProject?: (payload: any) => Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }>;
+  getSubfoldersPreflight?: (folderPath: string) => Promise<{ ok: boolean; folderPath?: string; subfolders?: any[]; error?: string }>;
+  openOneTap?: (targetPath?: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
   sendToTitleAdder?: (folderPath: string) => Promise<{ ok: boolean; error?: string }>;
   openSeparatePlayer?: (filePath: string) => Promise<{ ok: boolean; error?: string }>;
   getTaskTrackerStats?: (dateSession: string, safarName?: string) => Promise<any>;

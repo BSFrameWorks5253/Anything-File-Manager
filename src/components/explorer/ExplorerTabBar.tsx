@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Plus, Folder } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import { MacFolderIcon } from '../common/MacIcons';
 
 export interface TabData {
@@ -25,7 +25,7 @@ export const ExplorerTabBar: React.FC<ExplorerTabBarProps> = ({
   onNewTab
 }) => {
   return (
-    <div className="flex items-center px-3 pt-1.5 bg-[#0f111a] dark:bg-[#0c0d14] border-b border-black/10 dark:border-white/10 select-none overflow-x-auto no-scrollbar gap-1.5 flex-shrink-0 transition-colors">
+    <div className="flex items-center px-3 pt-1.5 bg-[#e8e8ed] dark:bg-[#1a1b22] border-b border-black/10 dark:border-white/10 select-none overflow-x-auto no-scrollbar gap-1.5 flex-shrink-0 transition-colors">
       <div className="flex items-center gap-1 flex-1 min-w-0">
         {tabs.map(tab => {
           const isActive = tab.id === activeTabId;
@@ -37,8 +37,8 @@ export const ExplorerTabBar: React.FC<ExplorerTabBarProps> = ({
               onClick={() => onSelectTab(tab.id)}
               className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-t-xl text-xs cursor-pointer transition-all max-w-[200px] min-w-[110px] truncate border-t border-x ${
                 isActive
-                  ? 'bg-white/95 dark:bg-[#1a1d2c] text-neutral-900 dark:text-neutral-100 font-semibold shadow-sm border-black/10 dark:border-white/15'
-                  : 'bg-black/10 dark:bg-white/[0.04] text-neutral-500 dark:text-neutral-400 hover:bg-black/15 dark:hover:bg-white/[0.08] hover:text-neutral-800 dark:hover:text-neutral-200 border-transparent'
+                  ? 'bg-white dark:bg-[#282a36] text-neutral-900 dark:text-neutral-100 font-semibold shadow-xs border-black/15 dark:border-white/15'
+                  : 'bg-black/[0.04] dark:bg-white/[0.04] text-neutral-600 dark:text-neutral-400 hover:bg-black/[0.08] dark:hover:bg-white/[0.08] hover:text-neutral-900 dark:hover:text-neutral-100 border-transparent'
               }`}
               title={tab.path || 'This PC'}
             >
@@ -64,7 +64,7 @@ export const ExplorerTabBar: React.FC<ExplorerTabBarProps> = ({
         {/* Plus / New Tab button */}
         <button
           onClick={onNewTab}
-          className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-neutral-400 hover:text-neutral-800 dark:hover:text-white transition-colors ml-1"
+          className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors ml-1"
           title="New Tab (Ctrl+T)"
         >
           <Plus className="w-3.5 h-3.5" />

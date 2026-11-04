@@ -54,6 +54,7 @@ interface ExplorerContextMenuProps {
   onSetColorTag?: (filePath: string, color: string | null) => void;
   currentColorTag?: string | null;
   canPaste?: boolean;
+  onOpenSequenceMaker?: (item: FsItem) => void;
 }
 
 const MAC_TAGS = [
@@ -89,7 +90,8 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
   onDelete,
   onSetColorTag,
   currentColorTag,
-  canPaste = false
+  canPaste = false,
+  onOpenSequenceMaker
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -180,6 +182,21 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
 
           {item.isDir && (
             <>
+
+              {onOpenSequenceMaker && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenSequenceMaker(item);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Film className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
+                    <span className="font-semibold text-purple-600 dark:text-purple-300 group-hover:text-white">One Tap Sequence Maker...</span>
+                  </div>
+                </button>
+              )}
               <button
                 onClick={() => {
                   onInspect(item);
@@ -403,6 +420,21 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
       ) : (
         /* ── Canvas / Background Context Menu ── */
         <>
+
+          {currentFolderItem && onOpenSequenceMaker && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenSequenceMaker(currentFolderItem);
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Film className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
+                <span className="font-semibold text-purple-600 dark:text-purple-300 group-hover:text-white">One Tap Sequence Maker...</span>
+              </div>
+            </button>
+          )}
           {onNewFolder && (
             <button
               onClick={() => {

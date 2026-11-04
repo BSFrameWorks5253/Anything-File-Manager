@@ -177,6 +177,13 @@ function createWindow(showImmediately = false) {
     }
   });
 
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDesc, validatedURL) => {
+    console.error(`[AFM MainWindow] Failed to load ${validatedURL}: ${errorDesc} (${errorCode})`);
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+  });
   mainWindow.webContents.once('did-finish-load', () => {
     isMainWindowReady = true;
     if (splashCompleted && mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {

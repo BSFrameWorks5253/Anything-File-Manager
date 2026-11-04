@@ -37,7 +37,16 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Anything File Manager",
       "artifactName": "Anything-File-Manager-Setup-V-${version}.${ext}"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "build/templates",
+        "to": "templates",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   },
   "scripts": {
     "dev": "concurrently -k -r \"npm run dev:vite\" \"npm run dev:electron\"",

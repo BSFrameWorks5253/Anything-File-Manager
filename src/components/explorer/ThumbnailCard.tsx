@@ -133,9 +133,9 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   // Density dimensions
   const folderSize = density === 'compact' ? 52 : density === 'broad' ? 90 : 68;
   const docSize = density === 'compact' ? 48 : density === 'broad' ? 80 : 62;
-  const canvasHeight = density === 'compact' ? 'h-18' : density === 'broad' ? 'h-28' : 'h-22';
-  const cardHeight = density === 'compact' ? 'h-32' : density === 'broad' ? 'h-46' : 'h-38';
-  const cardMaxWidth = density === 'compact' ? 'max-w-[110px]' : density === 'broad' ? 'max-w-[165px]' : 'max-w-[134px]';
+  const canvasHeight = density === 'compact' ? 'h-20' : density === 'broad' ? 'h-32' : 'h-24';
+  const cardHeight = density === 'compact' ? 'h-32' : density === 'broad' ? 'h-48' : 'h-36';
+  const cardMaxWidth = density === 'compact' ? 'max-w-[110px]' : density === 'broad' ? 'max-w-[160px]' : 'max-w-[130px]';
   const labelMaxWidth = density === 'compact' ? 'max-w-[100px]' : density === 'broad' ? 'max-w-[150px]' : 'max-w-[124px]';
 
   return (
@@ -143,7 +143,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
       onClick={onClick}
       onDoubleClick={onOpen}
       onContextMenu={onContextMenu}
-      className={`group relative flex flex-col items-center justify-start p-2 rounded-xl cursor-pointer select-none transition-all duration-150 w-full ${cardHeight} ${cardMaxWidth} ${
+      className={`group relative flex flex-col items-center justify-start p-2 rounded-xl cursor-pointer select-none transition-all duration-150 w-full self-start flex-shrink-0 overflow-hidden ${cardHeight} ${cardMaxWidth} ${
         isSelected
           ? 'bg-black/[0.06] dark:bg-white/[0.08] ring-1 ring-[var(--mac-accent)]/40 shadow-sm'
           : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'

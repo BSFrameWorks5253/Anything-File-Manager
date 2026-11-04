@@ -22,6 +22,7 @@ import { ExplorerContextMenu, ContextMenuState } from './components/explorer/Exp
 import { FullscreenViewer } from './components/viewer';
 import { MacStandaloneMediaPlayer } from './components/viewer/MacStandaloneMediaPlayer';
 import { DefaultAppsModal, SettingsModal, PropertiesModal } from './components/modals';
+import { PremierePreflightModal } from './components/afm/PremierePreflightModal';
 
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
@@ -71,6 +72,30 @@ export default function App() {
   const [isDefaultAppsModalOpen, setIsDefaultAppsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
+  const [isPreflightOpen, setIsPreflightOpen] = useState(false);
+  const [preflightTarget, setPreflightTarget] = useState<{ folderPath: string; folderName: string; clipCount?: number; duration?: number } | null>(null);
+
+  const handleOpenSequenceMaker = useCallback((target?: FsItem | null) => {
+    const folder = target && target.isDir ? target : (currentPath ? {
+      name: currentPath.split(/[\\/]/).filter(Boolean).pop() || currentPath,
+      fullPath: currentPath,
+      isDir: true,
+      size: 0,
+      mtime: Date.now(),
+      ext: ''
+    } : null);
+
+    if (folder) {
+      setPreflightTarget({
+        folderPath: folder.fullPath,
+        folderName: folder.name,
+        clipCount: items.filter(i => isVideoExtension(i.ext)).length,
+        duration: 0
+      });
+      setIsPreflightOpen(true);
+    }
+  }, [currentPath, items]);
+
   const [propertiesItem, setPropertiesItem] = useState<FsItem | null>(null);
 
   // Pro CRUD & Multi-Selection State
@@ -760,6 +785,7 @@ export default function App() {
         onToggleSidebar={() => setIsSidebarVisible(prev => !prev)}
         onChooseFolder={handleChooseFolder}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenSequenceMaker={() => handleOpenSequenceMaker(selectedItem)}
         showHidden={showHidden}
         onToggleShowHidden={handleToggleShowHidden}
         density={density}
@@ -988,8 +1014,24 @@ export default function App() {
         onSetColorTag={handleSetTag}
         currentColorTag={contextMenu.item ? colorTags[contextMenu.item.fullPath] : null}
         canPaste={Boolean(clipboard && clipboard.paths.length > 0)}
+        onOpenSequenceMaker={handleOpenSequenceMaker}
       />
 
+
+      {/* One Tap Sequence Maker & Preflight Modal */}
+      {preflightTarget && (
+        <PremierePreflightModal
+          isOpen={isPreflightOpen}
+          onClose={() => setIsPreflightOpen(false)}
+          folderPath={preflightTarget.folderPath}
+          folderName={preflightTarget.folderName}
+          videoClipCount={preflightTarget.clipCount}
+          cumulativeDuration={preflightTarget.duration}
+          onSuccess={() => {
+            refresh();
+          }}
+        />
+      )}
       {/* Full File / Folder Properties Modal */}
       <PropertiesModal
         item={propertiesItem}

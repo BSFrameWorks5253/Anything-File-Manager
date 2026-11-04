@@ -803,6 +803,134 @@ export function registerAfmIPC(): void {
    * - Video-Audio <link> bonding across V1 and A1
    * - Subfolder timeline markers for session slots
    */
+  /**
+   * Preflight subfolder discovery for One Tap Sequence Maker
+   * Scans immediate subfolders to detect video clips, total sizes, and flags known output/render folders.
+   */
+  ipcMain.handle('afm:getSubfoldersPreflight', async (_event, folderPath: string) => {
+    try {
+      if (!folderPath || !fs.existsSync(folderPath)) {
+        return { ok: false, error: 'Folder not found', subfolders: [] };
+      }
+
+      const knownOutputNames = new Set([
+        'export', 'exports', 'render', 'renders', 'temp', 'scratch',
+        'proxy', 'proxies', 'pxd', 'thumb', 'thumbs', 'thumbnail', 'thumbnails',
+        'preview', 'previews', 'cache', 'dvd', 'output', 'web_exports'
+      ]);
+
+      interface SubfolderPreflightItem {
+        name: string;
+        relPath: string;
+        fullPath: string;
+        clipCount: number;
+        photoCount: number;
+        totalBytes: number;
+        isOutputFolder: boolean;
+        defaultExcluded: boolean;
+      }
+
+      const subfolders: SubfolderPreflightItem[] = [];
+      const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (SYSTEM_IGNORE_FOLDERS.has(entry.name.toLowerCase())) continue;
+
+        const subPath = path.join(folderPath, entry.name);
+        let clipCount = 0;
+        let photoCount = 0;
+        let totalBytes = 0;
+
+        const scanSub = (dir: string) => {
+          try {
+            const items = fs.readdirSync(dir, { withFileTypes: true });
+            for (const it of items) {
+              const fp = path.join(dir, it.name);
+              if (it.isDirectory()) {
+                if (!SYSTEM_IGNORE_FOLDERS.has(it.name.toLowerCase())) {
+                  scanSub(fp);
+                }
+              } else {
+                const ext = path.extname(it.name).toLowerCase().replace('.', '');
+                try {
+                  const st = fs.statSync(fp);
+                  totalBytes += st.size;
+                  if (VIDEO_EXTS.has(ext)) clipCount++;
+                  else if (PHOTO_EXTS.has(ext)) photoCount++;
+                } catch {}
+              }
+            }
+          } catch {}
+        };
+
+        scanSub(subPath);
+
+        const lowerName = entry.name.toLowerCase();
+        const isOutputFolder = knownOutputNames.has(lowerName);
+
+        subfolders.push({
+          name: entry.name,
+          relPath: entry.name,
+          fullPath: subPath,
+          clipCount,
+          photoCount,
+          totalBytes,
+          isOutputFolder,
+          defaultExcluded: isOutputFolder
+        });
+      }
+
+      return {
+        ok: true,
+        folderPath,
+        subfolders
+      };
+    } catch (err: any) {
+      console.error('[afm:getSubfoldersPreflight] Error:', err);
+      return { ok: false, error: err.message, subfolders: [] };
+    }
+  });
+
+  /**
+   * Launch One Tap application (only if explicitly clicked)
+   */
+  ipcMain.handle('afm:openOneTap', async (_event, targetPath?: string) => {
+    try {
+      const candidates = [
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'One Tap', 'One Tap.exe'),
+        path.join(process.env.PROGRAMFILES || '', 'One Tap', 'One Tap.exe'),
+        'C:\\Users\\Burhanuddin\\AppData\\Local\\Programs\\One Tap\\One Tap.exe'
+      ];
+
+      let exePath = null;
+      for (const c of candidates) {
+        if (fs.existsSync(c)) {
+          exePath = c;
+          break;
+        }
+      }
+
+      if (!exePath) {
+        return { ok: false, error: 'One Tap executable not found at standard installation paths' };
+      }
+
+      const args = [];
+      if (targetPath) {
+        args.push(targetPath);
+      }
+
+      const { spawn } = require('child_process');
+      const child = spawn(exePath, args, { detached: true, stdio: 'ignore' });
+      child.unref();
+
+      return { ok: true, path: exePath };
+    } catch (err: any) {
+      console.error('[afm:openOneTap] Error:', err);
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle(
     'afm:generatePremiereProject',
     async (
@@ -813,10 +941,12 @@ export function registerAfmIPC(): void {
         resolution: '1080p' | '4k';
         fps: number;
         openAfterCreate: boolean;
+        excludedFolders?: string[];
       }
     ): Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }> => {
       try {
-        const { folderPath, projectName, resolution, fps, openAfterCreate } = payload;
+        const { folderPath, projectName, resolution, fps, openAfterCreate, excludedFolders = [] } = payload;
+        const excludedSet = new Set(excludedFolders.map((f: string) => f.toLowerCase().trim()));
         if (!folderPath || !fs.existsSync(folderPath)) {
           return { ok: false, error: 'Target directory not found' };
         }
@@ -837,7 +967,9 @@ export function registerAfmIPC(): void {
           const list = fs.readdirSync(dir, { withFileTypes: true });
           for (const item of list) {
             const p = path.join(dir, item.name);
-            if (item.isDirectory() && !SYSTEM_IGNORE_FOLDERS.has(item.name.toLowerCase())) {
+            const lowerName = item.name.toLowerCase();
+            const relPath = currentSubfolder ? `${currentSubfolder}/${item.name}`.toLowerCase() : lowerName;
+            if (item.isDirectory() && !SYSTEM_IGNORE_FOLDERS.has(lowerName) && !excludedSet.has(lowerName) && !excludedSet.has(relPath)) {
               const sub = currentSubfolder ? `${currentSubfolder}/${item.name}` : item.name;
               scanClips(p, sub);
             } else if (!item.isDirectory()) {

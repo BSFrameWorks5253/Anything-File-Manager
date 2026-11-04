@@ -39,10 +39,10 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
 
   const gridClass =
     density === 'compact'
-      ? 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 p-3 justify-items-center'
+      ? 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 p-3 items-start content-start justify-items-center'
       : density === 'broad'
-      ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-6 justify-items-center'
-      : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4 p-4 justify-items-center';
+      ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-6 items-start content-start justify-items-center'
+      : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4 p-4 items-start content-start justify-items-center';
 
   const handleMouseDown = (e: React.MouseEvent) => {
     // Only trigger marquee on direct background click with primary left button
