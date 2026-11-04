@@ -104,6 +104,14 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
                 strokeWidth="7"
               />
               <path d="M 190 428 H 834" stroke="url(#logoFrontGloss)" strokeWidth="10" strokeLinecap="round"/>
+
+              {/* Apple Finder Face Emblem */}
+              <g opacity="0.85">
+                <rect x="460" y="580" width="10" height="28" rx="5" fill="#FFFFFF"/>
+                <rect x="554" y="580" width="10" height="28" rx="5" fill="#FFFFFF"/>
+                <rect x="508" y="570" width="8" height="84" rx="4" fill="#FFFFFF" opacity="0.8"/>
+                <path d="M 450 670 Q 512 730 574 670" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" fill="none"/>
+              </g>
             </>
           ) : (
             <>
@@ -114,6 +122,14 @@ export const AfmLogo: React.FC<AfmLogoProps> = ({
                 strokeWidth="7"
               />
               <path d="M 180 364 H 844" stroke="url(#logoFrontGloss)" strokeWidth="10" strokeLinecap="round"/>
+
+              {/* Apple Finder Face Emblem */}
+              <g opacity="0.85">
+                <rect x="460" y="520" width="10" height="28" rx="5" fill="#FFFFFF"/>
+                <rect x="554" y="520" width="10" height="28" rx="5" fill="#FFFFFF"/>
+                <rect x="508" y="510" width="8" height="84" rx="4" fill="#FFFFFF" opacity="0.8"/>
+                <path d="M 450 610 Q 512 670 574 610" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" fill="none"/>
+              </g>
             </>
           )}
         </svg>

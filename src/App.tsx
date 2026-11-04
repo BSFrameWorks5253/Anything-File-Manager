@@ -101,6 +101,7 @@ export default function App() {
 
   // Resizable sidebar and inspector widths
   const [sidebarWidth, setSidebarWidth] = useState(250);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const [inspectorWidth, setInspectorWidth] = useState(320);
 
   // Synchronize active tab path with navigation
@@ -671,14 +672,16 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen mac-window select-none overflow-hidden transition-colors duration-200">
-      {/* ── Top Multi-Tab Workspace Bar ── */}
-      <ExplorerTabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        onSelectTab={handleSelectTab}
-        onCloseTab={handleCloseTab}
-        onNewTab={handleNewTab}
-      />
+      {/* ── Top Multi-Tab Workspace Bar (Only when 2+ tabs, matching macOS Finder) ── */}
+      {tabs.length > 1 && (
+        <ExplorerTabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSelectTab={handleSelectTab}
+          onCloseTab={handleCloseTab}
+          onNewTab={handleNewTab}
+        />
+      )}
 
       {/* Top Windows Explorer + Mac Finder Hybrid Command Toolbar */}
       <ExplorerToolbar
@@ -703,6 +706,8 @@ export default function App() {
         onSetSort={handleSortToggle}
         isInspectorOpen={isInspectorOpen}
         onToggleInspector={() => setIsInspectorOpen(prev => !prev)}
+        isSidebarVisible={isSidebarVisible}
+        onToggleSidebar={() => setIsSidebarVisible(prev => !prev)}
         onChooseFolder={handleChooseFolder}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         showHidden={showHidden}
@@ -725,25 +730,29 @@ export default function App() {
       {/* Main App Workspace with Resizable Dividers */}
       <div className="flex flex-1 min-h-0 relative">
         {/* Left Mac Finder Sidebar */}
-        <ExplorerSidebar
-          quickAccess={quickAccess}
-          drivesWithSpace={drivesWithSpace}
-          currentPath={currentPath}
-          filterCategory={filterCategory}
-          onSetFilterCategory={setFilterCategory}
-          onSelectPath={navigate}
-          width={sidebarWidth}
-          colorTags={colorTags}
-          selectedTagColor={selectedTagColor}
-          onSelectTagColor={setSelectedTagColor}
-        />
+        {isSidebarVisible && (
+          <>
+            <ExplorerSidebar
+              quickAccess={quickAccess}
+              drivesWithSpace={drivesWithSpace}
+              currentPath={currentPath}
+              filterCategory={filterCategory}
+              onSetFilterCategory={setFilterCategory}
+              onSelectPath={navigate}
+              width={sidebarWidth}
+              colorTags={colorTags}
+              selectedTagColor={selectedTagColor}
+              onSelectTagColor={setSelectedTagColor}
+            />
 
-        {/* Resizable Divider between Sidebar and Main Content */}
-        <div
-          onMouseDown={startSidebarResize}
-          className="w-1.5 hover:w-2 bg-transparent hover:bg-indigo-500/50 active:bg-indigo-500 cursor-col-resize z-20 flex-shrink-0 transition-colors"
-          title="Drag to resize sidebar"
-        />
+            {/* Resizable Divider between Sidebar and Main Content */}
+            <div
+              onMouseDown={startSidebarResize}
+              className="w-1.5 hover:w-2 bg-transparent hover:bg-indigo-500/50 active:bg-indigo-500 cursor-col-resize z-20 flex-shrink-0 transition-colors"
+              title="Drag to resize sidebar"
+            />
+          </>
+        )}
 
         {/* Content Area — Switchable between Grid, Table, Columns & Gallery */}
         <div

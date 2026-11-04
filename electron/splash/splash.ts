@@ -263,6 +263,14 @@ export function showChildAppSplash(config: ChildAppLoaderConfig, onFinished: () 
 
               <path d="M 136 470 C 136 444 158 424 192 424 H 832 C 866 424 888 444 888 470 L 924 790 C 928 844 892 880 844 880 H 180 C 132 880 96 844 100 790 Z" fill="url(#splashAquaFront)" stroke="#0A3875" strokeWidth="7"/>
               <path d="M 190 428 H 834" stroke="url(#splashFrontGloss)" strokeWidth="10" strokeLinecap="round"/>
+
+              <!-- Apple Finder Face Emblem -->
+              <g opacity="0.85">
+                <rect x="460" y="580" width="10" height="28" rx="5" fill="#FFFFFF"/>
+                <rect x="554" y="580" width="10" height="28" rx="5" fill="#FFFFFF"/>
+                <rect x="508" y="570" width="8" height="84" rx="4" fill="#FFFFFF" opacity="0.8"/>
+                <path d="M 450 670 Q 512 730 574 670" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" fill="none"/>
+              </g>
             </svg>
           </div>
           <div class="title-group">
