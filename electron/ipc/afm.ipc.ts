@@ -593,12 +593,13 @@ export function registerAfmIPC(): void {
         const audioClipXmlItems: string[] = [];
 
         clips.forEach((clip, index) => {
-          const durationFrames = Math.max(1, Math.round(clip.duration * timebase));
+          const durationFrames = Math.max(1, Math.floor(clip.duration * timebase));
           const startFrame = trackOut;
           const endFrame = startFrame + durationFrames;
           trackOut = endFrame;
 
-          const fileUrl = 'file://localhost/' + clip.fullPath.replace(/\\/g, '/');
+          const normalizedPath = path.resolve(clip.fullPath).replace(/\\/g, '/');
+          const fileUrl = 'file://localhost/' + encodeURI(normalizedPath).replace(/#/g, '%23').replace(/\?/g, '%3F');
 
           videoClipXmlItems.push(`
             <clipitem id="clipitem-${index + 1}">
