@@ -6,6 +6,7 @@ export interface FsItem {
   ext: string;
   fullPath: string;
   isHidden?: boolean;
+  childCount?: number;
 }
 
 export type FilterCategory = 'all' | 'photo' | 'video' | 'timelapse';

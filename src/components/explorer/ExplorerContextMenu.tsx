@@ -57,13 +57,13 @@ interface ExplorerContextMenuProps {
 }
 
 const MAC_TAGS = [
-  { name: 'Red', color: '#ef4444' },
-  { name: 'Orange', color: '#f97316' },
-  { name: 'Yellow', color: '#eab308' },
-  { name: 'Green', color: '#22c55e' },
-  { name: 'Blue', color: '#3b82f6' },
-  { name: 'Purple', color: '#a855f7' },
-  { name: 'Gray', color: '#6b7280' }
+  { name: 'Red', color: '#EF4444' },
+  { name: 'Orange', color: '#F97316' },
+  { name: 'Yellow', color: '#EAB308' },
+  { name: 'Green', color: '#10B981' },
+  { name: 'Blue', color: '#3B82F6' },
+  { name: 'Purple', color: '#8B5CF6' },
+  { name: 'Gray', color: '#6B7280' }
 ];
 
 export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
@@ -217,7 +217,7 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
             </div>
             <div className="flex items-center justify-between gap-1">
               {MAC_TAGS.map(tag => {
-                const isSelected = currentColorTag === tag.color;
+                const isSelected = currentColorTag?.toLowerCase() === tag.color.toLowerCase();
                 return (
                   <button
                     key={tag.name}

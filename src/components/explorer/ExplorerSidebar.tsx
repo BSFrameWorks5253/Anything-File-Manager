@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   HardDrive,
-  Folder,
   Home,
   Monitor,
   Download,
@@ -9,33 +8,49 @@ import {
   Film,
   FileText,
   Clock,
-  Sparkles
+  Sparkles,
+  Tag,
+  X
 } from 'lucide-react';
 import { FsItem, QuickAccessItem, DriveInfo, FilterCategory } from '../../types';
 import { formatBytes } from '../../utils';
 import { MacFolderIcon } from '../common/MacIcons';
-import { AfmLogo } from '../common/AfmLogo';
+
+export const APPLE_TAGS = [
+  { id: 'red', label: 'Red', color: '#EF4444' },
+  { id: 'orange', label: 'Orange', color: '#F97316' },
+  { id: 'yellow', label: 'Yellow', color: '#EAB308' },
+  { id: 'green', label: 'Green', color: '#10B981' },
+  { id: 'blue', label: 'Blue', color: '#3B82F6' },
+  { id: 'purple', label: 'Purple', color: '#8B5CF6' },
+  { id: 'gray', label: 'Gray', color: '#6B7280' }
+];
 
 interface ExplorerSidebarProps {
   quickAccess: QuickAccessItem[];
   drivesWithSpace: DriveInfo[];
   currentPath: string;
-  subfolders: FsItem[];
+  subfolders?: FsItem[];
   filterCategory: FilterCategory;
   onSetFilterCategory: (cat: FilterCategory) => void;
   onSelectPath: (path: string) => void;
   width?: number;
+  colorTags?: Record<string, string>;
+  selectedTagColor?: string | null;
+  onSelectTagColor?: (color: string | null) => void;
 }
 
 export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   quickAccess,
   drivesWithSpace,
   currentPath,
-  subfolders,
   filterCategory,
   onSetFilterCategory,
   onSelectPath,
-  width = 250
+  width = 240,
+  colorTags = {},
+  selectedTagColor = null,
+  onSelectTagColor
 }) => {
   const getIconForQuickAccess = (icon: string) => {
     switch (icon) {
@@ -63,18 +78,22 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
     return normCur === normP;
   };
 
+  // Count tags in current view or system
+  const tagCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const color of Object.values(colorTags)) {
+      counts[color.toLowerCase()] = (counts[color.toLowerCase()] || 0) + 1;
+    }
+    return counts;
+  }, [colorTags]);
+
   return (
     <div
       style={{ width: `${width}px` }}
       className="flex-shrink-0 border-r mac-sidebar overflow-y-auto flex flex-col p-3 select-none text-[var(--mac-text-primary)] transition-colors duration-200"
     >
-      {/* ── App Brand Header ── */}
-      <div className="px-2 pt-1 pb-3 mb-2 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
-        <AfmLogo size={24} isOpen={true} showTitle={true} />
-      </div>
-
-      {/* ── Section 1: Favorites / Quick Access (Mac Finder & Win Explorer) ── */}
-      <div className="px-2 pb-1 text-[10px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
+      {/* ── Section 1: Favorites (Apple macOS Finder Standard) ── */}
+      <div className="px-2 pt-1 pb-1.5 text-[10.5px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
         <span>Favorites</span>
       </div>
       <div className="space-y-0.5 mb-4">
@@ -83,9 +102,12 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
           return (
             <button
               key={item.path}
-              onClick={() => onSelectPath(item.path)}
+              onClick={() => {
+                onSelectTagColor?.(null);
+                onSelectPath(item.path);
+              }}
               className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                active
+                active && !selectedTagColor
                   ? 'bg-[var(--mac-accent)] text-white shadow-sm font-semibold'
                   : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
               }`}
@@ -97,53 +119,49 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
         })}
       </div>
 
-      {/* ── Section 2: Drives & Storage (Windows Explorer Capacity Bars) ── */}
-      <div className="px-2 pb-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center justify-between">
+      {/* ── Section 2: Locations & Drives (macOS Finder Style) ── */}
+      <div className="px-2 pb-1.5 text-[10.5px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
         <span>Locations</span>
       </div>
-      <div className="space-y-1.5 mb-4">
+      <div className="space-y-1 mb-4">
         {drivesWithSpace.map(d => {
           const active = currentPath.toLowerCase().startsWith(d.drive.toLowerCase());
           return (
             <button
               key={d.drive}
-              onClick={() => onSelectPath(d.drive)}
+              onClick={() => {
+                onSelectTagColor?.(null);
+                onSelectPath(d.drive);
+              }}
               className={`w-full flex flex-col p-2 rounded-xl text-xs transition-all ${
-                active
-                  ? 'bg-indigo-600/15 border border-indigo-500/40 text-indigo-200'
-                  : 'border border-white/5 bg-white/[0.02] text-gray-400 hover:bg-white/5 hover:text-white'
+                active && !selectedTagColor
+                  ? 'bg-blue-600/15 border border-blue-500/40 text-blue-300'
+                  : 'border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
               }`}
             >
               <div className="flex items-center justify-between w-full mb-1">
                 <div className="flex items-center gap-2 font-semibold">
-                  <HardDrive className={`w-4 h-4 ${active ? 'text-indigo-400' : 'text-gray-400'}`} />
-                  <span className="text-gray-200">Local Disk ({d.drive.replace(/\\/g, '')})</span>
+                  <HardDrive className={`w-4 h-4 ${active ? 'text-blue-400' : 'text-gray-400'}`} />
+                  <span className="truncate">{d.drive.replace(/\\/g, '')}</span>
                 </div>
                 {d.total > 0 && (
-                  <span className="text-[10px] text-gray-500 font-mono">
-                    {d.usedPercent}%
+                  <span className="text-[10px] text-[var(--mac-text-muted)] font-mono">
+                    {formatBytes(d.free)} free
                   </span>
                 )}
               </div>
-              {/* Windows-style mini progress bar */}
               {d.total > 0 && (
-                <div className="w-full">
-                  <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        d.usedPercent > 90
-                          ? 'bg-rose-500'
-                          : d.usedPercent > 75
-                          ? 'bg-amber-400'
-                          : 'bg-indigo-500'
-                      }`}
-                      style={{ width: `${d.usedPercent}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-                    <span>{formatBytes(d.free)} free</span>
-                    <span>{formatBytes(d.total)}</span>
-                  </div>
+                <div className="w-full bg-black/10 dark:bg-white/10 h-1 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      d.usedPercent > 90
+                        ? 'bg-rose-500'
+                        : d.usedPercent > 75
+                        ? 'bg-amber-400'
+                        : 'bg-blue-500'
+                    }`}
+                    style={{ width: `${d.usedPercent}%` }}
+                  />
                 </div>
               )}
             </button>
@@ -151,30 +169,81 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
         })}
       </div>
 
-      {/* ── Section 3: Smart Tags & Filters (macOS Smart Folders) ── */}
-      <div className="px-2 pb-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-        <span>Smart Media</span>
+      {/* ── Section 3: macOS Finder Color Tags ── */}
+      <div className="px-2 pb-1.5 text-[10.5px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
+        <span>Tags</span>
+        {selectedTagColor && (
+          <button
+            onClick={() => onSelectTagColor?.(null)}
+            className="text-[10px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-0.5 lowercase tracking-normal"
+            title="Clear tag filter"
+          >
+            <X className="w-3 h-3" />
+            <span>clear</span>
+          </button>
+        )}
       </div>
       <div className="space-y-0.5 mb-4">
+        {APPLE_TAGS.map(t => {
+          const isSelected = selectedTagColor?.toLowerCase() === t.color.toLowerCase();
+          const count = tagCounts[t.color.toLowerCase()] || 0;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onSelectTagColor?.(isSelected ? null : t.color)}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                isSelected
+                  ? 'bg-blue-600/20 text-white font-semibold ring-1 ring-blue-500/40'
+                  : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <span
+                  style={{ backgroundColor: t.color }}
+                  className="w-2.5 h-2.5 rounded-full ring-1 ring-white/30 shadow-sm flex-shrink-0"
+                />
+                <span>{t.label}</span>
+              </div>
+              {count > 0 && (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 text-[var(--mac-text-muted)]">
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Section 4: Smart Media Filters ── */}
+      <div className="px-2 pb-1.5 text-[10.5px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
+        <span>Media Types</span>
+      </div>
+      <div className="space-y-0.5">
         <button
-          onClick={() => onSetFilterCategory('all')}
+          onClick={() => {
+            onSelectTagColor?.(null);
+            onSetFilterCategory('all');
+          }}
           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            filterCategory === 'all'
-              ? 'bg-white/10 text-white font-semibold'
-              : 'text-gray-400 hover:bg-white/5 hover:text-white'
+            filterCategory === 'all' && !selectedTagColor
+              ? 'bg-black/10 dark:bg-white/10 text-[var(--mac-text-primary)] font-semibold'
+              : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
           }`}
         >
           <div className="flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>All Assets</span>
+            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+            <span>All Items</span>
           </div>
         </button>
         <button
-          onClick={() => onSetFilterCategory('photo')}
+          onClick={() => {
+            onSelectTagColor?.(null);
+            onSetFilterCategory('photo');
+          }}
           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
             filterCategory === 'photo'
               ? 'bg-emerald-600/20 text-emerald-300 font-semibold border border-emerald-500/30'
-              : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -183,11 +252,14 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
           </div>
         </button>
         <button
-          onClick={() => onSetFilterCategory('video')}
+          onClick={() => {
+            onSelectTagColor?.(null);
+            onSetFilterCategory('video');
+          }}
           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
             filterCategory === 'video'
               ? 'bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30'
-              : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -196,11 +268,14 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
           </div>
         </button>
         <button
-          onClick={() => onSetFilterCategory('timelapse')}
+          onClick={() => {
+            onSelectTagColor?.(null);
+            onSetFilterCategory('timelapse');
+          }}
           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
             filterCategory === 'timelapse'
               ? 'bg-amber-600/20 text-amber-300 font-semibold border border-amber-500/30'
-              : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -209,28 +284,6 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
           </div>
         </button>
       </div>
-
-      {/* ── Section 4: Current Subfolders Directory Tree ── */}
-      {subfolders.length > 0 && (
-        <>
-          <div className="px-2 pb-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-            <span>Subfolders ({subfolders.length})</span>
-          </div>
-          <div className="space-y-0.5 overflow-y-auto max-h-48 pr-1">
-            {subfolders.map(i => (
-              <button
-                key={i.fullPath}
-                onClick={() => onSelectPath(i.fullPath)}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition-all truncate text-left"
-                title={i.name}
-              >
-                <MacFolderIcon size={16} className="flex-shrink-0" />
-                <span className="truncate">{i.name}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 };

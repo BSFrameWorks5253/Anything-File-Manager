@@ -19,6 +19,7 @@ import {
 } from '../../utils';
 import { thumbnailService } from '../../services';
 import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
+import { classifyFolder } from '../../utils/afmTaxonomy';
 
 interface ExplorerTableProps {
   items: FsItem[];
@@ -306,9 +307,36 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                         className="w-full text-xs bg-white dark:bg-[#1a1c29] text-neutral-900 dark:text-white border-2 border-[var(--mac-accent)] rounded px-1.5 py-0.5 outline-none shadow font-medium"
                       />
                     ) : (
-                      <span className="truncate" title={item.name}>
-                        {item.name}
-                      </span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="truncate" title={item.name}>
+                          {item.name}
+                        </span>
+                        {item.isDir && (() => {
+                          const afm = classifyFolder(item.name, item.fullPath);
+                          if (afm.type === 'slot_item_a' || afm.type === 'slot_item_b') {
+                            return (
+                              <span className="px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 font-bold text-[8.5px] uppercase tracking-wider flex-shrink-0">
+                                SLOT {afm.slotTokens?.slotNo || ''}
+                              </span>
+                            );
+                          }
+                          if (afm.type === 'date_session') {
+                            return (
+                              <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 font-bold text-[8.5px] uppercase tracking-wider flex-shrink-0">
+                                SESSION
+                              </span>
+                            );
+                          }
+                          if (afm.type === 'master_safar') {
+                            return (
+                              <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold text-[8.5px] uppercase tracking-wider flex-shrink-0">
+                                SAFAR
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     )}
                   </div>
                 </td>
@@ -325,7 +353,9 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
 
                 {/* Size */}
                 <td className="py-2 px-3 text-right text-gray-400 text-xs tabular-nums truncate">
-                  {item.isDir ? '—' : formatBytes(item.size)}
+                  {item.isDir
+                    ? (item.childCount !== undefined ? `${item.childCount} ${item.childCount === 1 ? 'item' : 'items'}` : '—')
+                    : formatBytes(item.size)}
                 </td>
 
                 {/* Date Modified */}

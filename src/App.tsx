@@ -78,6 +78,7 @@ export default function App() {
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<{ paths: string[]; operation: 'copy' | 'move' } | null>(null);
   const [colorTags, setColorTags] = useState<Record<string, string>>({});
+  const [selectedTagColor, setSelectedTagColor] = useState<string | null>(null);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     isOpen: false,
@@ -145,6 +146,10 @@ export default function App() {
         const cached = thumbnailService.getCached(i.fullPath);
         return cached ? cached.duration <= 60 : true;
       });
+    }
+
+    if (selectedTagColor) {
+      list = list.filter(i => colorTags[i.fullPath]?.toLowerCase() === selectedTagColor.toLowerCase());
     }
 
     // Sort items (folders always on top)
@@ -719,16 +724,18 @@ export default function App() {
 
       {/* Main App Workspace with Resizable Dividers */}
       <div className="flex flex-1 min-h-0 relative">
-        {/* Left Mac/Win Hybrid Sidebar */}
+        {/* Left Mac Finder Sidebar */}
         <ExplorerSidebar
           quickAccess={quickAccess}
           drivesWithSpace={drivesWithSpace}
           currentPath={currentPath}
-          subfolders={subfolders}
           filterCategory={filterCategory}
           onSetFilterCategory={setFilterCategory}
           onSelectPath={navigate}
           width={sidebarWidth}
+          colorTags={colorTags}
+          selectedTagColor={selectedTagColor}
+          onSelectTagColor={setSelectedTagColor}
         />
 
         {/* Resizable Divider between Sidebar and Main Content */}

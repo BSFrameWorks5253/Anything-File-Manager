@@ -131,17 +131,19 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   const directPhotoUrl = isDirectBrowserPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
 
   // Density dimensions
-  const folderSize = density === 'compact' ? 56 : density === 'broad' ? 96 : 74;
-  const docSize = density === 'compact' ? 52 : density === 'broad' ? 84 : 66;
-  const canvasHeight = density === 'compact' ? 'h-20 sm:h-22' : density === 'broad' ? 'h-32 sm:h-36' : 'h-24 sm:h-28';
-  const labelMaxWidth = density === 'compact' ? 'max-w-[110px]' : density === 'broad' ? 'max-w-[160px]' : 'max-w-[130px]';
+  const folderSize = density === 'compact' ? 52 : density === 'broad' ? 90 : 68;
+  const docSize = density === 'compact' ? 48 : density === 'broad' ? 80 : 62;
+  const canvasHeight = density === 'compact' ? 'h-18' : density === 'broad' ? 'h-28' : 'h-22';
+  const cardHeight = density === 'compact' ? 'h-32' : density === 'broad' ? 'h-46' : 'h-38';
+  const cardMaxWidth = density === 'compact' ? 'max-w-[110px]' : density === 'broad' ? 'max-w-[165px]' : 'max-w-[134px]';
+  const labelMaxWidth = density === 'compact' ? 'max-w-[100px]' : density === 'broad' ? 'max-w-[150px]' : 'max-w-[124px]';
 
   return (
     <div
       onClick={onClick}
       onDoubleClick={onOpen}
       onContextMenu={onContextMenu}
-      className={`group relative flex flex-col items-center justify-between p-2 rounded-xl cursor-pointer select-none transition-all duration-150 ${
+      className={`group relative flex flex-col items-center justify-start p-2 rounded-xl cursor-pointer select-none transition-all duration-150 w-full ${cardHeight} ${cardMaxWidth} ${
         isSelected
           ? 'bg-black/[0.06] dark:bg-white/[0.08] ring-1 ring-[var(--mac-accent)]/40 shadow-sm'
           : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
@@ -334,7 +336,9 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
           </span>
         )}
         <span className="text-[10.5px] text-[var(--mac-text-muted)] mt-0.5 font-normal tracking-tight">
-          {item.isDir ? 'Folder' : formatBytes(item.size)}
+          {item.isDir
+            ? (item.childCount !== undefined ? `${item.childCount} ${item.childCount === 1 ? 'item' : 'items'}` : 'Folder')
+            : formatBytes(item.size)}
         </span>
       </div>
     </div>

@@ -7,7 +7,7 @@ interface MacFolderIconProps {
 }
 
 /**
- * Pixel-perfect Apple macOS Big Sur / Sonoma Aqua Blue Folder Icon
+ * Pixel-perfect Apple macOS Sequoia / Sonoma Aqua Blue Folder Icon
  */
 export const MacFolderIcon: React.FC<MacFolderIconProps> = ({
   className = '',
@@ -21,125 +21,176 @@ export const MacFolderIcon: React.FC<MacFolderIconProps> = ({
       viewBox="0 0 120 120"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`select-none filter drop-shadow-md ${className}`}
+      className={`select-none filter drop-shadow-md transition-transform duration-150 ${className}`}
     >
       <defs>
-        {/* Back Tab & Body Gradient - Vibrant Emerald Teal (Image 2 style) */}
-        <linearGradient id="macFolderBack" x1="60" y1="18" x2="60" y2="100" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#04937d" />
-          <stop offset="100%" stopColor="#026b5d" />
+        {/* Apple macOS Authentic Aqua Blue Back Plate */}
+        <linearGradient id="macAquaBack" x1="60" y1="18" x2="60" y2="102" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#1E88E5" />
+          <stop offset="40%" stopColor="#1565C0" />
+          <stop offset="100%" stopColor="#0D47A1" />
         </linearGradient>
 
-        {/* Front Flap Gradient - Vivid Cyan Mint / Emerald */}
-        <linearGradient id="macFolderFront" x1="60" y1="36" x2="60" y2="104" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#0cd9a4" />
-          <stop offset="45%" stopColor="#05ba8c" />
-          <stop offset="100%" stopColor="#028675" />
+        {/* Back Plate Specular Rim */}
+        <linearGradient id="macAquaRim" x1="20" y1="20" x2="100" y2="20" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#90CAF9" stopOpacity="0.8" />
+          <stop offset="50%" stopColor="#E3F2FD" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#90CAF9" stopOpacity="0.6" />
         </linearGradient>
 
-        {/* Top Flap Highlight Rim */}
-        <linearGradient id="macFolderRim" x1="60" y1="36" x2="60" y2="46" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0.1" />
+        {/* Apple macOS Front Flap Radiant Aqua Gradient */}
+        <linearGradient id="macAquaFront" x1="60" y1="36" x2="60" y2="106" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#42A5F5" />
+          <stop offset="30%" stopColor="#2196F3" />
+          <stop offset="70%" stopColor="#1976D2" />
+          <stop offset="100%" stopColor="#0D47A1" />
         </linearGradient>
 
-        {/* Crisp White Peeking Paper / Inner Folder Flap Slit (Image 2 signature) */}
-        <linearGradient id="macFolderPaper" x1="60" y1="26" x2="60" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#f1f5f9" />
+        {/* Top Flap Glass Gloss Highlight */}
+        <linearGradient id="macAquaGloss" x1="12" y1="38" x2="108" y2="38" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.3" />
+          <stop offset="35%" stopColor="#FFFFFF" stopOpacity="0.95" />
+          <stop offset="70%" stopColor="#FFFFFF" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.3" />
         </linearGradient>
 
-        {/* Subtle Bottom Crease Shadow */}
-        <radialGradient id="macFolderShadow" cx="50%" cy="100%" r="50%">
-          <stop offset="0%" stopColor="#01362e" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#01362e" stopOpacity="0" />
-        </radialGradient>
+        {/* Inner Peeking Document Sheet */}
+        <linearGradient id="macInnerPaper" x1="60" y1="26" x2="60" y2="44" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="100%" stopColor="#E2E8F0" />
+        </linearGradient>
+
+        {/* Drop Shadow Underneath */}
+        <filter id="macFolderShadow" x="-10%" y="0%" width="120%" height="130%" filterUnits="userSpaceOnUse">
+          <feDropShadow dx="0" dy="5" stdDeviation="4" floodColor="#001830" floodOpacity="0.35" />
+        </filter>
       </defs>
 
-      {/* Back Folder Tab & Base */}
-      <path
-        d="M12 28C12 23.5817 15.5817 20 20 20H46C49.5 20 52.8 22 55 25L61 32H100C104.418 32 108 35.5817 108 40V92C108 97.5228 103.523 102 98 102H22C16.4772 102 12 97.5228 12 92V28Z"
-        fill="url(#macFolderBack)"
-        stroke="#01483e"
-        strokeWidth="1.2"
-        strokeOpacity="0.5"
-      />
-
-      {/* Internal Crisp White Paper Sheet / Opening Crescent Peek */}
-      <path
-        d="M16 38C20 33 28 32 36 32H84C92 32 100 33 104 38C100 35 92 34 84 34H36C28 34 20 35 16 38Z"
-        fill="url(#macFolderPaper)"
-        opacity="0.95"
-      />
-      <rect x="20" y="28" width="80" height="18" rx="4" fill="url(#macFolderPaper)" opacity="0.95" />
-
-      {/* Front Flap */}
-      <path
-        d="M10 44C10 39.5817 13.5817 36 18 36H102C106.418 36 110 39.5817 110 44V94C110 99.5228 105.523 104 100 104H20C14.4772 104 10 99.5228 10 94V44Z"
-        fill="url(#macFolderFront)"
-        stroke="#01483e"
-        strokeWidth="1.2"
-        strokeOpacity="0.5"
-      />
-
-      {/* Top Edge Highlight */}
-      <path
-        d="M10 44C10 39.5817 13.5817 36 18 36H102C106.418 36 110 39.5817 110 44V48H10V44Z"
-        fill="url(#macFolderRim)"
-      />
-
-      {/* Subtle Inner Bevel / Crease */}
-      <path
-        d="M12 46C12 43 14 41 18 41H102C106 41 108 43 108 46"
-        stroke="#ffffff"
-        strokeWidth="1.2"
-        strokeOpacity="0.4"
-        strokeLinecap="round"
-      />
-
-      {/* Bottom Crease Depth */}
-      <rect x="10" y="80" width="100" height="24" rx="10" fill="url(#macFolderShadow)" />
-
-      {/* Folder Specialization Glyph Emblems (macOS style) */}
-      {type === 'home' && (
+      {/* 1. Back Folder Plate (with Apple rounded tab) */}
+      <g filter="url(#macFolderShadow)">
         <path
-          d="M60 55L45 68H51V84H57V74H63V84H69V68H75L60 55Z"
-          fill="#ffffff"
-          fillOpacity="0.75"
+          d="
+            M 14 28
+            C 14 22.5 18.5 18 24 18
+            H 46
+            C 50 18 53.5 20.2 56 23.5
+            L 62 31.5
+            H 96
+            C 101.5 31.5 106 36 106 41.5
+            V 92
+            C 106 97.5 101.5 102 96 102
+            H 24
+            C 18.5 102 14 97.5 14 92
+            Z
+          "
+          fill="url(#macAquaBack)"
+          stroke="#0A3875"
+          strokeWidth="1.2"
         />
-      )}
-      {type === 'downloads' && (
-        <g fill="#ffffff" fillOpacity="0.75">
-          <path d="M60 54V76M60 76L52 68M60 76L68 68" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M46 82H74" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
+
+        {/* Tab Top Rim Light */}
+        <path
+          d="M 24 19.5 H 45.5 C 49 19.5 52.2 21.5 54.5 24.5 L 60.5 32.5"
+          stroke="url(#macAquaRim)"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+        />
+      </g>
+
+      {/* 2. Inner Folder Cavity & Peeking Document Sheet */}
+      <rect x="18" y="32" width="84" height="20" rx="3" fill="#0A2540" opacity="0.6" />
+      <path
+        d="M 22 28 H 82 C 84.5 28 86 29.5 86 32 V 44 H 18 V 32 C 18 29.5 19.5 28 22 28 Z"
+        fill="url(#macInnerPaper)"
+        stroke="#CBD5E1"
+        strokeWidth="0.8"
+      />
+      <rect x="24" y="33" width="30" height="2" rx="1" fill="#94A3B8" opacity="0.6" />
+      <rect x="24" y="37" width="20" height="2" rx="1" fill="#CBD5E1" opacity="0.8" />
+
+      {/* 3. Front Flap (Apple Sonoma styled curved Aqua visor) */}
+      <g filter="url(#macFolderShadow)">
+        <path
+          d="
+            M 10 44
+            C 10 39.5 13.5 36 18 36
+            H 102
+            C 106.5 36 110 39.5 110 44
+            V 94
+            C 110 99.5 105.5 104 100 104
+            H 20
+            C 14.5 104 10 99.5 10 94
+            Z
+          "
+          fill="url(#macAquaFront)"
+          stroke="#0A3875"
+          strokeWidth="1.2"
+        />
+
+        {/* Crisp White Top Lip Specular Reflection */}
+        <path
+          d="M 18 37.5 H 102"
+          stroke="url(#macAquaGloss)"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <path
+          d="M 20 39 H 100"
+          stroke="#FFFFFF"
+          strokeWidth="0.8"
+          strokeOpacity="0.4"
+          strokeLinecap="round"
+        />
+      </g>
+
+      {/* 4. Engraved System Folder Glyphs (Pure Apple Style) */}
+      {type === 'home' && (
+        <g transform="translate(60, 70)" opacity="0.75">
+          <path
+            d="M -12 2 L 0 -9 L 12 2 V 12 C 12 13 11 14 10 14 H -10 C -11 14 -12 13 -12 12 Z"
+            fill="#FFFFFF"
+          />
+          <path d="M -3 14 V 6 H 3 V 14" fill="#0D47A1" />
         </g>
       )}
-      {type === 'pictures' && (
-        <g fill="#ffffff" fillOpacity="0.75">
-          <rect x="44" y="56" width="32" height="24" rx="3" stroke="#ffffff" strokeWidth="2.5" fill="none" />
-          <circle cx="53" cy="64" r="3" fill="#ffffff" fillOpacity="0.8" />
-          <path d="M46 76L56 67L64 73L70 66L74 71" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-        </g>
-      )}
-      {type === 'videos' && (
-        <g fill="#ffffff" fillOpacity="0.75">
-          <rect x="42" y="56" width="36" height="24" rx="4" stroke="#ffffff" strokeWidth="2.5" fill="none" />
-          <polygon points="56,62 68,68 56,74" fill="#ffffff" fillOpacity="0.85" />
-        </g>
-      )}
+
       {type === 'desktop' && (
-        <g fill="#ffffff" fillOpacity="0.75">
-          <rect x="42" y="54" width="36" height="24" rx="3" stroke="#ffffff" strokeWidth="2.5" fill="none" />
-          <line x1="60" y1="78" x2="60" y2="84" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
-          <line x1="52" y1="84" x2="68" y2="84" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
+        <g transform="translate(60, 70)" opacity="0.75">
+          <rect x="-14" y="-10" width="28" height="18" rx="2" fill="#FFFFFF" />
+          <rect x="-11" y="-7" width="22" height="12" rx="1" fill="#0D47A1" />
+          <path d="M -4 10 H 4 L 6 14 H -6 Z" fill="#FFFFFF" />
         </g>
       )}
+
+      {type === 'downloads' && (
+        <g transform="translate(60, 70)" opacity="0.75">
+          <circle cx="0" cy="0" r="14" fill="#FFFFFF" fillOpacity="0.25" stroke="#FFFFFF" strokeWidth="1.8" />
+          <path d="M 0 -7 V 5 M -5 0 L 0 5 L 5 0" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      )}
+
+      {type === 'pictures' && (
+        <g transform="translate(60, 70)" opacity="0.75">
+          <rect x="-14" y="-10" width="28" height="20" rx="3" fill="#FFFFFF" />
+          <rect x="-12" y="-8" width="24" height="16" rx="2" fill="#0D47A1" />
+          <circle cx="-6" cy="-2" r="2.5" fill="#FFD54F" />
+          <path d="M -12 6 L -5 -1 L 2 5 L 6 2 L 12 6 Z" fill="#81C784" />
+        </g>
+      )}
+
+      {type === 'videos' && (
+        <g transform="translate(60, 70)" opacity="0.75">
+          <rect x="-14" y="-9" width="28" height="18" rx="3" fill="#FFFFFF" />
+          <polygon points="-4,-4 -4,4 5,0" fill="#0D47A1" />
+        </g>
+      )}
+
       {type === 'documents' && (
-        <g fill="#ffffff" fillOpacity="0.75">
-          <path d="M48 56C48 54 49 53 51 53H65L73 61V81C73 83 72 84 70 84H51C49 84 48 83 48 81V56Z" stroke="#ffffff" strokeWidth="2.2" fill="none" />
-          <path d="M64 53V61H73" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="53" y1="67" x2="68" y2="67" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
-          <line x1="53" y1="73" x2="65" y2="73" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+        <g transform="translate(60, 70)" opacity="0.75">
+          <rect x="-10" y="-12" width="20" height="24" rx="2" fill="#FFFFFF" />
+          <line x1="-6" y1="-6" x2="6" y2="-6" stroke="#0D47A1" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="-6" y1="-1" x2="6" y2="-1" stroke="#0D47A1" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="-6" y1="4" x2="2" y2="4" stroke="#0D47A1" strokeWidth="1.5" strokeLinecap="round" />
         </g>
       )}
     </svg>
@@ -147,48 +198,70 @@ export const MacFolderIcon: React.FC<MacFolderIconProps> = ({
 };
 
 interface MacDocumentIconProps {
-  ext?: string;
   className?: string;
   size?: number;
+  ext?: string;
 }
 
 /**
- * Pixel-perfect Apple macOS Document Sheet with Dog-Ear Corner Fold & Colored Badge
+ * Pixel-perfect Apple macOS Document Icon with Crisp Extension Badges
  */
 export const MacDocumentIcon: React.FC<MacDocumentIconProps> = ({
-  ext = '',
   className = '',
-  size = 64
+  size = 64,
+  ext = ''
 }) => {
-  const cleanExt = (ext || '').toLowerCase().replace('.', '');
+  const cleanExt = (ext || '').replace(/^\./, '').toUpperCase() || 'FILE';
 
-  // File category color palette matching Apple macOS native QuickLook & Finder
-  let badgeBg = '#64748b'; // default slate
-  let badgeText = '#ffffff';
-  let badgeLabel = cleanExt.toUpperCase() || 'FILE';
+  const getBadgeStyle = (extension: string) => {
+    switch (extension) {
+      case 'PDF':
+        return { bg: '#DC2626', text: '#FFFFFF' };
+      case 'ZIP':
+      case 'RAR':
+      case '7Z':
+      case 'TAR':
+      case 'GZ':
+        return { bg: '#D97706', text: '#FFFFFF' };
+      case 'DOC':
+      case 'DOCX':
+        return { bg: '#2563EB', text: '#FFFFFF' };
+      case 'XLS':
+      case 'XLSX':
+      case 'CSV':
+        return { bg: '#059669', text: '#FFFFFF' };
+      case 'PPT':
+      case 'PPTX':
+        return { bg: '#EA580C', text: '#FFFFFF' };
+      case 'JS':
+      case 'TS':
+      case 'JSX':
+      case 'TSX':
+        return { bg: '#F59E0B', text: '#000000' };
+      case 'HTML':
+      case 'CSS':
+        return { bg: '#0284C7', text: '#FFFFFF' };
+      case 'JSON':
+      case 'XML':
+      case 'YAML':
+      case 'YML':
+        return { bg: '#7C3AED', text: '#FFFFFF' };
+      case 'TXT':
+      case 'MD':
+      case 'LOG':
+        return { bg: '#475569', text: '#FFFFFF' };
+      case 'MP3':
+      case 'WAV':
+      case 'FLAC':
+      case 'AAC':
+        return { bg: '#DB2777', text: '#FFFFFF' };
+      default:
+        return { bg: '#64748B', text: '#FFFFFF' };
+    }
+  };
 
-  if (['ts', 'tsx', 'js', 'jsx', 'json', 'html', 'css', 'py', 'rs', 'go', 'c', 'cpp', 'java'].includes(cleanExt)) {
-    badgeBg = '#0071e3'; // macOS code blue
-    badgeLabel = cleanExt.toUpperCase();
-  } else if (['xlsx', 'xls', 'csv', 'numbers'].includes(cleanExt)) {
-    badgeBg = '#10b981'; // Numbers green
-    badgeLabel = 'XLS';
-  } else if (['pptx', 'ppt', 'key', 'keynote'].includes(cleanExt)) {
-    badgeBg = '#f59e0b'; // Keynote amber
-    badgeLabel = 'PPT';
-  } else if (['docx', 'doc', 'pages', 'rtf', 'txt', 'md'].includes(cleanExt)) {
-    badgeBg = '#3b82f6'; // Pages blue
-    badgeLabel = cleanExt === 'md' ? 'MD' : cleanExt.toUpperCase();
-  } else if (cleanExt === 'pdf') {
-    badgeBg = '#ef4444'; // PDF red
-    badgeLabel = 'PDF';
-  } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(cleanExt)) {
-    badgeBg = '#8b5cf6'; // Archive purple
-    badgeLabel = 'ZIP';
-  } else if (['exe', 'bat', 'cmd', 'ps1', 'sh'].includes(cleanExt)) {
-    badgeBg = '#475569'; // Executable grey
-    badgeLabel = cleanExt.toUpperCase();
-  }
+  const { bg: badgeBg, text: badgeText } = getBadgeStyle(cleanExt);
+  const badgeLabel = cleanExt.length > 5 ? cleanExt.slice(0, 4) : cleanExt;
 
   return (
     <svg
@@ -197,65 +270,44 @@ export const MacDocumentIcon: React.FC<MacDocumentIconProps> = ({
       viewBox="0 0 120 120"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`select-none filter drop-shadow-md ${className}`}
+      className={`select-none filter drop-shadow-md transition-transform duration-150 ${className}`}
     >
       <defs>
-        {/* Document Sheet Face Gradient */}
         <linearGradient id="macDocFace" x1="60" y1="12" x2="60" y2="108" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#f1f5f9" />
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="100%" stopColor="#F8FAFC" />
         </linearGradient>
 
-        {/* Fold Corner Shadow */}
         <linearGradient id="macFoldShadow" x1="82" y1="12" x2="82" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.8" />
-          <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.3" />
+          <stop offset="0%" stopColor="#CBD5E1" stopOpacity="0.8" />
+          <stop offset="100%" stopColor="#94A3B8" stopOpacity="0.3" />
         </linearGradient>
 
-        {/* Fold Corner Flap */}
         <linearGradient id="macFoldFlap" x1="94" y1="14" x2="82" y2="38" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#e2e8f0" />
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="100%" stopColor="#E2E8F0" />
         </linearGradient>
       </defs>
 
-      {/* Main Document Body (with clipped top-right corner) */}
+      {/* Main Document Body */}
       <path
-        d="M26 20C26 15.5817 29.5817 12 34 12H76L98 34V100C98 104.418 94.4183 108 90 108H34C29.5817 108 26 104.418 26 100V20Z"
+        d="M 28 20 C 28 15.5 31.5 12 36 12 H 74 L 96 34 V 100 C 96 104.5 92.5 108 88 108 H 36 C 31.5 108 28 104.5 28 100 Z"
         fill="url(#macDocFace)"
-        stroke="#cbd5e1"
+        stroke="#CBD5E1"
         strokeWidth="1.5"
       />
 
       {/* Dog-Ear Fold Shadow */}
-      <path
-        d="M74 12V32C74 34 76 36 78 36H98"
-        fill="none"
-        stroke="#94a3b8"
-        strokeWidth="1.2"
-        opacity="0.5"
-      />
+      <path d="M 72 12 V 32 C 72 34 74 36 76 36 H 96" fill="none" stroke="#94A3B8" strokeWidth="1.2" opacity="0.5" />
 
       {/* Dog-Ear Fold Flap */}
-      <path
-        d="M76 12L98 34H80C77.7909 34 76 32.2091 76 30V12Z"
-        fill="url(#macFoldFlap)"
-        stroke="#cbd5e1"
-        strokeWidth="1"
-      />
+      <path d="M 74 12 L 96 34 H 78 C 75.8 34 74 32.2 74 30 Z" fill="url(#macFoldFlap)" stroke="#CBD5E1" strokeWidth="1" />
 
       {/* Center Color-Coded Extension Pill Badge */}
-      <rect
-        x="36"
-        y="58"
-        width="48"
-        height="22"
-        rx="5"
-        fill={badgeBg}
-      />
+      <rect x="36" y="58" width="48" height="22" rx="5" fill={badgeBg} />
       <text
         x="60"
-        y="73"
+        y="73.5"
         fill={badgeText}
         fontSize="10"
         fontWeight="800"
@@ -267,9 +319,9 @@ export const MacDocumentIcon: React.FC<MacDocumentIconProps> = ({
       </text>
 
       {/* Subtle Document Text Rule Lines */}
-      <rect x="38" y="44" width="30" height="2.5" rx="1.25" fill="#cbd5e1" />
-      <rect x="38" y="88" width="44" height="2" rx="1" fill="#e2e8f0" />
-      <rect x="38" y="93" width="32" height="2" rx="1" fill="#e2e8f0" />
+      <rect x="38" y="44" width="28" height="2.5" rx="1.25" fill="#CBD5E1" />
+      <rect x="38" y="88" width="44" height="2" rx="1" fill="#E2E8F0" />
+      <rect x="38" y="93" width="30" height="2" rx="1" fill="#E2E8F0" />
     </svg>
   );
 };

@@ -146,17 +146,12 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
       {/* ── Main Native Command Bar ── */}
       <div className="flex items-center gap-2.5 px-3 py-1.5 h-12">
         {/* macOS Window Traffic Lights */}
-        <div className="mr-2 hidden sm:flex items-center">
+        <div className="mr-3 hidden sm:flex items-center">
           <MacTrafficLights
             onClose={() => mediaService.closeWindow()}
             onMinimize={() => mediaService.minimizeWindow()}
             onMaximize={() => mediaService.maximizeWindow()}
           />
-        </div>
-
-        {/* Anything File Manager Brand Logo & Title */}
-        <div className="hidden md:flex items-center mr-1">
-          <AfmLogo size={24} isOpen={true} showTitle={true} />
         </div>
 
         {/* Navigation Group (Back / Forward) */}

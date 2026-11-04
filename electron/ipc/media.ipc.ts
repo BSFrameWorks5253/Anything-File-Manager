@@ -232,23 +232,38 @@ export function registerMediaIPC(
       return entries
         .map(e => {
           const fullPath = path.join(dirPath, e.name);
+          let isDir = e.isDirectory();
           let size = 0,
             mtime = 0;
+          let childCount: number | undefined;
+
           try {
             const stat = fs.statSync(fullPath);
+            isDir = stat.isDirectory();
             size = stat.size;
             mtime = stat.mtimeMs;
           } catch {}
-          const ext = e.isDirectory() ? '' : (e.name.split('.').pop() || '').toLowerCase();
+
+          if (isDir) {
+            try {
+              const children = fs.readdirSync(fullPath);
+              childCount = children.length;
+            } catch {
+              childCount = 0;
+            }
+          }
+
+          const ext = isDir ? '' : (e.name.split('.').pop() || '').toLowerCase();
           const isHidden = isItemHidden(e.name);
           return {
             name: e.name,
-            isDir: e.isDirectory(),
+            isDir,
             size,
             mtime,
             ext,
             fullPath,
-            isHidden
+            isHidden,
+            childCount
           };
         })
         .sort((a, b) => {
