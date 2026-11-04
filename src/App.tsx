@@ -683,6 +683,19 @@ export default function App() {
         e.preventDefault();
         goUp();
       }
+
+      // Tab key navigation across files in folder
+      if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !isQuickLookOpen && filteredItems.length > 0) {
+        e.preventDefault();
+        const curIdx = selectedItem ? filteredItems.findIndex(i => i.fullPath === selectedItem.fullPath) : -1;
+        let nextIdx = 0;
+        if (e.shiftKey) {
+          nextIdx = curIdx > 0 ? curIdx - 1 : filteredItems.length - 1;
+        } else {
+          nextIdx = curIdx >= 0 && curIdx < filteredItems.length - 1 ? curIdx + 1 : 0;
+        }
+        handleSelectItem(filteredItems[nextIdx]);
+      }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -716,10 +729,8 @@ export default function App() {
   const handleItemOpen = (item: FsItem) => {
     if (item.isDir) {
       navigate(item.fullPath);
-    } else if (isVideoExtension(item.ext)) {
+    } else if (isVideoExtension(item.ext) || isPhotoExtension(item.ext) || isRawExtension(item.ext)) {
       mediaService.openSeparatePlayer(item.fullPath);
-    } else if (isPhotoExtension(item.ext)) {
-      setActiveItem(item);
     } else {
       mediaService.openExternal(item.fullPath);
     }
@@ -953,7 +964,7 @@ export default function App() {
                 items={filteredItems}
                 selectedItem={selectedItem}
                 onSelectItem={handleSelectItem}
-                onOpenViewer={setActiveItem}
+                onOpenViewer={handleOpenSeparately}
                 onContextMenu={handleContextMenu}
               />
             </div>
@@ -976,7 +987,7 @@ export default function App() {
             currentPath={currentPath}
             width={inspectorWidth}
             onClose={() => setIsInspectorOpen(false)}
-            onOpenViewer={setActiveItem}
+            onOpenViewer={handleOpenSeparately}
             onQuickLook={handleQuickLook}
           />
         )}
@@ -1058,7 +1069,7 @@ export default function App() {
         items={filteredItems}
         isOpen={isQuickLookOpen}
         onClose={() => setIsQuickLookOpen(false)}
-        onOpenViewer={setActiveItem}
+        onOpenViewer={handleOpenSeparately}
         onNavigate={handleSelectItem}
       />
 

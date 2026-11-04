@@ -128,7 +128,7 @@ export const MacStandaloneMediaPlayer: React.FC<MacStandaloneMediaPlayerProps> =
   // Keyboard controls
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === ' ' || e.code === 'Space') {
+      if (e.key === ' ' || e.code === 'Space' || e.key === 'k' || e.key === 'K') {
         e.preventDefault();
         if (isVid) togglePlay();
       } else if (e.key === 'ArrowLeft') {
@@ -157,7 +157,13 @@ export const MacStandaloneMediaPlayer: React.FC<MacStandaloneMediaPlayerProps> =
     };
 
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setZoom(prev => Math.max(1, Math.min(5, Math.round((prev + delta) * 10) / 10)));
+  };
+
+  return () => window.removeEventListener('keydown', handleKey);
   }, [duration, isVid, isMuted]);
 
   // Autohide controls on inactivity
@@ -170,6 +176,12 @@ export const MacStandaloneMediaPlayer: React.FC<MacStandaloneMediaPlayerProps> =
   };
 
   const mediaSrc = isRaw && rawThumb ? rawThumb : mediaService.toLocalResourceUrl(filePath);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setZoom(prev => Math.max(1, Math.min(5, Math.round((prev + delta) * 10) / 10)));
+  };
 
   return (
     <div
@@ -235,6 +247,7 @@ export const MacStandaloneMediaPlayer: React.FC<MacStandaloneMediaPlayerProps> =
 
       {/* ── Main Media Canvas ── */}
       <div
+        onWheel={handleWheel}
         className="flex-1 flex items-center justify-center overflow-hidden cursor-default relative"
         onClick={isVid ? togglePlay : undefined}
       >
@@ -247,6 +260,10 @@ export const MacStandaloneMediaPlayer: React.FC<MacStandaloneMediaPlayerProps> =
             onLoadedMetadata={handleLoadedMetadata}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
+            style={{
+              transform: `scale(${zoom})`,
+              transition: 'transform 0.1s ease-out'
+            }}
             className="max-h-full max-w-full object-contain"
             autoPlay
           />

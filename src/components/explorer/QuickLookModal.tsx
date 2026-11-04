@@ -27,7 +27,8 @@ import {
   VolumeX,
   Sparkles,
   Sliders,
-  FolderOpen
+  FolderOpen,
+  AlertCircle
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import {
@@ -106,7 +107,7 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
     }
   }, [currentIndex, navList, onNavigate]);
 
-  // Global hotkeys for Quick Look: Space / Esc to close, Arrows to navigate
+  // Global hotkeys for Quick Look: Space / Esc to close, Arrows / Tab to navigate, K to stop/play
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
@@ -116,16 +117,26 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
       if (e.code === 'Space' || e.key === 'Escape') {
         e.preventDefault();
         onClose();
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
         goPrev();
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
         goNext();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          goPrev();
+        } else {
+          goNext();
+        }
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('quicklook:toggle-play'));
       } else if (e.key === 'Enter' && item) {
         e.preventDefault();
         onClose();
-        onOpenViewer(item);
+        mediaService.openSeparatePlayer(item.fullPath);
       }
     };
 
@@ -163,9 +174,9 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               className="w-3 h-3 rounded-full bg-[#27c93f] hover:opacity-80 cursor-pointer"
               onClick={() => {
                 onClose();
-                onOpenViewer(item);
+                mediaService.openSeparatePlayer(item.fullPath);
               }}
-              title="Open Fullscreen Studio"
+              title="Open in Separate Window"
             />
             <span className="text-xs font-semibold text-gray-200 ml-2 truncate max-w-sm" title={item.name}>
               {item.name}
@@ -215,7 +226,7 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               onClick={() => {
                 onClose();
                 if (isVid || isPhoto || isRaw) {
-                  onOpenViewer(item);
+                  mediaService.openSeparatePlayer(item.fullPath);
                 } else {
                   mediaService.openExternal(item.fullPath);
                 }
@@ -223,7 +234,7 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               className="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--mac-accent)] hover:opacity-90 text-white rounded-md text-xs font-medium shadow-sm transition-all"
             >
               <ExternalLink className="w-3 h-3" />
-              <span>{isVid || isPhoto || isRaw ? 'Open in Viewer' : 'Open in App'}</span>
+              <span>{isVid || isPhoto || isRaw ? 'Open in Player Window' : 'Open in App'}</span>
             </button>
 
             <button
@@ -284,8 +295,8 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
             </span>
             <span className="uppercase text-indigo-400 font-bold">{item.ext}</span>
           </div>
-          <span className="text-[11px] text-gray-500">
-            Press <strong>Space</strong> or <strong>Esc</strong> to dismiss • <strong>Arrows</strong> to browse
+          <span className="text-[11px] text-gray-400">
+            <strong>Space</strong> close • <strong>Arrows / Tab</strong> navigate • <strong>K</strong> play/stop • <strong>Scroll</strong> zoom
           </span>
         </div>
       </div>
@@ -308,11 +319,23 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
   const [isMuted, setIsMuted] = useState(false);
   const [thumbStrip, setThumbStrip] = useState<string | null>(null);
   const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
+  const [hasPlaybackError, setHasPlaybackError] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   const mediaUrl = mediaService.toLocalResourceUrl(item.fullPath);
   const afmInfo = classifyFolder(item.name, item.fullPath);
 
+  // Wheel scroll to zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setZoom(prev => Math.max(1, Math.min(5, Math.round((prev + delta) * 10) / 10)));
+  };
+
   useEffect(() => {
+    setZoom(1);
+    setHasPlaybackError(false);
     const cached = thumbnailService.getCached(item.fullPath);
     if (cached?.thumb) {
       setThumbStrip(cached.thumb);
@@ -324,6 +347,29 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
       });
     }
   }, [item.fullPath]);
+
+  // Autoplay fallback (unmuted autoplay rejection safeguard)
+  useEffect(() => {
+    if (videoRef.current) {
+      const p = videoRef.current.play();
+      if (p !== undefined) {
+        p.catch(() => {
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play().catch(() => {});
+          }
+        });
+      }
+    }
+  }, [mediaUrl]);
+
+  // K key to toggle play/stop
+  useEffect(() => {
+    const handleToggle = () => togglePlay();
+    window.addEventListener('quicklook:toggle-play', handleToggle);
+    return () => window.removeEventListener('quicklook:toggle-play', handleToggle);
+  }, []);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -395,21 +441,73 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0a0c14] text-white">
-      {/* ── Video Monitor Area ── */}
-      <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden min-h-0">
-        <video
-          ref={videoRef}
-          src={mediaUrl}
-          autoPlay
-          loop
-          muted={isMuted}
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={() => {
-            if (videoRef.current) setDuration(videoRef.current.duration);
-          }}
-          className="max-h-full max-w-full object-contain"
-          onClick={togglePlay}
-        />
+      {/* ── Video Monitor Area with Scroll-To-Zoom ── */}
+      <div
+        onWheel={handleWheel}
+        className="flex-1 relative flex items-center justify-center bg-black overflow-hidden min-h-0 select-none"
+      >
+        {hasPlaybackError ? (
+          <div className="relative flex flex-col items-center justify-center w-full h-full p-4">
+            {thumbStrip ? (
+              <img
+                src={thumbStrip}
+                alt={item.name}
+                className="max-h-full max-w-full object-contain filter brightness-75 rounded"
+              />
+            ) : (
+              <Film className="w-16 h-16 text-purple-400/40 mb-3" />
+            )}
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 backdrop-blur-xs p-6 text-center">
+              <AlertCircle className="w-8 h-8 text-amber-400 mb-2" />
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-500/30 mb-2">
+                Specialized Codec / High-Bitrate Video
+              </span>
+              <p className="text-sm font-semibold text-white mb-1">{item.name}</p>
+              <p className="text-xs text-gray-300 max-w-md mb-4">
+                This format or codec requires hardware-accelerated rendering in the dedicated player window.
+              </p>
+              <button
+                onClick={() => mediaService.openSeparatePlayer(item.fullPath)}
+                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Open in Separate Player Window</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <video
+            ref={videoRef}
+            src={mediaUrl}
+            autoPlay
+            loop
+            muted={isMuted}
+            onTimeUpdate={handleTimeUpdate}
+            onError={() => setHasPlaybackError(true)}
+            onLoadedMetadata={() => {
+              if (videoRef.current) setDuration(videoRef.current.duration);
+            }}
+            style={{
+              transform: `scale(${zoom})`,
+              transition: 'transform 0.1s ease-out'
+            }}
+            className="max-h-full max-w-full object-contain"
+            onClick={togglePlay}
+          />
+        )}
+
+        {/* Zoom badge when zoomed */}
+        {zoom > 1 && (
+          <div className="absolute bottom-3 left-3 bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-md text-sky-300 font-mono text-xs flex items-center gap-2 border border-sky-500/30 z-20">
+            <span>Zoom: {zoom}x</span>
+            <button
+              onClick={() => setZoom(1)}
+              className="text-[10px] text-gray-300 hover:text-white underline ml-1"
+            >
+              Reset
+            </button>
+          </div>
+        )}
 
         {/* Top Video Overlay: SMPTE Timecode & Production Meta */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
@@ -625,8 +723,17 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
 function CameraRawQuickLook({ item }: { item: FsItem }) {
   const [thumb, setThumb] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [zoom, setZoom] = useState(1);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setZoom(prev => Math.max(1, Math.min(5, Math.round((prev + delta) * 10) / 10)));
+  };
 
   useEffect(() => {
+    setZoom(1);
     let isCurrent = true;
     const cached = thumbnailService.getCached(item.fullPath)?.thumb;
     if (cached) {
@@ -645,17 +752,29 @@ function CameraRawQuickLook({ item }: { item: FsItem }) {
   }, [item.fullPath]);
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4 bg-black relative">
+    <div onWheel={handleWheel} className="flex-1 flex flex-col items-center justify-center p-4 bg-black relative overflow-hidden select-none">
       {thumb ? (
         <img
           src={thumb}
           alt={item.name}
+          style={{
+            transform: `scale(${zoom})`,
+            transition: 'transform 0.1s ease-out'
+          }}
           className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
         />
       ) : (
         <div className="flex flex-col items-center justify-center text-rose-400">
           <div className="w-10 h-10 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mb-3" />
           <span className="text-sm font-semibold">Extracting Camera RAW Embedded JPEG...</span>
+        </div>
+      )}
+      {zoom > 1 && (
+        <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-md text-rose-300 font-mono text-xs flex items-center gap-2 border border-rose-500/30 z-20">
+          <span>Zoom: {zoom}x</span>
+          <button onClick={() => setZoom(1)} className="text-[10px] text-gray-300 hover:text-white underline ml-1">
+            Reset
+          </button>
         </div>
       )}
       <span className="absolute bottom-4 right-4 bg-rose-950/80 backdrop-blur-md text-rose-300 border border-rose-500/40 text-xs font-black px-2.5 py-1 rounded shadow uppercase tracking-wider">
@@ -670,10 +789,23 @@ function CameraRawQuickLook({ item }: { item: FsItem }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function StandardPhotoQuickLook({ item }: { item: FsItem }) {
   const [fallback, setFallback] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
   const mediaUrl = mediaService.toLocalResourceUrl(item.fullPath);
 
+  useEffect(() => {
+    setZoom(1);
+    setFallback(null);
+  }, [item.fullPath]);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setZoom(prev => Math.max(1, Math.min(5, Math.round((prev + delta) * 10) / 10)));
+  };
+
   return (
-    <div className="flex-1 flex items-center justify-center p-4 bg-black">
+    <div onWheel={handleWheel} className="flex-1 flex items-center justify-center p-4 bg-black relative overflow-hidden select-none">
       <img
         src={fallback || mediaUrl}
         alt={item.name}
@@ -682,8 +814,20 @@ function StandardPhotoQuickLook({ item }: { item: FsItem }) {
             if (res.ok && res.dataUrl) setFallback(res.dataUrl);
           });
         }}
+        style={{
+          transform: `scale(${zoom})`,
+          transition: 'transform 0.1s ease-out'
+        }}
         className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
       />
+      {zoom > 1 && (
+        <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-md text-sky-300 font-mono text-xs flex items-center gap-2 border border-sky-500/30 z-20">
+          <span>Zoom: {zoom}x</span>
+          <button onClick={() => setZoom(1)} className="text-[10px] text-gray-300 hover:text-white underline ml-1">
+            Reset
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -693,6 +837,17 @@ function StandardPhotoQuickLook({ item }: { item: FsItem }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function AudioQuickLook({ item }: { item: FsItem }) {
   const mediaUrl = mediaService.toLocalResourceUrl(item.fullPath);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const handleToggle = () => {
+      if (!audioRef.current) return;
+      if (audioRef.current.paused) audioRef.current.play().catch(() => {});
+      else audioRef.current.pause();
+    };
+    window.addEventListener('quicklook:toggle-play', handleToggle);
+    return () => window.removeEventListener('quicklook:toggle-play', handleToggle);
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0e101a]">
@@ -717,7 +872,7 @@ function AudioQuickLook({ item }: { item: FsItem }) {
         ))}
       </div>
 
-      <audio src={mediaUrl} controls autoPlay className="w-full max-w-md shadow-lg" />
+      <audio ref={audioRef} src={mediaUrl} controls autoPlay className="w-full max-w-md shadow-lg" />
     </div>
   );
 }
@@ -1131,6 +1286,23 @@ function FolderQuickLook({
   // Total size calculated from files in this folder
   const totalFilesSize = useMemo(() => files.reduce((acc, f) => acc + (f.size || 0), 0), [files]);
 
+  // Tab key cycles through folder filters
+  useEffect(() => {
+    const handleFolderTab = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        e.stopPropagation();
+        setFilterMode(prev => {
+          if (prev === 'all') return 'files';
+          if (prev === 'files') return 'subfolders';
+          return 'all';
+        });
+      }
+    };
+    window.addEventListener('keydown', handleFolderTab);
+    return () => window.removeEventListener('keydown', handleFolderTab);
+  }, []);
+
   const handleCopyPath = () => {
     navigator.clipboard.writeText(item.fullPath);
     setCopied(true);
@@ -1269,6 +1441,13 @@ function FolderQuickLook({
                   onClick={() => {
                     if (onNavigate) {
                       onNavigate(child);
+                    }
+                  }}
+                  onDoubleClick={() => {
+                    if (child.isDir) {
+                      if (onNavigate) onNavigate(child);
+                    } else {
+                      mediaService.openSeparatePlayer(child.fullPath);
                     }
                   }}
                   className="group flex items-center gap-2.5 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.09] hover:border-white/20 transition-all cursor-pointer"
