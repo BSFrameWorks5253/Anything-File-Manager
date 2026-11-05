@@ -124,16 +124,10 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
         } else {
           goNext();
         }
-      } else if (e.key === 'ArrowUp') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
         goPrev();
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        goNext();
-      } else if (!isVid && (e.key === 'ArrowLeft')) {
-        e.preventDefault();
-        goPrev();
-      } else if (!isVid && (e.key === 'ArrowRight')) {
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
         goNext();
       } else if (e.key === 'k' || e.key === 'K') {
@@ -145,10 +139,10 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
       } else if (e.key === 'l' || e.key === 'L') {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('quicklook:shuttle-fwd'));
-      } else if (isVid && e.key === 'ArrowLeft') {
+      } else if (e.key === '[' || (e.altKey && e.key === 'ArrowLeft')) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('quicklook:jog-frame', { detail: e.shiftKey ? -10 : -1 }));
-      } else if (isVid && e.key === 'ArrowRight') {
+      } else if (e.key === ']' || (e.altKey && e.key === 'ArrowRight')) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('quicklook:jog-frame', { detail: e.shiftKey ? 10 : 1 }));
       } else if (e.key === 'i' || e.key === 'I') {

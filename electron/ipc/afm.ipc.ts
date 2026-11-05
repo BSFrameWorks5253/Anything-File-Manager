@@ -164,7 +164,7 @@ async function getFastVideoDuration(filePath: string): Promise<number> {
     const { stdout } = await execFileAsync(
       ffprobeBin,
       ['-v', 'error', '-show_entries', 'stream=duration,nb_frames,r_frame_rate:format=duration', '-of', 'json', filePath],
-      { timeout: 1500 }
+      { timeout: 12000 }
     );
     try {
       const json = JSON.parse(stdout);
@@ -491,10 +491,28 @@ async function getVideoInfoNodeAsync(filePath: string): Promise<AfmVideoStreamIn
   }
 }
 
+function isSlotFolder(name: string): boolean {
+  const clean = name.trim();
+  if (/\bslot\b/i.test(clean)) return true;
+  if (/[-_](\d{1,3}[a-zA-Z]?)[-_](?:(\d{1,3})?([A-Za-z]+))(?:[-_](\d{5,8}))?-?$/i.test(clean)) return true;
+  if (/^(\d{1,3}[a-zA-Z]?)[-_](?:(\d{1,3})?([A-Za-z]+))(?:[-_](\d{5,8}))?-?$/i.test(clean)) return true;
+  if (/^(\d{4}[-_]\d{2}(?:[-_]\d{2})?.*)[-_](\d{1,3}[a-zA-Z]?)[-_]([A-Za-z]+)-?$/i.test(clean)) return true;
+  return false;
+}
+
+function hasDateSessionSubfolders(parentDir: string): boolean {
+  try {
+    const list = fs.readdirSync(parentDir, { withFileTypes: true });
+    return list.some(e => e.isDirectory() && !SYSTEM_IGNORE_FOLDERS.has(e.name.toLowerCase()) && (
+      DATE_SESSION_REGEX.test(e.name) ||
+      /^(\d{4}[-_]\d{2}[-_]\d{2})$/i.test(e.name)
+    ));
+  } catch {
+    return false;
+  }
+}
+
 export function registerAfmIPC(): void {
-  /**
-   * 1. Analyze Production Folder & Calculate Metrics
-   */
   /**
    * 1. Analyze Production Folder & Calculate Metrics (Blazing Fast & Robust)
    */
@@ -511,7 +529,8 @@ export function registerAfmIPC(): void {
       } else if (
         SLOT_FORMAT_B_REGEX.test(cleanName) ||
         SLOT_FORMAT_B_MASTER_PREFIX_REGEX.test(cleanName) ||
-        SHORT_SLOT_B_REGEX.test(cleanName)
+        SHORT_SLOT_B_REGEX.test(cleanName) ||
+        isSlotFolder(cleanName)
       ) {
         folderType = 'slot_item_b';
       } else if (DATE_SESSION_REGEX.test(cleanName)) {
@@ -519,7 +538,13 @@ export function registerAfmIPC(): void {
       } else if (CATEGORY_REGEX.test(cleanName)) {
         folderType = 'category';
       } else if (!cleanName.includes('_01M') && !cleanName.includes('_02E') && !cleanName.includes('_01E') && MASTER_SAFAR_REGEX.test(cleanName)) {
-        folderType = 'master_safar';
+        // A folder is ONLY master_safar if its subfolders actually contain date sessions!
+        if (hasDateSessionSubfolders(folderPath)) {
+          folderType = 'master_safar';
+        } else {
+          // It's a slot or single working folder!
+          folderType = 'slot_item_b';
+        }
       }
 
       const meta = getOrInferMetadata(folderPath);
@@ -1346,7 +1371,11 @@ ${emptyVTrackXml}
           return { ok: false, error: 'Target directory not found' };
         }
 
-        if (mode === 'master') {
+        // Safeguard: A master batch generation requires real date session subfolders.
+        // If the folder is a slot or date folder containing camera angle subfolders, auto-run as single mode.
+        const effectiveMode = (mode === 'master' && !hasDateSessionSubfolders(folderPath)) ? 'single' : mode;
+
+        if (effectiveMode === 'master') {
           const entries = fs.readdirSync(folderPath, { withFileTypes: true });
           const createdProjects: string[] = [];
           let totalClipsAll = 0;

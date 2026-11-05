@@ -69,7 +69,8 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     return classifyFolder(folderName, folderPath);
   }, [folderName, folderPath]);
 
-  const isMasterDetected = classification.type === 'master_safar';
+  const isSlot = classification.type === 'slot_item_a' || classification.type === 'slot_item_b';
+  const isMasterDetected = !isSlot && classification.type === 'master_safar';
 
   // Active top-level section: 'generator' | 'relink' | 'logs'
   const [activeSection, setActiveSection] = useState<'generator' | 'relink' | 'logs'>('generator');
@@ -124,7 +125,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
 
   // Sync mode and project name when target changes
   useEffect(() => {
-    const isM = classification.type === 'master_safar';
+    const isM = !isSlot && classification.type === 'master_safar';
     setActiveMode(isM ? 'master' : 'single');
     setProjectName(isM ? `${folderName}_Master.prproj` : `${folderName}.prproj`);
     setResultMsg(null);
@@ -132,7 +133,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     setCurrentStep(1);
     setProgressPercent(0);
     setActiveSection('generator');
-  }, [folderName, folderPath, classification.type]);
+  }, [folderName, folderPath, classification.type, isSlot]);
 
   // Load subfolders for preflight exclusion
   const loadSubfolders = useCallback(async () => {
@@ -146,6 +147,10 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
 
       if (afmData) {
         setAnalytics(afmData);
+        if (afmData.folderType !== 'master_safar') {
+          setActiveMode('single');
+          setProjectName(`${folderName}.prproj`);
+        }
       }
 
       if (res && res.ok && Array.isArray(res.subfolders)) {

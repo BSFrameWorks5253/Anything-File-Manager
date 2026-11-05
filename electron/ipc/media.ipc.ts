@@ -246,9 +246,9 @@ export function readFastMp4Duration(filePath: string): number | null {
     let buf = headBuf;
     let bytesTotal = headRead;
 
-    // 2. If not at head, check tail (up to 8MB for camera recordings where moov/mvhd atom is placed at the end)
+    // 2. If not at head, check tail (up to 32MB for camera recordings where moov/mvhd atom is placed at the end)
     if (idx === -1 && stat.size > headLen) {
-      const tailLen = Math.min(8 * 1024 * 1024, stat.size - headLen);
+      const tailLen = Math.min(32 * 1024 * 1024, stat.size - headLen);
       if (tailLen > 0) {
         const tailBuf = Buffer.alloc(tailLen);
         const tailRead = fs.readSync(fd, tailBuf, 0, tailLen, stat.size - tailLen);

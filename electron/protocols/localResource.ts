@@ -26,10 +26,9 @@ export function registerLocalResourceProtocol(): void {
 export function handleLocalResourceProtocol(): void {
   protocol.handle('local-resource', (request) => {
     try {
-      let s = request.url.replace(/^local-resource:\/\//i, '');
+      const parsedUrl = new URL(request.url);
+      let s = decodeURIComponent(parsedUrl.pathname);
       s = s.replace(/^\/+/, '');
-      s = s.replace(/^localhost[\/\\]/i, '');
-      s = decodeURIComponent(s);
 
       // Security hardening: strip null bytes to prevent null byte poison injection
       s = s.replace(/\0/g, '');

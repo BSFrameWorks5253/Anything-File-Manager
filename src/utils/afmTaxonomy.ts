@@ -151,6 +151,19 @@ const CATEGORY_REGEX = /^(\d{2})-([A-Za-z]+)-([A-Za-z\s]+)$/;
 /**
  * Classifies a folder name and extracts structured semantic tokens
  */
+export function isSlotFolderName(name: string): boolean {
+  const clean = name.trim();
+  // 1. Explicit slot keyword (e.g. "Slot 1", "Slot-02", "Slot_A")
+  if (/\bslot\b/i.test(clean)) return true;
+  // 2. Format with session or date or master prefix + slot number + event code
+  if (/[-_](\d{1,3}[a-zA-Z]?)[-_](?:(\d{1,3})?([A-Za-z]+))(?:[-_](\d{5,8}))?-?$/i.test(clean)) return true;
+  // 3. Simple slot number + code (e.g. 01-Z, 05-H, 02-01A-30338708)
+  if (/^(\d{1,3}[a-zA-Z]?)[-_](?:(\d{1,3})?([A-Za-z]+))(?:[-_](\d{5,8}))?-?$/i.test(clean)) return true;
+  // 4. Slot format with city/safar prefix e.g. "1448-05-08 Coimbatore-01-Z"
+  if (/^(\d{4}[-_]\d{2}(?:[-_]\d{2})?.*)[-_](\d{1,3}[a-zA-Z]?)[-_]([A-Za-z]+)-?$/i.test(clean)) return true;
+  return false;
+}
+
 export function classifyFolder(name: string, fullPath: string = ''): AfmFolderClassification {
   const clean = name.trim();
 
@@ -229,6 +242,22 @@ export function classifyFolder(name: string, fullPath: string = ''): AfmFolderCl
     };
   }
 
+  // Test 4b: General Slot Heuristic (e.g. "1448-05-08 Coimbatore-01-Z", "1448-03-Slot 1", "Slot 1")
+  if (isSlotFolderName(clean)) {
+    return {
+      type: 'slot_item_b',
+      rawName: clean,
+      fullPath,
+      slotTokens: {
+        session: '',
+        slotNo: '01',
+        eventCode: 'SLOT',
+        its: null
+      },
+      isValidIts: true
+    };
+  }
+
   // Test 5: Date Session Folder (e.g. 1448-05-09 _01M)
   const dateMatch = clean.match(DATE_SESSION_REGEX);
   if (dateMatch) {
@@ -261,7 +290,7 @@ export function classifyFolder(name: string, fullPath: string = ''): AfmFolderCl
 
   // Test 7: Master Safar Folder (e.g. 1448-05-08 Coimbatore, 1448-03 Mumbai)
   // Ensure it does not have session tokens or slot tokens
-  if (!clean.includes('_01M') && !clean.includes('_02E') && !clean.includes('_01E')) {
+  if (!clean.includes('_01M') && !clean.includes('_02E') && !clean.includes('_01E') && !isSlotFolderName(clean)) {
     const masterMatch = clean.match(MASTER_SAFAR_REGEX);
     if (masterMatch) {
       return {
