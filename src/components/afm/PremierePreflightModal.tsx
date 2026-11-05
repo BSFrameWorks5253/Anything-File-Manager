@@ -21,12 +21,16 @@ import {
   Copy,
   Terminal,
   FolderCheck,
-  Search
+  Search,
+  Link2,
+  Camera,
+  CheckSquare,
+  Square,
+  FileText
 } from 'lucide-react';
 import { formatCumulativeDuration, classifyFolder } from '../../utils/afmTaxonomy';
 import { formatBytes } from '../../utils';
 import { mediaService } from '../../services';
-import { oneTapService } from '../../services/oneTapService';
 import { MacFolderIcon } from '../common/MacIcons';
 
 interface SubfolderItem {
@@ -67,6 +71,9 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
 
   const isMasterDetected = classification.type === 'master_safar';
 
+  // Active top-level section: 'generator' | 'relink' | 'logs'
+  const [activeSection, setActiveSection] = useState<'generator' | 'relink' | 'logs'>('generator');
+
   // Mode Selection: Single Date / Slot Mode vs Master Safar Multi-Date Mode
   const [activeMode, setActiveMode] = useState<'single' | 'master'>(isMasterDetected ? 'master' : 'single');
 
@@ -90,9 +97,12 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
 
   // Execution State & Terminal Logs
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingManifest, setIsGeneratingManifest] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(1);
+  const [progressPercent, setProgressPercent] = useState<number>(0);
   const [copiedPath, setCopiedPath] = useState(false);
+  const [copiedLogs, setCopiedLogs] = useState(false);
   const [resultMsg, setResultMsg] = useState<{
     ok: boolean;
     path?: string;
@@ -120,6 +130,8 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     setResultMsg(null);
     setLogs([]);
     setCurrentStep(1);
+    setProgressPercent(0);
+    setActiveSection('generator');
   }, [folderName, folderPath, classification.type]);
 
   // Load subfolders for preflight exclusion
@@ -240,6 +252,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     setIsGenerating(true);
     setResultMsg(null);
     setCurrentStep(2);
+    setProgressPercent(20);
     setLogs([
       `[INIT] Launching One Tap Premiere Pro Project Generator...`,
       `[MODE] Target Mode: ${activeMode === 'master' ? 'Master Safar Folder Mode' : 'Single Sequence Slot Mode'}`,
@@ -250,6 +263,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     try {
       setLogs(prev => [...prev, `[SCAN] Checking ${activeMetrics.includedCount} active folders for video media...`]);
       setCurrentStep(3);
+      setProgressPercent(50);
 
       const startTime = performance.now();
       const res = await mediaService.generatePremiereProject({
@@ -268,6 +282,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
 
       if (res && res.ok) {
         setCurrentStep(5);
+        setProgressPercent(100);
         setLogs(prev => [
           ...prev,
           `[TIMELINE] Synchronized ${res.clipCount || activeMetrics.totalClips} clips onto Track V1/A1 with camera markers.`,
@@ -291,17 +306,58 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
         }
       } else {
         setCurrentStep(1);
+        setProgressPercent(0);
         const errMsg = res?.error || 'Sequence generation failed';
         setLogs(prev => [...prev, `[ERROR] ${errMsg}`]);
         setResultMsg({ ok: false, error: errMsg });
       }
     } catch (err: any) {
       setCurrentStep(1);
+      setProgressPercent(0);
       const errMsg = err.message || String(err);
       setLogs(prev => [...prev, `[EXCEPTION] ${errMsg}`]);
       setResultMsg({ ok: false, error: errMsg });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Generate Relink Manifest standalone
+  const handleGenerateStandaloneManifest = async () => {
+    setIsGeneratingManifest(true);
+    setLogs(prev => [
+      ...prev,
+      `[MANIFEST-START] Generating dedicated Media Relink Manifest (.csv / .json)...`,
+      `[TARGET] ${folderPath}`
+    ]);
+    try {
+      const res = await mediaService.generatePremiereProject({
+        folderPath,
+        projectName,
+        resolution,
+        fps,
+        openAfterCreate: false,
+        excludedFolders: Array.from(excludedFolderNames),
+        mode: activeMode,
+        overwriteExisting: true,
+        generateManifest: true
+      });
+      if (res?.manifestPath) {
+        setLogs(prev => [
+          ...prev,
+          `[MANIFEST-DONE] Relink manifest written to: ${res.manifestPath}`
+        ]);
+        setResultMsg(prev => ({
+          ok: true,
+          path: prev?.path || res.prprojPath,
+          manifestPath: res.manifestPath,
+          clipCount: res.clipCount
+        }));
+      }
+    } catch (err: any) {
+      setLogs(prev => [...prev, `[MANIFEST-ERROR] ${err.message || String(err)}`]);
+    } finally {
+      setIsGeneratingManifest(false);
     }
   };
 
@@ -311,6 +367,12 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
       setCopiedPath(true);
       setTimeout(() => setCopiedPath(false), 2000);
     }
+  };
+
+  const handleCopyLogs = () => {
+    navigator.clipboard.writeText(logs.join('\n'));
+    setCopiedLogs(true);
+    setTimeout(() => setCopiedLogs(false), 2000);
   };
 
   const handleOpenFolder = () => {
@@ -329,15 +391,15 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 select-none animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 select-none animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl rounded-2xl mac-card border border-[var(--mac-border)] shadow-2xl flex flex-col overflow-hidden text-[var(--mac-text-primary)] transition-colors max-h-[92vh] bg-[#141622]/95"
+        className="w-full max-w-4xl rounded-2xl mac-card border border-[var(--mac-border)] shadow-2xl flex flex-col overflow-hidden text-[var(--mac-text-primary)] transition-colors max-h-[92vh] bg-[#141622]/98"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Titlebar (macOS Finder + One Tap Companion Header) ── */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--mac-border)] mac-header">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--mac-border)] mac-header flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-md">
               <Film className="w-5 h-5" />
@@ -347,19 +409,19 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
                 <span className="text-sm font-bold block text-[var(--mac-text-primary)]">
                   Premiere Pro Project & Sequence Creator
                 </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30 uppercase tracking-wider">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
                   One Tap Engine
                 </span>
               </div>
               <span className="text-[11px] text-[var(--mac-text-secondary)] block">
-                Instant in-app project generator • End-to-end V1/A1 placement & timeline markers
+                Instant project generator • Unnested V1/A1 placement & cameraman marker routing
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {/* Mode Switcher Pill */}
-            <div className="flex items-center bg-black/20 dark:bg-black/40 rounded-lg p-0.5 border border-white/10 text-[11px]">
+            <div className="flex items-center bg-black/40 rounded-lg p-0.5 border border-white/10 text-[11px]">
               <button
                 type="button"
                 onClick={() => {
@@ -392,271 +454,445 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
+              className="p-1 rounded-md hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
+        {/* ── Segmented Section Navigation Bar (One Tap Layout) ── */}
+        <div className="flex items-center px-5 py-2 border-b border-white/10 bg-[#161828] gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveSection('generator')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeSection === 'generator'
+                ? 'bg-purple-600/30 text-purple-300 border border-purple-500/40 shadow-sm'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <Film className="w-3.5 h-3.5 text-purple-400" />
+            <span>Project &amp; Sequence Generator</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-mono">
+              {activeMode === 'single' ? 'Single' : `${subfolders.length} Folders`}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('relink')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeSection === 'relink'
+                ? 'bg-purple-600/30 text-purple-300 border border-purple-500/40 shadow-sm'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Media Relink Manifest</span>
+            {resultMsg?.manifestPath && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                ✓ Ready
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('logs')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeSection === 'logs'
+                ? 'bg-purple-600/30 text-purple-300 border border-purple-500/40 shadow-sm'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <Terminal className="w-3.5 h-3.5 text-sky-400" />
+            <span>Live Terminal Logs</span>
+            {logs.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 font-mono">
+                {logs.length}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* ── Modal Body Content ── */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
-          {/* Target Folder Scope Header Card */}
-          <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between">
-            <div className="min-w-0 flex-1 mr-3">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  {activeMode === 'master'
-                    ? 'Master Safar Root'
-                    : classification.type === 'date_session'
-                    ? 'Date Session'
-                    : 'Slot Work Folder'}
-                </span>
-                <span className="text-[11px] font-mono text-[var(--mac-text-secondary)]">
-                  {activeMode === 'master' ? 'Multi-Date Batch Creation' : 'Single Sequence Timeline'}
-                </span>
-              </div>
-              <span className="text-xs font-bold text-[var(--mac-text-primary)] block truncate" title={folderName}>
-                {folderName}
-              </span>
-              <span className="text-[10.5px] text-[var(--mac-text-muted)] font-mono block mt-0.5 truncate" title={folderPath}>
-                {folderPath}
-              </span>
-            </div>
-            <div className="text-right flex-shrink-0 bg-white/60 dark:bg-black/40 px-3.5 py-2 rounded-xl border border-purple-500/20">
-              <span className="text-xs font-black text-purple-400 block font-mono">
-                {activeMetrics.totalClips} Clips
-              </span>
-              {activeMetrics.totalBytes > 0 && (
-                <span className="text-[10px] text-[var(--mac-text-muted)] block font-mono">
-                  {formatBytes(activeMetrics.totalBytes)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* ── Subfolder Exclusions Checklist ── */}
-          {subfolders.length > 0 && (
-            <div className="space-y-2 border border-[var(--mac-border)] rounded-xl p-3 bg-black/[0.02] dark:bg-white/[0.02]">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--mac-text-primary)]">
-                  <FolderTree className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Subfolder & Camera Angle Inclusions</span>
-                  <span className="text-[11px] font-normal text-[var(--mac-text-muted)]">
-                    ({activeMetrics.includedCount} of {subfolders.length} included)
+          {/* TAB 1: GENERATOR */}
+          {activeSection === 'generator' && (
+            <>
+              {/* Target Folder Scope Header Card */}
+              <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between">
+                <div className="min-w-0 flex-1 mr-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      {activeMode === 'master'
+                        ? 'Master Safar Root'
+                        : classification.type === 'date_session'
+                        ? 'Date Session'
+                        : 'Slot Work Folder'}
+                    </span>
+                    <span className="text-[11px] font-mono text-[var(--mac-text-secondary)]">
+                      {activeMode === 'master' ? 'Multi-Date Batch Creation' : 'Single Sequence Timeline'}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-[var(--mac-text-primary)] block truncate" title={folderName}>
+                    {folderName}
+                  </span>
+                  <span className="text-[10.5px] text-[var(--mac-text-muted)] font-mono block mt-0.5 truncate" title={folderPath}>
+                    {folderPath}
                   </span>
                 </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleExcludeOutputsOnly}
-                    className="px-2 py-0.8 rounded text-[10.5px] font-medium bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 transition-colors"
-                  >
-                    Exclude Output Folders
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleIncludeAll}
-                    className="px-2 py-0.8 rounded text-[10.5px] font-medium hover:bg-white/10 text-[var(--mac-text-secondary)] transition-colors"
-                  >
-                    Include All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExcludeAll}
-                    className="px-2 py-0.8 rounded text-[10.5px] font-medium hover:bg-white/10 text-[var(--mac-text-secondary)] transition-colors"
-                  >
-                    Exclude All
-                  </button>
+                <div className="text-right flex-shrink-0 bg-white/60 dark:bg-black/40 px-3.5 py-2 rounded-xl border border-purple-500/20">
+                  <span className="text-xs font-black text-purple-400 block font-mono">
+                    {activeMetrics.totalClips} Clips
+                  </span>
+                  {activeMetrics.totalBytes > 0 && (
+                    <span className="text-[10px] text-[var(--mac-text-muted)] block font-mono">
+                      {formatBytes(activeMetrics.totalBytes)}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Subfolder Search */}
-              {subfolders.length > 6 && (
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchFilter}
-                    onChange={e => setSearchFilter(e.target.value)}
-                    placeholder="Filter subfolders / camera angles..."
-                    className="w-full h-7 pl-8 pr-3 rounded-md bg-black/20 border border-white/10 text-xs text-gray-200 placeholder-gray-500 focus:outline-none"
+              {/* Progress Pipeline Indicator */}
+              <div className="p-3 rounded-xl bg-black/30 border border-white/10 space-y-2">
+                <div className="flex items-center justify-between text-xs font-medium text-gray-300">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Generation Pipeline</span>
+                  </div>
+                  <span className="font-mono text-[11px] text-purple-400">{progressPercent}%</span>
+                </div>
+                <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    style={{ width: `${progressPercent}%` }}
+                    className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300 rounded-full"
                   />
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[10px] font-mono text-gray-400 text-center pt-1">
+                  <span className={currentStep >= 1 ? 'text-purple-400 font-bold' : ''}>1. Ready</span>
+                  <span className={currentStep >= 2 ? 'text-purple-400 font-bold' : ''}>2. Probing</span>
+                  <span className={currentStep >= 3 ? 'text-purple-400 font-bold' : ''}>3. XML Timeline</span>
+                  <span className={currentStep >= 4 ? 'text-emerald-400 font-bold' : ''}>4. .prproj Written</span>
+                </div>
+              </div>
+
+              {/* Cameraman / Angles / Subfolders Breakdown Checklist */}
+              {subfolders.length > 0 && (
+                <div className="space-y-2 border border-[var(--mac-border)] rounded-xl p-3 bg-black/[0.02] dark:bg-white/[0.02]">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--mac-text-primary)]">
+                      <FolderTree className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Camera Angles &amp; Subfolder Inclusions</span>
+                      <span className="text-[11px] font-normal text-[var(--mac-text-muted)]">
+                        ({activeMetrics.includedCount} of {subfolders.length} included)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleExcludeOutputsOnly}
+                        className="px-2 py-0.8 rounded text-[10.5px] font-medium bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 transition-colors"
+                      >
+                        Exclude Output Folders
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleIncludeAll}
+                        className="px-2 py-0.8 rounded text-[10.5px] font-medium hover:bg-white/10 text-[var(--mac-text-secondary)] transition-colors"
+                      >
+                        Include All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExcludeAll}
+                        className="px-2 py-0.8 rounded text-[10.5px] font-medium hover:bg-white/10 text-[var(--mac-text-secondary)] transition-colors"
+                      >
+                        Exclude All
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Subfolder Search */}
+                  {subfolders.length > 5 && (
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={e => setSearchFilter(e.target.value)}
+                        placeholder="Filter subfolders / camera angles..."
+                        className="w-full h-7 pl-8 pr-3 rounded-md bg-black/20 border border-white/10 text-xs text-gray-200 placeholder-gray-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Subfolder Scrollable List */}
+                  <div className="max-h-40 overflow-y-auto space-y-1 pr-1 border border-white/5 rounded-lg p-1 bg-black/20">
+                    {filteredSubfolders.map(sf => {
+                      const isExcluded = excludedFolderNames.has(sf.name.toLowerCase());
+                      return (
+                        <div
+                          key={sf.name}
+                          onClick={() => toggleFolderExclusion(sf.name)}
+                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-all ${
+                            isExcluded
+                              ? 'bg-rose-500/10 text-[var(--mac-text-muted)] opacity-60 line-through'
+                              : 'bg-white/[0.04] text-[var(--mac-text-primary)] hover:bg-white/[0.08]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={!isExcluded}
+                              onChange={() => {}}
+                              className="rounded border-gray-400 text-purple-600 focus:ring-purple-500 cursor-pointer pointer-events-none"
+                            />
+                            <MacFolderIcon size={15} className="flex-shrink-0" />
+                            <span className="font-medium truncate max-w-[280px]">{sf.name}</span>
+                            {sf.isOutputFolder && (
+                              <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wide">
+                                Output / Render
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] font-mono text-[var(--mac-text-muted)] flex-shrink-0">
+                            <span>{sf.clipCount} {sf.clipCount === 1 ? 'clip' : 'clips'}</span>
+                            {sf.totalBytes > 0 && <span>{formatBytes(sf.totalBytes)}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
-              {/* Subfolder Scrollable List */}
-              <div className="max-h-44 overflow-y-auto space-y-1 pr-1 border border-white/5 rounded-lg p-1 bg-black/20">
-                {filteredSubfolders.map(sf => {
-                  const isExcluded = excludedFolderNames.has(sf.name.toLowerCase());
-                  return (
-                    <div
-                      key={sf.name}
-                      onClick={() => toggleFolderExclusion(sf.name)}
-                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-all ${
-                        isExcluded
-                          ? 'bg-rose-500/10 text-[var(--mac-text-muted)] opacity-60 line-through'
-                          : 'bg-white/[0.04] text-[var(--mac-text-primary)] hover:bg-white/[0.08]'
+              {/* Project Filename Input */}
+              <div>
+                <label className="text-[11px] font-bold text-[var(--mac-text-secondary)] uppercase tracking-wider block mb-1">
+                  Project &amp; Sequence Filename
+                </label>
+                <input
+                  type="text"
+                  value={projectName}
+                  onChange={e => setProjectName(e.target.value)}
+                  className="w-full h-8 px-3 rounded-lg border border-[var(--mac-border)] bg-black/10 dark:bg-white/5 text-xs text-[var(--mac-text-primary)] font-mono focus:outline-none focus:border-purple-500 transition-colors"
+                />
+              </div>
+
+              {/* Sequence Settings: Resolution & Framerate */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-[var(--mac-text-secondary)] uppercase tracking-wider block mb-1">
+                    Resolution
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setResolution('1080p')}
+                      className={`py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        resolution === '1080p'
+                          ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-xs'
+                          : 'border-[var(--mac-border)] text-[var(--mac-text-secondary)] hover:text-white'
                       }`}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={!isExcluded}
-                          onChange={() => {}}
-                          className="rounded border-gray-400 text-purple-600 focus:ring-purple-500 cursor-pointer pointer-events-none"
-                        />
-                        <MacFolderIcon size={15} className="flex-shrink-0" />
-                        <span className="font-medium truncate max-w-[280px]">{sf.name}</span>
-                        {sf.isOutputFolder && (
-                          <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wide">
-                            Output / Render
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] font-mono text-[var(--mac-text-muted)] flex-shrink-0">
-                        <span>{sf.clipCount} {sf.clipCount === 1 ? 'clip' : 'clips'}</span>
-                        {sf.totalBytes > 0 && <span>{formatBytes(sf.totalBytes)}</span>}
-                      </div>
-                    </div>
-                  );
-                })}
+                      1080p FHD
+                      <span className="block text-[9.5px] font-normal opacity-70">1920 × 1080</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResolution('4k')}
+                      className={`py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        resolution === '4k'
+                          ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-xs'
+                          : 'border-[var(--mac-border)] text-[var(--mac-text-secondary)] hover:text-white'
+                      }`}
+                    >
+                      4K UHD
+                      <span className="block text-[9.5px] font-normal opacity-70">3840 × 2160</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-[var(--mac-text-secondary)] uppercase tracking-wider block mb-1">
+                    Sequence Framerate
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[25, 50, 29.97].map(rate => (
+                      <button
+                        key={rate}
+                        type="button"
+                        onClick={() => setFps(rate)}
+                        className={`py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                          fps === rate
+                            ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-xs'
+                            : 'border-[var(--mac-border)] text-[var(--mac-text-secondary)] hover:text-white'
+                        }`}
+                      >
+                        {rate} fps
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Production Checkboxes */}
+              <div className="space-y-1.5 pt-1 text-xs text-[var(--mac-text-secondary)] border-t border-white/10">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={openAfterCreate}
+                    onChange={e => setOpenAfterCreate(e.target.checked)}
+                    className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                  />
+                  <span>Open in Adobe Premiere Pro immediately after creation</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={overwriteExisting}
+                    onChange={e => setOverwriteExisting(e.target.checked)}
+                    className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                  />
+                  <span>Overwrite existing project files (.prproj / .xml) if present</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={generateManifest}
+                    onChange={e => setGenerateManifest(e.target.checked)}
+                    className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                  />
+                  <span>Generate Excel reconciliation manifest sheet (Sequence_Manifest.csv)</span>
+                </label>
+              </div>
+            </>
+          )}
+
+          {/* TAB 2: RELINK MANIFEST */}
+          {activeSection === 'relink' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-5 h-5 text-emerald-400" />
+                  <span className="text-sm font-bold text-emerald-300">
+                    Offline Media Relocation &amp; Relink Reconciliation
+                  </span>
+                </div>
+                <p className="text-xs text-gray-300 leading-relaxed">
+                  Generates an exact Excel (.csv) and JSON database of every media clip in this sequence, including duration, timecode, resolution, audio channels, and absolute disk paths. If footage is moved to another workstation or external backup drive, Premiere Pro uses this manifest for instant 1-tap auto-relinking without manual browsing.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl bg-black/30 border border-white/10">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider block">Total Media Clips</span>
+                  <span className="text-xl font-black text-emerald-400 font-mono mt-1 block">
+                    {activeMetrics.totalClips}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-black/30 border border-white/10">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider block">Indexed Subfolders</span>
+                  <span className="text-xl font-black text-emerald-400 font-mono mt-1 block">
+                    {activeMetrics.includedCount}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-black/30 border border-white/10">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider block">Total Storage</span>
+                  <span className="text-xl font-black text-emerald-400 font-mono mt-1 block">
+                    {formatBytes(activeMetrics.totalBytes)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/10">
+                <div>
+                  <span className="text-xs font-bold text-gray-200 block">Manifest Output Destination</span>
+                  <span className="text-[11px] font-mono text-gray-400 block mt-0.5">{folderPath}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateStandaloneManifest}
+                  disabled={isGeneratingManifest}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 shadow transition-all"
+                >
+                  {isGeneratingManifest ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Writing Manifest...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Generate Relink Manifest Now</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           )}
 
-          {/* Project Filename Input */}
-          <div>
-            <label className="text-[11px] font-bold text-[var(--mac-text-secondary)] uppercase tracking-wider block mb-1">
-              Project & Sequence Filename
-            </label>
-            <input
-              type="text"
-              value={projectName}
-              onChange={e => setProjectName(e.target.value)}
-              className="w-full h-8 px-3 rounded-lg border border-[var(--mac-border)] bg-black/10 dark:bg-white/5 text-xs text-[var(--mac-text-primary)] font-mono focus:outline-none focus:border-purple-500 transition-colors"
-            />
-          </div>
-
-          {/* Sequence Settings: Resolution & Framerate */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-[var(--mac-text-secondary)] uppercase tracking-wider block mb-1">
-                Resolution
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setResolution('1080p')}
-                  className={`py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                    resolution === '1080p'
-                      ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-xs'
-                      : 'border-[var(--mac-border)] text-[var(--mac-text-secondary)] hover:text-white'
-                  }`}
-                >
-                  1080p FHD
-                  <span className="block text-[9.5px] font-normal opacity-70">1920 × 1080</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setResolution('4k')}
-                  className={`py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                    resolution === '4k'
-                      ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-xs'
-                      : 'border-[var(--mac-border)] text-[var(--mac-text-secondary)] hover:text-white'
-                  }`}
-                >
-                  4K UHD
-                  <span className="block text-[9.5px] font-normal opacity-70">3840 × 2160</span>
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-[var(--mac-text-secondary)] uppercase tracking-wider block mb-1">
-                Sequence Framerate
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[25, 50, 29.97].map(rate => (
+          {/* TAB 3: TERMINAL LOGS */}
+          {activeSection === 'logs' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-gray-300">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-sky-400" />
+                  <span className="font-bold">One Tap Execution Console</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 font-mono text-gray-300">
+                    {logs.length} events
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
-                    key={rate}
                     type="button"
-                    onClick={() => setFps(rate)}
-                    className={`py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                      fps === rate
-                        ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-xs'
-                        : 'border-[var(--mac-border)] text-[var(--mac-text-secondary)] hover:text-white'
-                    }`}
+                    onClick={handleCopyLogs}
+                    className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-xs font-medium text-gray-300 flex items-center gap-1.5 transition-colors"
                   >
-                    {rate} fps
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copiedLogs ? 'Copied!' : 'Copy Logs'}</span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setLogs([])}
+                    className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-xs font-medium text-gray-300 transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Production Checkboxes */}
-          <div className="space-y-1.5 pt-1 text-xs text-[var(--mac-text-secondary)] border-t border-white/10">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={openAfterCreate}
-                onChange={e => setOpenAfterCreate(e.target.checked)}
-                className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-              />
-              <span>Open in Adobe Premiere Pro immediately after creation</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={overwriteExisting}
-                onChange={e => setOverwriteExisting(e.target.checked)}
-                className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-              />
-              <span>Overwrite existing project files (.prproj / .xml) if present</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={generateManifest}
-                onChange={e => setGenerateManifest(e.target.checked)}
-                className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-              />
-              <span>Generate Excel reconciliation manifest sheet (Sequence_Manifest.csv)</span>
-            </label>
-          </div>
-
-          {/* Terminal Console Logs */}
-          {logs.length > 0 && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                <span className="flex items-center gap-1.5">
-                  <Terminal className="w-3 h-3 text-purple-400" />
-                  Generator Terminal
-                </span>
-                <span className="font-mono text-purple-400">{logs.length} events</span>
-              </div>
               <div
                 ref={logConsoleRef}
-                className="h-28 overflow-y-auto font-mono text-[11px] p-2.5 rounded-lg bg-black/60 border border-white/10 text-gray-300 space-y-1"
+                className="h-72 overflow-y-auto font-mono text-[11px] p-3 rounded-xl bg-black/80 border border-white/10 text-gray-300 space-y-1 select-text"
               >
-                {logs.map((l, i) => (
-                  <div
-                    key={i}
-                    className={
-                      l.startsWith('[ERROR]') || l.startsWith('[EXCEPTION]')
-                        ? 'text-rose-400 font-bold'
-                        : l.startsWith('[SUCCESS]') || l.startsWith('[DONE]')
-                        ? 'text-emerald-400 font-bold'
-                        : l.startsWith('[INIT]') || l.startsWith('[MODE]')
-                        ? 'text-indigo-400 font-bold'
-                        : 'text-gray-300'
-                    }
-                  >
-                    {l}
+                {logs.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-gray-500 py-12">
+                    <Terminal className="w-8 h-8 opacity-30 mb-2" />
+                    <span>Console idle. Click 'Generate Premiere Project' to stream live logs.</span>
                   </div>
-                ))}
+                ) : (
+                  logs.map((l, i) => (
+                    <div
+                      key={i}
+                      className={
+                        l.startsWith('[ERROR]') || l.startsWith('[EXCEPTION]')
+                          ? 'text-rose-400 font-bold'
+                          : l.startsWith('[SUCCESS]') || l.startsWith('[DONE]')
+                          ? 'text-emerald-400 font-bold'
+                          : l.startsWith('[INIT]') || l.startsWith('[MODE]')
+                          ? 'text-indigo-400 font-bold'
+                          : 'text-gray-300'
+                      }
+                    >
+                      <span className="opacity-30 mr-2 font-mono">[{i + 1}]</span>
+                      {l}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -721,7 +957,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
         </div>
 
         {/* ── Footer ── */}
-        <div className="px-5 py-3 border-t border-[var(--mac-border)] mac-header flex items-center justify-between gap-2">
+        <div className="px-5 py-3 border-t border-[var(--mac-border)] mac-header flex items-center justify-between gap-2 flex-shrink-0">
           <div className="text-[11px] font-mono text-[var(--mac-text-muted)]">
             {activeMetrics.totalClips} raw clips selected
           </div>

@@ -117,12 +117,6 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
       if (e.code === 'Space' || e.key === 'Escape') {
         e.preventDefault();
         onClose();
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        goPrev();
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        goNext();
       } else if (e.key === 'Tab') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -130,9 +124,37 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
         } else {
           goNext();
         }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        goPrev();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        goNext();
+      } else if (!isVid && (e.key === 'ArrowLeft')) {
+        e.preventDefault();
+        goPrev();
+      } else if (!isVid && (e.key === 'ArrowRight')) {
+        e.preventDefault();
+        goNext();
       } else if (e.key === 'k' || e.key === 'K') {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('quicklook:toggle-play'));
+      } else if (e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('quicklook:shuttle-back'));
+      } else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('quicklook:shuttle-fwd'));
+      } else if (isVid && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('quicklook:jog-frame', { detail: e.shiftKey ? -10 : -1 }));
+      } else if (isVid && e.key === 'ArrowRight') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('quicklook:jog-frame', { detail: e.shiftKey ? 10 : 1 }));
+      } else if (e.key === 'i' || e.key === 'I') {
+        window.dispatchEvent(new CustomEvent('quicklook:mark-in'));
+      } else if (e.key === 'o' || e.key === 'O') {
+        window.dispatchEvent(new CustomEvent('quicklook:mark-out'));
       } else if (e.key === 'Enter' && item) {
         e.preventDefault();
         onClose();
@@ -142,7 +164,7 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, goPrev, goNext, item, onOpenViewer]);
+  }, [isOpen, onClose, goPrev, goNext, item, isVid, onOpenViewer]);
 
   if (!isOpen || !item) return null;
 
@@ -316,7 +338,10 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
   const [inPoint, setInPoint] = useState<number | null>(null);
   const [outPoint, setOutPoint] = useState<number | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [volume, setVolume] = useState<number>(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
   const [thumbStrip, setThumbStrip] = useState<string | null>(null);
   const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
   const [hasPlaybackError, setHasPlaybackError] = useState(false);
@@ -336,6 +361,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
   useEffect(() => {
     setZoom(1);
     setHasPlaybackError(false);
+    setIsBuffering(false);
     const cached = thumbnailService.getCached(item.fullPath);
     if (cached?.thumb) {
       setThumbStrip(cached.thumb);
@@ -364,15 +390,59 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
     }
   }, [mediaUrl]);
 
-  // K key to toggle play/stop
+  // J-K-L Shuttle & Timeline Keyboard Hotkeys
   useEffect(() => {
     const handleToggle = () => togglePlay();
+    const handleJog = (e: CustomEvent) => jogFrame(e.detail || 1);
+    const handleMarkIn = () => setInPoint(currentTime);
+    const handleMarkOut = () => setOutPoint(currentTime);
+    const handleShuttleFwd = () => {
+      setPlaybackSpeed(prev => {
+        const speeds = [1, 2, 4, 8];
+        const nextIdx = speeds.indexOf(prev) + 1;
+        const nextSpeed = nextIdx < speeds.length ? speeds[nextIdx] : 8;
+        if (videoRef.current) {
+          videoRef.current.playbackRate = nextSpeed;
+          videoRef.current.play();
+          setIsPlaying(true);
+        }
+        return nextSpeed;
+      });
+    };
+    const handleShuttleBack = () => {
+      // Step backward 1 frame if paused, or reduce speed
+      if (videoRef.current?.paused) {
+        jogFrame(-1);
+      } else {
+        setPlaybackSpeed(prev => {
+          const nextSpeed = prev > 1 ? prev / 2 : 1;
+          if (videoRef.current) {
+            videoRef.current.playbackRate = nextSpeed;
+          }
+          return nextSpeed;
+        });
+      }
+    };
+
     window.addEventListener('quicklook:toggle-play', handleToggle);
-    return () => window.removeEventListener('quicklook:toggle-play', handleToggle);
-  }, []);
+    window.addEventListener('quicklook:jog-frame', handleJog as EventListener);
+    window.addEventListener('quicklook:mark-in', handleMarkIn);
+    window.addEventListener('quicklook:mark-out', handleMarkOut);
+    window.addEventListener('quicklook:shuttle-fwd', handleShuttleFwd);
+    window.addEventListener('quicklook:shuttle-back', handleShuttleBack);
+
+    return () => {
+      window.removeEventListener('quicklook:toggle-play', handleToggle);
+      window.removeEventListener('quicklook:jog-frame', handleJog as EventListener);
+      window.removeEventListener('quicklook:mark-in', handleMarkIn);
+      window.removeEventListener('quicklook:mark-out', handleMarkOut);
+      window.removeEventListener('quicklook:shuttle-fwd', handleShuttleFwd);
+      window.removeEventListener('quicklook:shuttle-back', handleShuttleBack);
+    };
+  }, [currentTime, duration]);
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
+    if (videoRef.current && !isScrubbing) {
       setCurrentTime(videoRef.current.currentTime);
       if (!duration && videoRef.current.duration) {
         setDuration(videoRef.current.duration);
@@ -406,13 +476,52 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
     if (videoRef.current) videoRef.current.playbackRate = spd;
   };
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    setIsMuted(newVol === 0);
+    if (videoRef.current) {
+      videoRef.current.volume = newVol;
+      videoRef.current.muted = newVol === 0;
+    }
+  };
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = nextMuted;
+    }
+  };
+
+  // Interactive timeline scrubbing with Pointer Events
+  const seekToClientX = (clientX: number) => {
     if (!timelineRef.current || !videoRef.current || !duration) return;
     const rect = timelineRef.current.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const targetTime = ratio * duration;
     videoRef.current.currentTime = targetTime;
     setCurrentTime(targetTime);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsScrubbing(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    seekToClientX(e.clientX);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isScrubbing) {
+      seekToClientX(e.clientX);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isScrubbing) {
+      setIsScrubbing(false);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
   };
 
   const captureFrame = async () => {
@@ -476,24 +585,41 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
             </div>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            src={mediaUrl}
-            autoPlay
-            loop
-            muted={isMuted}
-            onTimeUpdate={handleTimeUpdate}
-            onError={() => setHasPlaybackError(true)}
-            onLoadedMetadata={() => {
-              if (videoRef.current) setDuration(videoRef.current.duration);
-            }}
-            style={{
-              transform: `scale(${zoom})`,
-              transition: 'transform 0.1s ease-out'
-            }}
-            className="max-h-full max-w-full object-contain"
-            onClick={togglePlay}
-          />
+          <>
+            <video
+              ref={videoRef}
+              src={mediaUrl}
+              autoPlay
+              loop
+              muted={isMuted}
+              onTimeUpdate={handleTimeUpdate}
+              onWaiting={() => setIsBuffering(true)}
+              onSeeking={() => setIsBuffering(true)}
+              onSeeked={() => setIsBuffering(false)}
+              onCanPlay={() => setIsBuffering(false)}
+              onPlaying={() => setIsBuffering(false)}
+              onError={() => setHasPlaybackError(true)}
+              onLoadedMetadata={() => {
+                if (videoRef.current) setDuration(videoRef.current.duration);
+              }}
+              style={{
+                transform: `scale(${zoom})`,
+                transition: 'transform 0.1s ease-out'
+              }}
+              className="max-h-full max-w-full object-contain"
+              onClick={togglePlay}
+            />
+
+            {/* Buffering Indicator Overlay */}
+            {isBuffering && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-xs pointer-events-none z-10">
+                <div className="flex items-center gap-2.5 bg-black/80 px-4 py-2 rounded-xl border border-white/15 text-xs text-amber-300 shadow-2xl">
+                  <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="font-mono font-medium">Buffering {toSMPTETimecode(currentTime)}</span>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Zoom badge when zoomed */}
@@ -510,7 +636,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
         )}
 
         {/* Top Video Overlay: SMPTE Timecode & Production Meta */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20">
           <div className="flex items-center gap-2">
             <span className="bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-md text-amber-300 font-mono text-xs font-bold border border-amber-400/40 shadow">
               {toSMPTETimecode(currentTime)}
@@ -533,7 +659,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
         </div>
 
         {snapshotMsg && (
-          <div className="absolute bottom-4 bg-emerald-600/95 text-white text-xs px-3 py-1.5 rounded-xl shadow-2xl backdrop-blur-md border border-white/20">
+          <div className="absolute bottom-4 bg-emerald-600/95 text-white text-xs px-3 py-1.5 rounded-xl shadow-2xl backdrop-blur-md border border-white/20 z-20">
             {snapshotMsg}
           </div>
         )}
@@ -581,7 +707,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
                   ? 'bg-sky-500/20 text-sky-300 border-sky-400'
                   : 'bg-white/5 text-gray-400 hover:text-white border-white/10'
               }`}
-              title="Mark In Point (I)"
+              title="Mark In Point [I]"
             >
               Mark In [I]
             </button>
@@ -592,7 +718,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
                   ? 'bg-sky-500/20 text-sky-300 border-sky-400'
                   : 'bg-white/5 text-gray-400 hover:text-white border-white/10'
               }`}
-              title="Mark Out Point (O)"
+              title="Mark Out Point [O]"
             >
               Mark Out [O]
             </button>
@@ -621,7 +747,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* Speed Shuttle */}
             <div className="flex items-center bg-black/40 rounded-lg p-0.5 border border-white/10 text-[10px] font-bold">
               {[0.5, 1, 2, 4].map(s => (
@@ -637,22 +763,37 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
               ))}
             </div>
 
-            {/* Mute */}
-            <button
-              onClick={() => setIsMuted(p => !p)}
-              className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white"
-              title="Mute / Unmute"
-            >
-              {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
-            </button>
+            {/* Volume Slider & Mute Toggle */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={toggleMute}
+                className="p-1 rounded-md hover:bg-white/10 text-gray-400 hover:text-white"
+                title="Mute / Unmute"
+              >
+                {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={isMuted ? 0 : volume}
+                onChange={e => handleVolumeChange(parseFloat(e.target.value))}
+                className="w-16 accent-indigo-500 h-1 bg-white/20 rounded cursor-pointer"
+                title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
+              />
+            </div>
           </div>
         </div>
 
-        {/* ── Timeline Tracks (V1 Video & A1 Audio with CTI Scrubber) ── */}
+        {/* ── Timeline Tracks (V1 Video & A1 Audio with Interactive CTI Scrubber) ── */}
         <div
           ref={timelineRef}
-          onClick={handleTimelineClick}
-          className="relative flex-1 bg-[#0e101a] rounded-lg border border-white/10 overflow-hidden cursor-pointer flex flex-col justify-between"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          className="relative flex-1 bg-[#0e101a] rounded-lg border border-white/10 overflow-hidden cursor-ew-resize flex flex-col justify-between"
+          title="Click or drag to scrub playhead (CTI)"
         >
           {/* Time Ruler Ticks */}
           <div className="h-4 bg-[#181a28] border-b border-white/10 flex items-center px-2 justify-between text-[8px] font-mono text-gray-400 pointer-events-none">
@@ -664,7 +805,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
           </div>
 
           {/* V1 Video Track */}
-          <div className="relative h-9 bg-cyan-950/20 border-b border-white/5 flex items-center px-2 overflow-hidden">
+          <div className="relative h-9 bg-cyan-950/20 border-b border-white/5 flex items-center px-2 overflow-hidden pointer-events-none">
             <span className="text-[9px] font-black text-cyan-400 mr-2 flex-shrink-0 z-10">V1</span>
             {thumbStrip && (
               <div
@@ -675,7 +816,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
           </div>
 
           {/* A1 Audio Track */}
-          <div className="relative h-7 bg-emerald-950/20 flex items-center px-2 overflow-hidden">
+          <div className="relative h-7 bg-emerald-950/20 flex items-center px-2 overflow-hidden pointer-events-none">
             <span className="text-[9px] font-black text-emerald-400 mr-2 flex-shrink-0 z-10">A1</span>
             {/* Waveform Bars */}
             <div className="absolute inset-y-0 left-6 right-0 flex items-center gap-1 opacity-50 overflow-hidden">
@@ -709,7 +850,7 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
             className="absolute inset-y-0 w-0.5 bg-amber-400 z-30 pointer-events-none"
           >
             {/* Playhead Inverted Triangle Top */}
-            <div className="absolute -top-0 -left-1.5 w-3.5 h-3 bg-amber-400 clip-playhead" />
+            <div className="absolute -top-0 -left-1.5 w-3.5 h-3 bg-amber-400 clip-playhead shadow" />
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, nativeTheme, ipcMain, shell } from 'electron';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import fs from 'fs';
 import { registerLocalResourceProtocol, handleLocalResourceProtocol } from './protocols/localResource';
 import { registerMediaIPC } from './ipc/media.ipc';
