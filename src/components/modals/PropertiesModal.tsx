@@ -243,7 +243,7 @@ export const PropertiesModal: React.FC<PropertiesModalProps> = ({
                   <div className="flex items-start">
                     <span className="w-28 text-[var(--mac-text-muted)] font-medium">Contains:</span>
                     <span className="flex-1 text-[var(--mac-text-secondary)]">
-                      {afmStats.totalFilesCount} files, {afmStats.slots?.length || 0} slots ({afmStats.videoFilesCount} video clips)
+                      {afmStats.totalFilesCount || 0} files, {afmStats.slots?.length || 0} slots ({afmStats.videoFilesCount || 0} video clips)
                     </span>
                   </div>
                 )}

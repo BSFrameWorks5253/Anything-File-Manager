@@ -241,6 +241,7 @@ function findTemplatePrprojPath(): string | null {
     path.join(path.dirname(app.getAppPath()), 'build', 'templates', 'premiere_clean_template.prproj'),
     path.join(__dirname, '..', '..', 'build', 'templates', 'premiere_clean_template.prproj'),
     path.join(__dirname, '..', 'build', 'templates', 'premiere_clean_template.prproj'),
+    'C:\\Users\\Burhanuddin\\OneDrive\\Desktop\\Anything\\Anything Apps\\One Tap\\resources\\templates\\template.prproj',
     'C:\\Users\\Burhanuddin\\OneDrive\\Desktop\\Anything\\Anything Apps\\Media Viewer\\build\\templates\\premiere_clean_template.prproj'
   ];
   for (const c of candidates) {
@@ -288,12 +289,17 @@ function buildPrprojBuffer(folderName: string): Buffer {
     try {
       const templateBuf = fs.readFileSync(templatePath);
       let xml = '';
-      if (templateBuf[0] === 0x1f && templateBuf[1] === 0x8b) {
+      if (templateBuf.length > 2 && templateBuf[0] === 0x1f && templateBuf[1] === 0x8b) {
         xml = zlib.gunzipSync(templateBuf).toString('utf8');
       } else {
         xml = templateBuf.toString('utf8');
       }
-      xml = xml.replace(/<ProjectName>[\s\S]*?<\/ProjectName>/g, `<ProjectName>${escapeXml(folderName)}</ProjectName>`);
+      if (xml.includes('<ProjectName>')) {
+        xml = xml.replace(/<ProjectName>[\s\S]*?<\/ProjectName>/g, `<ProjectName>${escapeXml(folderName)}</ProjectName>`);
+      }
+      if (xml.includes('Template Sequence')) {
+        xml = xml.replace(/Template Sequence/g, `${escapeXml(folderName)} Sequence`);
+      }
       return zlib.gzipSync(Buffer.from(xml, 'utf8'));
     } catch (e) {
       console.warn('[buildPrprojBuffer] Error adapting template, returning verbatim:', e);
@@ -320,39 +326,36 @@ function buildPrprojBuffer(folderName: string): Buffer {
 		</Node>
 		<Items Version="1">
 			<Item Index="0" ObjectRef="3"/>
-			<Item Index="1" ObjectRef="4"/>
-			<Item Index="2" ObjectRef="5"/>
-			<Item Index="3" ObjectRef="6"/>
 		</Items>
 	</RootProjectGroup>
-	<ProjectItem id="3" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
+	<Sequence id="3" ClassID="18d84411-9a74-4b53-b39f-16a75f10b50e" Version="7">
 		<Node Version="1">
 			<Properties Version="1">
-				<Name>01 RAW FOOTAGE</Name>
+				<Name>${escapeXml(folderName)} Sequence</Name>
 			</Properties>
 		</Node>
-	</ProjectItem>
-	<ProjectItem id="4" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
-		<Node Version="1">
-			<Properties Version="1">
-				<Name>02 SEQUENCES</Name>
-			</Properties>
-		</Node>
-	</ProjectItem>
-	<ProjectItem id="5" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
-		<Node Version="1">
-			<Properties Version="1">
-				<Name>03 AUDIO &amp; MUSIC</Name>
-			</Properties>
-		</Node>
-	</ProjectItem>
-	<ProjectItem id="6" ClassID="0132ec5b-e407-4e00-9a0d-3e6f98efeb6d" Version="1">
-		<Node Version="1">
-			<Properties Version="1">
-				<Name>04 GRAPHICS &amp; TITLES</Name>
-			</Properties>
-		</Node>
-	</ProjectItem>
+		<Media ObjectRef="4"/>
+	</Sequence>
+	<Media id="4" ClassID="587dfa4e-d007-4ef8-a400-bdfeb00d8bc3" Version="27">
+		<VideoTrackGroup ObjectRef="5"/>
+		<AudioTrackGroup ObjectRef="6"/>
+	</Media>
+	<VideoTrackGroup id="5" ClassID="0ba20fe6-5ef1-4043-9828-ea0808bfa0d2" Version="4">
+		<Tracks Version="1">
+			<Track Index="0" ObjectRef="7"/>
+		</Tracks>
+	</VideoTrackGroup>
+	<VideoTrack id="7" ClassID="a437ae5d-ad4c-41b2-bf89-53fcb749d05e" Version="4">
+		<ClipItems Version="1"/>
+	</VideoTrack>
+	<AudioTrackGroup id="6" ClassID="47e7d9eb-fffa-42f5-93ae-c98f0e53a290" Version="4">
+		<Tracks Version="1">
+			<Track Index="0" ObjectRef="8"/>
+		</Tracks>
+	</AudioTrackGroup>
+	<AudioTrack id="8" ClassID="1eb6ff82-bf72-4632-a50d-c014798695d6" Version="4">
+		<ClipItems Version="1"/>
+	</AudioTrack>
 </PremiereData>`;
   return zlib.gzipSync(Buffer.from(xmlContent, 'utf8'));
 }
@@ -506,12 +509,18 @@ export function registerAfmIPC(): void {
       // Collect video files for fast duration estimation & background probing
       const videoFilesToProbe: { path: string; size: number; cacheKey: string; slot?: any }[] = [];
 
-      // Fast recursive crawler (up to 12 levels deep for nested camera card structures)
-      const crawlDir = (dir: string, depth: number, currentSlotInfo?: any) => {
+      // Fast non-blocking recursive crawler (up to 12 levels deep for camera card structures)
+      let itemCountSinceYield = 0;
+      const crawlDirAsync = async (dir: string, depth: number, currentSlotInfo?: any) => {
         if (depth > 12) return;
         try {
-          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          const entries = await fs.promises.readdir(dir, { withFileTypes: true });
           for (const e of entries) {
+            itemCountSinceYield++;
+            if (itemCountSinceYield % 40 === 0) {
+              await new Promise(r => setImmediate(r));
+            }
+
             const fullP = path.join(dir, e.name);
             const lower = e.name.toLowerCase();
 
@@ -580,7 +589,7 @@ export function registerAfmIPC(): void {
                 });
               }
 
-              crawlDir(fullP, depth + 1, slotContext);
+              await crawlDirAsync(fullP, depth + 1, slotContext);
             } else {
               const ext = path.extname(e.name).toLowerCase().replace('.', '');
               if (ext === 'prproj') {
@@ -589,7 +598,7 @@ export function registerAfmIPC(): void {
               }
 
               try {
-                const stat = fs.statSync(fullP);
+                const stat = await fs.promises.stat(fullP);
                 totalStorageBytes += stat.size;
 
                 if (currentSlotInfo) {
@@ -609,7 +618,7 @@ export function registerAfmIPC(): void {
                   }
 
                   if (dur === undefined) {
-                    // 2. Instant header container parsing (0.1ms for MP4/MOV)
+                    // 2. Instant container atom parsing for MP4/MOV/QT/M4V (head + tail, 0.2ms)
                     if (['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'qt'].includes(ext)) {
                       const fast = readFastMp4Duration(fullP);
                       if (fast && fast > 0) {
@@ -632,45 +641,42 @@ export function registerAfmIPC(): void {
               } catch {}
             }
           }
-        } catch {}
+        } catch (dirErr) {
+          console.warn('[afm:analyzeFolder] readdir warning for:', dir, dirErr);
+        }
       };
 
-      crawlDir(folderPath, 0);
+      await crawlDirAsync(folderPath, 0);
 
-      // Deterministic probing: probe up to 32 uncached clips concurrently
+      // Controlled background probing for uncached non-atom clips (concurrency: 3)
       if (videoFilesToProbe.length > 0) {
-        const toProbeNow = videoFilesToProbe.slice(0, 32);
-        await Promise.all(
-          toProbeNow.map(async (item) => {
-            try {
-              const probed = await getFastVideoDuration(item.path);
-              if (probed > 0) {
-                durationCache.set(item.cacheKey, probed);
-                setCachedVideoDuration(item.cacheKey, probed);
-                cumulativeDurationSeconds += probed;
-                if (item.slot) item.slot.duration += probed;
-              }
-            } catch {}
-          })
-        );
+        const toProbeNow = videoFilesToProbe.slice(0, 16);
+        await mapConcurrent(toProbeNow, 3, async (item) => {
+          try {
+            const probed = await getFastVideoDuration(item.path);
+            if (probed > 0) {
+              durationCache.set(item.cacheKey, probed);
+              setCachedVideoDuration(item.cacheKey, probed);
+              cumulativeDurationSeconds += probed;
+              if (item.slot) item.slot.duration += probed;
+            }
+          } catch {}
+        });
 
-        // If very large folder has remaining unprobed clips, add deterministic stable duration
-        if (videoFilesToProbe.length > 32) {
-          const remaining = videoFilesToProbe.slice(32);
-          for (const item of remaining) {
-            // Deterministic file-size calculation (fixed 35 Mbps)
-            const fallbackDur = Math.max(1, Math.round((item.size * 8) / (35 * 1024 * 1024)));
-            cumulativeDurationSeconds += fallbackDur;
-            if (item.slot) item.slot.duration += fallbackDur;
-          }
-          // Queue background completion for the rest
+        // Queue remaining clips smoothly in background without locking UI
+        if (videoFilesToProbe.length > 16) {
+          const remaining = videoFilesToProbe.slice(16);
           setTimeout(async () => {
-            for (const item of remaining.slice(0, 64)) {
+            for (const item of remaining) {
               try {
-                await getFastVideoDuration(item.path);
+                const p = await getFastVideoDuration(item.path);
+                if (p > 0) {
+                  durationCache.set(item.cacheKey, p);
+                  setCachedVideoDuration(item.cacheKey, p);
+                }
               } catch {}
             }
-          }, 100);
+          }, 300);
         }
       }
 

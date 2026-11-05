@@ -234,18 +234,36 @@ export function setCachedVideoDuration(cacheKey: string, dur: number): void {
 export function readFastMp4Duration(filePath: string): number | null {
   let fd: number | null = null;
   try {
+    const stat = fs.statSync(filePath);
+    if (stat.size < 64) return null;
     fd = fs.openSync(filePath, 'r');
-    const buf = Buffer.alloc(131072);
-    const bytesRead = fs.readSync(fd, buf, 0, 131072, 0);
-    const idx = buf.indexOf(Buffer.from('mvhd'));
-    if (idx !== -1 && idx + 28 <= bytesRead) {
+
+    // 1. Try head (first 256KB for fast-start MP4/MOV)
+    const headLen = Math.min(262144, stat.size);
+    const headBuf = Buffer.alloc(headLen);
+    const headRead = fs.readSync(fd, headBuf, 0, headLen, 0);
+    let idx = headBuf.indexOf(Buffer.from('mvhd'));
+    let buf = headBuf;
+    let bytesTotal = headRead;
+
+    // 2. If not at head, check tail (last 512KB for camera recordings where moov atom is at the end)
+    if (idx === -1 && stat.size > headLen) {
+      const tailLen = Math.min(524288, stat.size);
+      const tailBuf = Buffer.alloc(tailLen);
+      const tailRead = fs.readSync(fd, tailBuf, 0, tailLen, stat.size - tailLen);
+      idx = tailBuf.indexOf(Buffer.from('mvhd'));
+      buf = tailBuf;
+      bytesTotal = tailRead;
+    }
+
+    if (idx !== -1 && idx + 28 <= bytesTotal) {
       const version = buf[idx + 4];
       let timescale = 0;
       let duration = 0;
       if (version === 0) {
         timescale = buf.readUInt32BE(idx + 16);
         duration = buf.readUInt32BE(idx + 20);
-      } else if (version === 1) {
+      } else if (version === 1 && idx + 36 <= bytesTotal) {
         timescale = buf.readUInt32BE(idx + 24);
         duration = Number(buf.readBigUInt64BE(idx + 28));
       }

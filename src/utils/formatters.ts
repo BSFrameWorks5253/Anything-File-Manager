@@ -15,6 +15,7 @@ export function formatBytes(bytes: number): string {
 export function formatDate(mtime: number): string {
   if (!mtime) return '—';
   const d = new Date(mtime);
+  if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 

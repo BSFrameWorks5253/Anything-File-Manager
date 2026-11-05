@@ -22,12 +22,26 @@ $headers = @{
     "User-Agent"    = "PowerShell-AFM"
 }
 
-# 1. Locate the latest generated installer in release/
-$installer = Get-ChildItem -Path "release" -Filter "Anything-File-Manager-Setup-V-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+# 1. Locate the latest generated installer in C:\temp\afm-release or release/
+$candidatePaths = @("C:\temp\afm-release", "release")
+$installer = $null
+foreach ($cp in $candidatePaths) {
+    if (Test-Path $cp) {
+        $found = Get-ChildItem -Path $cp -Filter "Anything-File-Manager-Setup-V-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($found) {
+            $installer = $found
+            break
+        }
+    }
+}
 if (-not $installer) {
-    Write-Error "No installer found matching Anything-File-Manager-Setup-V-*.exe in release directory."
+    Write-Error "No installer found matching Anything-File-Manager-Setup-V-*.exe in C:\temp\afm-release or release directory."
 }
 
+if (-not (Test-Path "release")) {
+    New-Item -ItemType Directory -Path "release" -Force
+}
+Copy-Item -Path $installer.FullName -Destination "release\$($installer.Name)" -Force
 Copy-Item -Path $installer.FullName -Destination "release\setup.exe" -Force
 Write-Host "Copied $($installer.Name) -> release\setup.exe"
 

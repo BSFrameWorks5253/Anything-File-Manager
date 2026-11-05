@@ -89,7 +89,8 @@ const api: MediaViewerAPI = {
   getVideoDuration: (filePath: string) => ipcRenderer.invoke('media:getVideoDuration', filePath),
   toLocalResourceUrl: (filePath: string) => {
     const f = filePath.replace(/\\/g, '/');
-    return `local-resource:///${encodeURI(f).replace(/^\//, '')}`;
+    const encoded = encodeURI(f).replace(/#/g, '%23').replace(/\?/g, '%3F');
+    return `local-resource:///${encoded.replace(/^\//, '')}`;
   },
   onOpenTarget: (cb: (targetPath: string) => void) => {
     const sub = (_e: any, target: string) => cb(target);

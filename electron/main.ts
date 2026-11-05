@@ -12,8 +12,12 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.anything.filemanager');
 }
 
-// Windows High-DPI Support for crisp video and image rendering
+// Windows High-DPI Support & Hardware Video Decoding
 app.commandLine.appendSwitch('high-dpi-support', '1');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,PlatformHEVCDecoderSupport');
 
 // Register privileged local-resource protocol
 registerLocalResourceProtocol();

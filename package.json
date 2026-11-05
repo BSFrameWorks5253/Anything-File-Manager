@@ -1,7 +1,7 @@
 {
   "name": "anything-file-manager",
   "productName": "Anything File Manager",
-  "version": "26.11.09",
+  "version": "26.11.10",
   "description": "Anything File Manager — High-performance Media & Production File Explorer",
   "main": "dist-electron/main.js",
   "author": "Burhanuddin Sounasath",
@@ -26,7 +26,7 @@
       "artifactName": "Anything-File-Manager-Setup-V-${version}.${ext}"
     },
     "directories": {
-      "output": "release"
+      "output": "C:/temp/afm-release"
     },
     "artifactName": "Anything-File-Manager-Setup-V-${version}.${ext}",
     "nsis": {
