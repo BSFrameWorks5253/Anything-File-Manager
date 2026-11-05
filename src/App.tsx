@@ -24,15 +24,7 @@ import { MacStandaloneMediaPlayer } from './components/viewer/MacStandaloneMedia
 import { DefaultAppsModal, SettingsModal, PropertiesModal } from './components/modals';
 import { PremierePreflightModal } from './components/afm/PremierePreflightModal';
 
-export default function App() {
-  const queryParams = new URLSearchParams(window.location.search);
-  const isPlayerWindow = queryParams.get('player') === '1';
-  const playerFile = queryParams.get('file');
-
-  if (isPlayerWindow && playerFile) {
-    return <MacStandaloneMediaPlayer filePath={playerFile} />;
-  }
-
+export function MainFileManagerApp() {
   const {
     drives,
     drivesWithSpace,
@@ -1104,4 +1096,16 @@ export default function App() {
       />
     </div>
   );
+}
+
+export default function App() {
+  const queryParams = new URLSearchParams(window.location.search);
+  const isPlayerWindow = queryParams.get('player') === '1';
+  const playerFile = queryParams.get('file');
+
+  if (isPlayerWindow && playerFile) {
+    return <MacStandaloneMediaPlayer filePath={playerFile} />;
+  }
+
+  return <MainFileManagerApp />;
 }

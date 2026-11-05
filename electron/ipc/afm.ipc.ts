@@ -164,7 +164,7 @@ async function getFastVideoDuration(filePath: string): Promise<number> {
     const { stdout } = await execFileAsync(
       ffprobeBin,
       ['-v', 'error', '-show_entries', 'stream=duration,nb_frames,r_frame_rate:format=duration', '-of', 'json', filePath],
-      { timeout: 4000 }
+      { timeout: 1500 }
     );
     try {
       const json = JSON.parse(stdout);
@@ -630,6 +630,12 @@ export function registerAfmIPC(): void {
                 if (!prprojName) prprojName = e.name;
               }
 
+              const isVid = VIDEO_EXTS.has(ext);
+              const isPic = PHOTO_EXTS.has(ext);
+              if (!isVid && !isPic && ext !== 'prproj') {
+                continue;
+              }
+
               try {
                 const stat = await fs.promises.stat(fullP);
                 totalStorageBytes += stat.size;
@@ -638,7 +644,7 @@ export function registerAfmIPC(): void {
                   currentSlotInfo.size += stat.size;
                 }
 
-                if (VIDEO_EXTS.has(ext)) {
+                if (isVid) {
                   videoClipCount++;
                   if (currentSlotInfo) currentSlotInfo.clipCount++;
 
@@ -668,7 +674,7 @@ export function registerAfmIPC(): void {
                   } else {
                     videoFilesToProbe.push({ path: fullP, size: stat.size, cacheKey, slot: currentSlotInfo });
                   }
-                } else if (PHOTO_EXTS.has(ext)) {
+                } else if (isPic) {
                   stillPhotoCount++;
                 }
               } catch {}
@@ -959,112 +965,117 @@ export function registerAfmIPC(): void {
     }
   });
 
-  ipcMain.handle(
-    'afm:generatePremiereProject',
-    async (
-      _event,
-      payload: {
-        folderPath: string;
-        projectName: string;
-        resolution: '1080p' | '4k';
-        fps: number;
-        openAfterCreate: boolean;
-        excludedFolders?: string[];
-      }
-    ): Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; error?: string }> => {
+function escapeCsv(val: any): string {
+  if (val === null || val === undefined) return '';
+  return String(val).replace(/"/g, '""');
+}
+
+  async function generateSingleSequence(params: {
+    folderPath: string;
+    projectName: string;
+    resolution: '1080p' | '4k';
+    fps: number;
+    openAfterCreate: boolean;
+    excludedFolders?: string[];
+    overwriteExisting?: boolean;
+    generateManifest?: boolean;
+  }): Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; manifestPath?: string; clipCount: number; error?: string }> {
+    const { folderPath, projectName, resolution, fps, openAfterCreate, excludedFolders = [], overwriteExisting = true, generateManifest = true } = params;
+    const excludedSet = new Set(excludedFolders.map((f: string) => f.toLowerCase().trim()));
+    if (!folderPath || !fs.existsSync(folderPath)) {
+      return { ok: false, clipCount: 0, error: 'Target directory not found' };
+    }
+
+    const width = resolution === '4k' ? 3840 : 1920;
+    const height = resolution === '4k' ? 2160 : 1080;
+    const requestedFps = fps || 25;
+
+    interface RawClipEntry {
+      name: string;
+      fullPath: string;
+      subfolder: string;
+      fileSize: number;
+    }
+    const rawClips: RawClipEntry[] = [];
+
+    const scanClips = (dir: string, currentSubfolder: string, depth = 0) => {
+      if (depth > 12) return;
       try {
-        const { folderPath, projectName, resolution, fps, openAfterCreate, excludedFolders = [] } = payload;
-        const excludedSet = new Set(excludedFolders.map((f: string) => f.toLowerCase().trim()));
-        if (!folderPath || !fs.existsSync(folderPath)) {
-          return { ok: false, error: 'Target directory not found' };
-        }
-
-        const width = resolution === '4k' ? 3840 : 1920;
-        const height = resolution === '4k' ? 2160 : 1080;
-        const requestedFps = fps || 25;
-
-        // Collect all video files with their subfolder context
-        interface RawClipEntry {
-          name: string;
-          fullPath: string;
-          subfolder: string;
-        }
-        const rawClips: RawClipEntry[] = [];
-
-        const scanClips = (dir: string, currentSubfolder: string, depth = 0) => {
-          if (depth > 12) return;
-          const list = fs.readdirSync(dir, { withFileTypes: true });
-          for (const item of list) {
-            const p = path.join(dir, item.name);
-            const lowerName = item.name.toLowerCase();
-            const relPath = currentSubfolder ? `${currentSubfolder}/${item.name}`.toLowerCase() : lowerName;
-            if (item.isDirectory() && !SYSTEM_IGNORE_FOLDERS.has(lowerName) && !excludedSet.has(lowerName) && !excludedSet.has(relPath)) {
-              const sub = currentSubfolder ? `${currentSubfolder}/${item.name}` : item.name;
-              scanClips(p, sub, depth + 1);
-            } else if (!item.isDirectory()) {
-              if (currentSubfolder === '' && (excludedSet.has('.') || excludedSet.has('(root / direct clips)'))) {
-                continue;
-              }
-              const ext = path.extname(item.name).toLowerCase().replace('.', '');
-              if (VIDEO_EXTS.has(ext)) {
-                rawClips.push({
-                  name: item.name,
-                  fullPath: p,
-                  subfolder: currentSubfolder
-                });
-              }
+        const list = fs.readdirSync(dir, { withFileTypes: true });
+        for (const item of list) {
+          const p = path.join(dir, item.name);
+          const lowerName = item.name.toLowerCase();
+          const relPath = currentSubfolder ? `${currentSubfolder}/${item.name}`.toLowerCase() : lowerName;
+          if (item.isDirectory() && !SYSTEM_IGNORE_FOLDERS.has(lowerName) && !excludedSet.has(lowerName) && !excludedSet.has(relPath)) {
+            const sub = currentSubfolder ? `${currentSubfolder}/${item.name}` : item.name;
+            scanClips(p, sub, depth + 1);
+          } else if (!item.isDirectory()) {
+            if (currentSubfolder === '' && (excludedSet.has('.') || excludedSet.has('(root / direct clips)'))) {
+              continue;
+            }
+            const ext = path.extname(item.name).toLowerCase().replace('.', '');
+            if (VIDEO_EXTS.has(ext)) {
+              let statSize = 0;
+              try { statSize = fs.statSync(p).size; } catch {}
+              rawClips.push({
+                name: item.name,
+                fullPath: p,
+                subfolder: currentSubfolder,
+                fileSize: statSize
+              });
             }
           }
-        };
-
-        scanClips(folderPath, '', 0);
-
-        if (rawClips.length === 0) {
-          return { ok: false, error: 'No supported video clips found in the selected folder.' };
         }
+      } catch {}
+    };
 
-        // Sort naturally by filename
-        rawClips.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    scanClips(folderPath, '', 0);
 
-        // Probe each clip with full stream accuracy
-        const probedInfos = await mapConcurrent(rawClips, 8, async (clip) => {
-          return await getVideoInfoNodeAsync(clip.fullPath);
-        });
+    if (rawClips.length === 0) {
+      return { ok: false, clipCount: 0, error: 'No supported video clips found in the selected folder.' };
+    }
 
-        // Determine master sequence settings
-        const firstValid = probedInfos.find(i => i.isValid && i.duration > 0);
-        const seqTb = requestedFps || (firstValid ? firstValid.timebase : 25);
-        const seqNtscStr = (firstValid && firstValid.ntsc) ? 'TRUE' : 'FALSE';
-        const seqWidth = firstValid ? firstValid.width : width;
-        const seqHeight = firstValid ? firstValid.height : height;
+    rawClips.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
-        let currentFrame = 0;
-        let vClipsXml = '';
-        let aClipsXml = '';
-        let markersXml = '';
-        let currentMarkerKey = '';
-        let audioTrackClipCount = 0;
+    const probedInfos = await mapConcurrent(rawClips, 8, async (clip) => {
+      return await getVideoInfoNodeAsync(clip.fullPath);
+    });
 
-        for (let idx = 0; idx < rawClips.length; idx++) {
-          const clip = rawClips[idx];
-          const info = probedInfos[idx];
-          const clipFramesOnTimeline = (info.timebase === seqTb && info.nbFrames && info.nbFrames > 0)
-            ? info.nbFrames
-            : Math.max(1, Math.floor(info.duration * seqTb));
+    const firstValid = probedInfos.find(i => i.isValid && i.duration > 0);
+    const seqTb = requestedFps || (firstValid ? firstValid.timebase : 25);
+    const seqNtscStr = (firstValid && firstValid.ntsc) ? 'TRUE' : 'FALSE';
+    const seqWidth = firstValid ? firstValid.width : width;
+    const seqHeight = firstValid ? firstValid.height : height;
 
-          const fileId = `file-${idx + 1}`;
-          const masterId = `masterclip-${idx + 1}`;
-          const vClipId = `vclip-${idx + 1}`;
-          const aClipId = `aclip-${idx + 1}`;
-          const startFrame = currentFrame;
-          const endFrame = startFrame + clipFramesOnTimeline;
-          const pathUrlStr = pathToPathUrl(clip.fullPath);
+    let currentFrame = 0;
+    let vClipsXml = '';
+    let aClipsXml = '';
+    let markersXml = '';
+    let currentMarkerKey = '';
+    let audioTrackClipCount = 0;
+    const manifestRows: string[] = [
+      'Sequence Name,File Name,Camera Angle / Subfolder,Duration (Sec),Timecode (HH:MM:SS),Width,Height,FPS,Audio Channels,Size (MB),Full Path'
+    ];
 
-          // Subfolder timeline markers
-          const markerName = clip.subfolder || path.basename(folderPath);
-          if (markerName && markerName !== currentMarkerKey) {
-            currentMarkerKey = markerName;
-            markersXml += `
+    for (let idx = 0; idx < rawClips.length; idx++) {
+      const clip = rawClips[idx];
+      const info = probedInfos[idx];
+      const clipFramesOnTimeline = (info.timebase === seqTb && info.nbFrames && info.nbFrames > 0)
+        ? info.nbFrames
+        : Math.max(1, Math.floor(info.duration * seqTb));
+
+      const fileId = `file-${idx + 1}`;
+      const masterId = `masterclip-${idx + 1}`;
+      const vClipId = `vclip-${idx + 1}`;
+      const aClipId = `aclip-${idx + 1}`;
+      const startFrame = currentFrame;
+      const endFrame = startFrame + clipFramesOnTimeline;
+      const pathUrlStr = pathToPathUrl(clip.fullPath);
+
+      const markerName = clip.subfolder || path.basename(folderPath);
+      if (markerName && markerName !== currentMarkerKey) {
+        currentMarkerKey = markerName;
+        markersXml += `
     <marker>
       <name>${escapeXml(markerName)}</name>
       <comment>Folder: ${escapeXml(markerName)}</comment>
@@ -1072,10 +1083,9 @@ export function registerAfmIPC(): void {
       <out>${startFrame}</out>
       <color>Cyan</color>
     </marker>`;
-          }
+      }
 
-          // Full <file> definition on V1 (omit synthetic timecode so Premiere Pro binds natively to camera embedded timecode)
-          const fileXml = `
+      const fileXml = `
           <file id="${fileId}">
             <name>${escapeXml(clip.name)}</name>
             <pathurl>${escapeXml(pathUrlStr)}</pathurl>
@@ -1099,15 +1109,15 @@ export function registerAfmIPC(): void {
             </media>
           </file>`;
 
-          const hasAudioTrack = (info.audioChannels || 2) > 0;
-          if (hasAudioTrack) {
-            audioTrackClipCount++;
-          }
+      const hasAudioTrack = (info.audioChannels || 2) > 0;
+      if (hasAudioTrack) {
+        audioTrackClipCount++;
+      }
 
-          const vClipIndex = idx + 1;
-          const aClipIndex = audioTrackClipCount;
+      const vClipIndex = idx + 1;
+      const aClipIndex = audioTrackClipCount;
 
-          const linkXml = hasAudioTrack ? `
+      const linkXml = hasAudioTrack ? `
           <link>
             <linkclipref>${vClipId}</linkclipref>
             <mediatype>video</mediatype>
@@ -1121,7 +1131,7 @@ export function registerAfmIPC(): void {
             <clipindex>${aClipIndex}</clipindex>
           </link>` : '';
 
-          vClipsXml += `
+      vClipsXml += `
         <clipitem id="${vClipId}">
           <masterclipid>${masterId}</masterclipid>
           <name>${escapeXml(clip.name)}</name>
@@ -1140,8 +1150,8 @@ export function registerAfmIPC(): void {
           ${linkXml}
         </clipitem>`;
 
-          if (hasAudioTrack) {
-            aClipsXml += `
+      if (hasAudioTrack) {
+        aClipsXml += `
         <clipitem id="${aClipId}">
           <masterclipid>${masterId}</masterclipid>
           <name>${escapeXml(clip.name)}</name>
@@ -1159,18 +1169,29 @@ export function registerAfmIPC(): void {
           </sourcetrack>
           ${linkXml}
         </clipitem>`;
-          }
+      }
 
-          currentFrame = endFrame;
-        }
+      const durSec = Math.round(info.duration * 10) / 10;
+      const hrs = Math.floor(durSec / 3600);
+      const mins = Math.floor((durSec % 3600) / 60);
+      const secs = Math.floor(durSec % 60);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const timecodeStr = `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+      const sizeMb = (clip.fileSize / (1024 * 1024)).toFixed(2);
+      manifestRows.push(
+        `"${escapeCsv(projectName)}","${escapeCsv(clip.name)}","${escapeCsv(clip.subfolder || 'Root')}","${durSec}","${timecodeStr}","${info.width}","${info.height}","${info.fps || seqTb}","${info.audioChannels}","${sizeMb}","${escapeCsv(clip.fullPath)}"`
+      );
 
-        const emptyVTrackXml = `
+      currentFrame = endFrame;
+    }
+
+    const emptyVTrackXml = `
         <track>
           <enabled>TRUE</enabled>
           <locked>FALSE</locked>
         </track>`;
 
-        const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
 <xmeml version="4">
   <sequence id="sequence-1">
@@ -1228,53 +1249,150 @@ ${emptyVTrackXml}
   </sequence>
 </xmeml>`;
 
-        const cleanProjectName = projectName.endsWith('.xml') || projectName.endsWith('.prproj')
-          ? projectName.replace(/\.(xml|prproj)$/, '')
-          : projectName;
+    const cleanProjectName = projectName.endsWith('.xml') || projectName.endsWith('.prproj')
+      ? projectName.replace(/\.(xml|prproj)$/, '')
+      : projectName;
 
-        // Write Final Cut Pro XML file
-        const xmlFilePath = path.join(folderPath, `${cleanProjectName}.xml`);
-        fs.writeFileSync(xmlFilePath, xmlContent, 'utf8');
+    const xmlFilePath = path.join(folderPath, `${cleanProjectName}.xml`);
+    const prprojFilePath = path.join(folderPath, `${cleanProjectName}.prproj`);
+    const manifestPath = path.join(folderPath, `${cleanProjectName}_Sequence_Manifest.csv`);
 
-        // Write Native Adobe Premiere Pro Project (.prproj) binary with clean universal template
-        const prprojFilePath = path.join(folderPath, `${cleanProjectName}.prproj`);
-        const prprojBuffer = buildPrprojBuffer(cleanProjectName);
-        fs.writeFileSync(prprojFilePath, prprojBuffer);
+    fs.writeFileSync(xmlFilePath, xmlContent, 'utf8');
 
-        // Update One Tap & Premiere Pro Extension recent XML tracker files
-        try {
-          const osMod = require('os');
-          const tmpTrk = path.join(osMod.tmpdir(), '.onetap_recent_xml.txt');
-          const tmpTrk2 = path.join(osMod.tmpdir(), 'recent_xml.txt');
-          const entry = `${cleanProjectName}=${xmlFilePath}`;
-          let existing = '';
-          if (fs.existsSync(tmpTrk)) {
-            try { existing = fs.readFileSync(tmpTrk, 'utf-8'); } catch {}
-          }
-          const lines = existing.split(/\r?\n/).filter(l => l.trim() && !l.startsWith(entry) && l.trim() !== xmlFilePath);
-          const newContent = [xmlFilePath, entry, ...lines].slice(0, 50).join('\n');
-          fs.writeFileSync(tmpTrk, newContent, 'utf-8');
-          fs.writeFileSync(tmpTrk2, newContent, 'utf-8');
-          const userDir = app.getPath('userData');
-          if (userDir) {
-            fs.writeFileSync(path.join(userDir, 'recent_xml.txt'), newContent, 'utf-8');
-          }
-        } catch {}
+    const prprojBuffer = buildPrprojBuffer(cleanProjectName);
+    fs.writeFileSync(prprojFilePath, prprojBuffer);
 
-        // Open if user requested
-        if (openAfterCreate) {
-          if (fs.existsSync(prprojFilePath)) {
-            shell.openPath(prprojFilePath);
-          } else {
-            shell.openPath(xmlFilePath);
-          }
+    if (generateManifest) {
+      fs.writeFileSync(manifestPath, '\uFEFF' + manifestRows.join('\r\n'), 'utf8');
+    }
+
+    try {
+      const osMod = require('os');
+      const tmpTrk = path.join(osMod.tmpdir(), '.onetap_recent_xml.txt');
+      const tmpTrk2 = path.join(osMod.tmpdir(), 'recent_xml.txt');
+      const entry = `${cleanProjectName}=${xmlFilePath}`;
+      let existing = '';
+      if (fs.existsSync(tmpTrk)) {
+        try { existing = fs.readFileSync(tmpTrk, 'utf-8'); } catch {}
+      }
+      const lines = existing.split(/\r?\n/).filter(l => l.trim() && !l.startsWith(entry) && l.trim() !== xmlFilePath);
+      const newContent = [xmlFilePath, entry, ...lines].slice(0, 50).join('\n');
+      fs.writeFileSync(tmpTrk, newContent, 'utf-8');
+      fs.writeFileSync(tmpTrk2, newContent, 'utf-8');
+      const userDir = app.getPath('userData');
+      if (userDir) {
+        fs.writeFileSync(path.join(userDir, 'recent_xml.txt'), newContent, 'utf-8');
+      }
+    } catch {}
+
+    // Update One Tap tracker.db in background
+    try {
+      const db = getOneTapDb();
+      if (db) {
+        const dateFolder = path.basename(folderPath);
+        const parentDir = path.dirname(folderPath);
+        const safarName = path.basename(parentDir);
+        const now = Date.now();
+        const selectStmt = db.prepare('SELECT id FROM tracker_tasks WHERE date_folder = ? LIMIT 1');
+        const row: any = selectStmt.get(dateFolder);
+        if (row && row.id) {
+          db.prepare('UPDATE tracker_tasks SET status = ?, prproj_path = ?, prproj_modified_at = ?, updated_at = ? WHERE id = ?')
+            .run('editing', prprojFilePath, now, now, row.id);
+        } else {
+          db.prepare(
+            'INSERT INTO tracker_tasks (safar_name, date_folder, status, working_path, prproj_path, prproj_modified_at, updated_at, first_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(safarName, dateFolder, 'editing', folderPath, prprojFilePath, now, now, now);
+        }
+      }
+    } catch {}
+
+    if (openAfterCreate) {
+      if (fs.existsSync(prprojFilePath)) {
+        shell.openPath(prprojFilePath);
+      } else {
+        shell.openPath(xmlFilePath);
+      }
+    }
+
+    return {
+      ok: true,
+      xmlPath: xmlFilePath,
+      prprojPath: prprojFilePath,
+      manifestPath: generateManifest ? manifestPath : undefined,
+      clipCount: rawClips.length
+    };
+  }
+
+  ipcMain.handle(
+    'afm:generatePremiereProject',
+    async (
+      _event,
+      payload: {
+        folderPath: string;
+        projectName: string;
+        resolution: '1080p' | '4k';
+        fps: number;
+        openAfterCreate: boolean;
+        excludedFolders?: string[];
+        mode?: 'single' | 'master';
+        overwriteExisting?: boolean;
+        generateManifest?: boolean;
+      }
+    ): Promise<{ ok: boolean; prprojPath?: string; xmlPath?: string; manifestPath?: string; createdCount?: number; clipCount?: number; error?: string }> => {
+      try {
+        const { folderPath, projectName, resolution, fps, openAfterCreate, excludedFolders = [], mode = 'single', overwriteExisting = true, generateManifest = true } = payload;
+        const excludedSet = new Set(excludedFolders.map((f: string) => f.toLowerCase().trim()));
+        if (!folderPath || !fs.existsSync(folderPath)) {
+          return { ok: false, error: 'Target directory not found' };
         }
 
-        return {
-          ok: true,
-          xmlPath: xmlFilePath,
-          prprojPath: prprojFilePath
-        };
+        if (mode === 'master') {
+          const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+          const createdProjects: string[] = [];
+          let totalClipsAll = 0;
+          for (const ent of entries) {
+            if (!ent.isDirectory()) continue;
+            const lower = ent.name.toLowerCase();
+            if (SYSTEM_IGNORE_FOLDERS.has(lower) || lower === 'final' || lower === 'renders' || lower === 'dvd' || excludedSet.has(lower)) {
+              continue;
+            }
+            const childPath = path.join(folderPath, ent.name);
+            const res = await generateSingleSequence({
+              folderPath: childPath,
+              projectName: ent.name,
+              resolution,
+              fps,
+              openAfterCreate: false,
+              excludedFolders,
+              overwriteExisting,
+              generateManifest
+            });
+            if (res.ok && res.prprojPath) {
+              createdProjects.push(res.prprojPath);
+              totalClipsAll += res.clipCount;
+            }
+          }
+          if (createdProjects.length === 0) {
+            return { ok: false, error: 'No valid date session subfolders with clips found in master directory.' };
+          }
+          return {
+            ok: true,
+            createdCount: createdProjects.length,
+            prprojPath: createdProjects[0],
+            clipCount: totalClipsAll
+          };
+        } else {
+          return await generateSingleSequence({
+            folderPath,
+            projectName,
+            resolution,
+            fps,
+            openAfterCreate,
+            excludedFolders,
+            overwriteExisting,
+            generateManifest
+          });
+        }
       } catch (err: any) {
         console.error('[afm:generatePremiereProject] Error:', err);
         return { ok: false, error: err.message || String(err) };

@@ -35,7 +35,7 @@ export function resolveChildAppLoaderConfig(
     tagline: 'Next-Gen macOS Finder & Windows 11 Explorer Hybrid',
     artistName: 'Anything Creative Ecosystem',
     artworkTitle: 'Anything File Manager',
-    durationMs: 1600,
+    durationMs: 800,
     logoText: 'AFM',
     badgeGradient: 'linear-gradient(135deg, #026361 0%, #05A384 50%, #12E5A8 100%)',
     artworkFit: 'cover',
@@ -300,7 +300,7 @@ export function showChildAppSplash(config: ChildAppLoaderConfig, onFinished: () 
     splashWindow?.show();
   });
 
-  const duration = config.durationMs || 1600;
+  const duration = Math.min(config.durationMs || 800, 1000);
   splashTimer = setTimeout(() => {
     closeChildAppSplash();
     onFinished();

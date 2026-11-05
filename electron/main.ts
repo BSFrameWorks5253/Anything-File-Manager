@@ -18,6 +18,7 @@ app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,PlatformHEVCDecoderSupport');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 // Register privileged local-resource protocol
 registerLocalResourceProtocol();
@@ -175,7 +176,11 @@ function createWindow(showImmediately = false) {
 
   mainWindow.once('ready-to-show', () => {
     isMainWindowReady = true;
-    if (splashCompleted && mainWindow && !mainWindow.isDestroyed()) {
+    if (isDev) {
+      closeChildAppSplash();
+      splashCompleted = true;
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
       mainWindow.focus();
     }

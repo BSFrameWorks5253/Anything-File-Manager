@@ -98,19 +98,7 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
   const isMasterSafar = classification.type === 'master_safar';
   const isSlotFolder = classification.type === 'slot_item_a' || classification.type === 'slot_item_b';
 
-  const handlePreflightClick = async () => {
-    try {
-      const res = await oneTapService.openPremiereOverlay({
-        folderPath,
-        folderName,
-        isMaster: isMasterSafar,
-        isSlot: isSlotFolder,
-        mode: isMasterSafar ? 'master' : 'single'
-      });
-      if (res && res.ok) {
-        return;
-      }
-    } catch {}
+  const handlePreflightClick = () => {
     setIsPreflightOpen(true);
   };
 
@@ -194,17 +182,24 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
           </div>
 
           <div className="text-2xl font-black font-mono tracking-tight text-amber-300">
-            {analytics
-              ? formatCumulativeDuration(analytics.cumulativeDurationSeconds)
-              : '00:00:00'}
+            {loading ? (
+              <span className="flex items-center gap-2 text-base text-amber-300/80">
+                <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                <span>Scanning Session...</span>
+              </span>
+            ) : analytics ? (
+              formatCumulativeDuration(analytics.cumulativeDurationSeconds)
+            ) : (
+              '00:00:00'
+            )}
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-[var(--mac-text-secondary)] mt-2 pt-2 border-t border-white/10 font-medium">
-            <span>{analytics?.videoClipCount || 0} Camera Clips</span>
+            <span>{loading ? 'Scanning clips...' : `${analytics?.videoClipCount ?? 0} Camera Clips`}</span>
             <span>•</span>
-            <span>{analytics?.stillPhotoCount || 0} Photos</span>
+            <span>{loading ? '...' : `${analytics?.stillPhotoCount ?? 0} Photos`}</span>
             <span>•</span>
-            <span>{formatBytes(analytics?.totalStorageBytes || 0)}</span>
+            <span>{loading ? '...' : formatBytes(analytics?.totalStorageBytes ?? 0)}</span>
           </div>
         </div>
 
@@ -329,11 +324,20 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
 
           <button
             onClick={handlePreflightClick}
-            disabled={!analytics || analytics.videoClipCount === 0}
-            className="w-full py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-lg text-xs font-semibold shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
+            disabled={loading}
+            className="w-full py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
           >
-            <Film className="w-3.5 h-3.5" />
-            <span>Pre-Flight & Generate Project</span>
+            {loading ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Scanning Media...</span>
+              </>
+            ) : (
+              <>
+                <Film className="w-3.5 h-3.5" />
+                <span>Pre-Flight & Generate Project</span>
+              </>
+            )}
           </button>
         </div>
 

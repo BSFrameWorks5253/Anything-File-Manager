@@ -246,14 +246,16 @@ export function readFastMp4Duration(filePath: string): number | null {
     let buf = headBuf;
     let bytesTotal = headRead;
 
-    // 2. If not at head, check tail (last 512KB for camera recordings where moov atom is at the end)
+    // 2. If not at head, check tail (up to 8MB for camera recordings where moov/mvhd atom is placed at the end)
     if (idx === -1 && stat.size > headLen) {
-      const tailLen = Math.min(524288, stat.size);
-      const tailBuf = Buffer.alloc(tailLen);
-      const tailRead = fs.readSync(fd, tailBuf, 0, tailLen, stat.size - tailLen);
-      idx = tailBuf.indexOf(Buffer.from('mvhd'));
-      buf = tailBuf;
-      bytesTotal = tailRead;
+      const tailLen = Math.min(8 * 1024 * 1024, stat.size - headLen);
+      if (tailLen > 0) {
+        const tailBuf = Buffer.alloc(tailLen);
+        const tailRead = fs.readSync(fd, tailBuf, 0, tailLen, stat.size - tailLen);
+        idx = tailBuf.indexOf(Buffer.from('mvhd'));
+        buf = tailBuf;
+        bytesTotal = tailRead;
+      }
     }
 
     if (idx !== -1 && idx + 28 <= bytesTotal) {
@@ -391,30 +393,19 @@ export function registerMediaIPC(
   ipcMain.handle('media:listDir', async (_event, dirPath: string) => {
     try {
       if (!dirPath || !fs.existsSync(dirPath)) return [];
-      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
       return entries
         .map(e => {
           const fullPath = path.join(dirPath, e.name);
-          let isDir = e.isDirectory();
+          const isDir = e.isDirectory();
           let size = 0,
             mtime = 0;
-          let childCount: number | undefined;
 
           try {
             const stat = fs.statSync(fullPath);
-            isDir = stat.isDirectory();
-            size = stat.size;
+            size = isDir ? 0 : stat.size;
             mtime = stat.mtimeMs;
           } catch {}
-
-          if (isDir) {
-            try {
-              const children = fs.readdirSync(fullPath);
-              childCount = children.length;
-            } catch {
-              childCount = 0;
-            }
-          }
 
           const ext = isDir ? '' : (e.name.split('.').pop() || '').toLowerCase();
           const isHidden = isItemHidden(e.name);
@@ -425,8 +416,7 @@ export function registerMediaIPC(
             mtime,
             ext,
             fullPath,
-            isHidden,
-            childCount
+            isHidden
           };
         })
         .sort((a, b) => {
@@ -439,7 +429,16 @@ export function registerMediaIPC(
     }
   });
 
+  let cachedDrives: string[] = [];
+  let cachedDrivesTimestamp = 0;
+  let cachedDrivesWithSpace: { drive: string; total: number; free: number; usedPercent: number }[] = [];
+  let cachedDrivesWithSpaceTimestamp = 0;
+
   ipcMain.handle('media:getDrives', async () => {
+    const now = Date.now();
+    if (cachedDrives.length > 0 && now - cachedDrivesTimestamp < 4000) {
+      return cachedDrives;
+    }
     const drives: string[] = [];
     for (let i = 65; i <= 90; i++) {
       const drive = String.fromCharCode(i) + ':\\\\';
@@ -447,10 +446,16 @@ export function registerMediaIPC(
         if (fs.existsSync(drive)) drives.push(drive);
       } catch {}
     }
+    cachedDrives = drives;
+    cachedDrivesTimestamp = now;
     return drives;
   });
 
   ipcMain.handle('media:getDrivesWithSpace', async () => {
+    const now = Date.now();
+    if (cachedDrivesWithSpace.length > 0 && now - cachedDrivesWithSpaceTimestamp < 4000) {
+      return cachedDrivesWithSpace;
+    }
     const drives: { drive: string; total: number; free: number; usedPercent: number }[] = [];
     for (let i = 65; i <= 90; i++) {
       const drive = String.fromCharCode(i) + ':\\';
@@ -469,6 +474,8 @@ export function registerMediaIPC(
         }
       } catch {}
     }
+    cachedDrivesWithSpace = drives;
+    cachedDrivesWithSpaceTimestamp = now;
     return drives;
   });
 
