@@ -28,6 +28,16 @@
     "directories": {
       "output": "C:/temp/afm-release"
     },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json",
+      "!node_modules/**/*",
+      "!release/**/*",
+      "!scripts/**/*",
+      "!src/**/*",
+      "!**/*.map"
+    ],
     "artifactName": "Anything-File-Manager-Setup-V-${version}.${ext}",
     "nsis": {
       "oneClick": false,

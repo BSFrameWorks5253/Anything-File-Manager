@@ -95,6 +95,20 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
     }
   };
 
+  const handlePreflightClick = async () => {
+    try {
+      const res = await oneTapService.openPremiereOverlay({
+        folderPath,
+        folderName,
+        isMaster: isMasterSafar
+      });
+      if (res && res.ok) {
+        return;
+      }
+    } catch {}
+    setIsPreflightOpen(true);
+  };
+
   const activeStageConfig = PRODUCTION_STAGES[currentStage] || PRODUCTION_STAGES.stage1;
 
   return (
@@ -309,7 +323,7 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
           </div>
 
           <button
-            onClick={() => setIsPreflightOpen(true)}
+            onClick={handlePreflightClick}
             disabled={!analytics || analytics.videoClipCount === 0}
             className="w-full py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-lg text-xs font-semibold shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
           >

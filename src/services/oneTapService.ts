@@ -113,7 +113,50 @@ class OneTapService {
   }
 
   /**
-   * Scans working date/session folder and compares file sizes and checksums against a backup directory
+   * Pushes One Tap's native preflight overlay window for Premiere Pro project creation
+   */
+  async openPremiereOverlay(payload: {
+    folderPath: string;
+    folderName?: string;
+    isMaster?: boolean;
+    excludedFolders?: string[];
+  }): Promise<{ ok: boolean; message?: string; error?: string }> {
+    try {
+      const response = await fetch('http://127.0.0.1:49152/open-prproj-modal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return { ok: true, message: data.message || 'One Tap preflight overlay activated' };
+      }
+    } catch {}
+
+    if (this.api?.openOneTap) {
+      try {
+        const launchRes = await this.api.openOneTap(payload.folderPath);
+        if (launchRes && launchRes.ok) {
+          await new Promise(r => setTimeout(r, 1500));
+          try {
+            const retryRes = await fetch('http://127.0.0.1:49152/open-prproj-modal', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (retryRes.ok) return { ok: true, message: 'One Tap preflight overlay activated' };
+          } catch {}
+          return { ok: true, message: 'One Tap application launched' };
+        }
+      } catch (e: any) {
+        return { ok: false, error: e.message || String(e) };
+      }
+    }
+
+    return { ok: false, error: 'Could not connect to One Tap application' };
+  }
+
+  /**
    */
   async verifyBackupSync(folderPath: string, targetBackupDir: string): Promise<BackupSyncResult> {
     if (!this.api?.verifyBackupSync) {

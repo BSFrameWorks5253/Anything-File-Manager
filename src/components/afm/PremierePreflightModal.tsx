@@ -21,6 +21,7 @@ import {
 import { formatCumulativeDuration, classifyFolder } from '../../utils/afmTaxonomy';
 import { formatBytes } from '../../utils';
 import { mediaService } from '../../services';
+import { oneTapService } from '../../services/oneTapService';
 import { MacFolderIcon } from '../common/MacIcons';
 
 interface SubfolderItem {
@@ -200,9 +201,24 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
   const handleGenerate = async () => {
     setIsGenerating(true);
     setResultMsg(null);
-    setGenerationStep('Scanning media assets and filtering exclusions...');
+    setGenerationStep('Connecting to One Tap Preflight Engine...');
 
     try {
+      // 1. Prioritize pushing One Tap native preflight overlay window
+      const overlayRes = await oneTapService.openPremiereOverlay({
+        folderPath,
+        folderName,
+        isMaster,
+        excludedFolders: Array.from(excludedFolderNames)
+      });
+
+      if (overlayRes && overlayRes.ok) {
+        setGenerationStep('One Tap Premiere Creator overlay active on top!');
+        setResultMsg({ ok: true, path: 'One Tap Premiere Pro Preflight window activated directly on top.' });
+        setTimeout(() => onClose(), 1200);
+        return;
+      }
+
       setGenerationStep('Probing frame-accurate stream timecodes & framerates...');
       const res = await mediaService.generatePremiereProject({
         folderPath,
@@ -229,15 +245,21 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
     }
   };
 
-  // Launch One Tap Desktop App explicitly
+  // Push One Tap Native Preflight Overlay Window
   const handleLaunchOneTapApp = async () => {
-    setOneTapLaunchStatus('Launching One Tap Production Suite...');
+    setOneTapLaunchStatus('Pushing One Tap Premiere Preflight Overlay...');
     try {
-      const res = await mediaService.openOneTap(folderPath);
+      const res = await oneTapService.openPremiereOverlay({
+        folderPath,
+        folderName,
+        isMaster,
+        excludedFolders: Array.from(excludedFolderNames)
+      });
       if (res && res.ok) {
-        setOneTapLaunchStatus('One Tap app opened successfully!');
+        setOneTapLaunchStatus('One Tap Preflight window pushed to front!');
+        setTimeout(() => onClose(), 1500);
       } else {
-        setOneTapLaunchStatus(res?.error || 'Could not locate One Tap application');
+        setOneTapLaunchStatus(res?.error || 'Could not connect to One Tap application');
       }
     } catch (err: any) {
       setOneTapLaunchStatus(err.message || 'Launch error');
@@ -556,7 +578,7 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
             title="Open the standalone One Tap desktop application"
           >
             <ExternalLink className="w-3.5 h-3.5 text-sky-500" />
-            <span>Open in One Tap App</span>
+            <span>Push One Tap Preflight Overlay</span>
           </button>
 
           {/* Right: Cancel + Generate */}
