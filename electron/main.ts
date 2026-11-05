@@ -385,23 +385,10 @@ app.whenReady().then(() => {
     return { ok: true };
   });
 
-  const loaderConfig = resolveChildAppLoaderConfig('anything-file-manager', 'Anything File Manager');
-
-  if (loaderConfig.enabled !== false) {
-    createWindow(false);
-    showChildAppSplash(loaderConfig, () => {
-      splashCompleted = true;
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.show();
-        mainWindow.focus();
-      }
-    });
-  } else {
-    splashCompleted = true;
-    createWindow(true);
-  }
+  createWindow(true);
+  splashCompleted = true;
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
 });

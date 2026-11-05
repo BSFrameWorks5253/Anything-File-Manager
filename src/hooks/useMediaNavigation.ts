@@ -15,24 +15,36 @@ export function useMediaNavigation() {
   const navigate = useCallback(async (dirPath: string) => {
     if (!dirPath) return;
     setLoading(true);
-    const results = await mediaService.listDir(dirPath);
-    setItems(results);
-    setCurrentPath(dirPath);
-    setHistory(prev => {
-      const next = [...prev.slice(0, historyIdx + 1), dirPath];
-      setHistoryIdx(next.length - 1);
-      return next;
-    });
-    setLoading(false);
+    try {
+      const results = await mediaService.listDir(dirPath);
+      setItems(results || []);
+      setCurrentPath(dirPath);
+      setHistory(prev => {
+        const next = [...prev.slice(0, historyIdx + 1), dirPath];
+        setHistoryIdx(next.length - 1);
+        return next;
+      });
+    } catch (err) {
+      console.error('[useMediaNavigation] navigate error:', err);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
   }, [historyIdx]);
 
   const loadPath = useCallback(async (p: string) => {
     if (!p) return;
     setLoading(true);
-    const results = await mediaService.listDir(p);
-    setItems(results);
-    setCurrentPath(p);
-    setLoading(false);
+    try {
+      const results = await mediaService.listDir(p);
+      setItems(results || []);
+      setCurrentPath(p);
+    } catch (err) {
+      console.error('[useMediaNavigation] loadPath error:', err);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const goBack = useCallback(() => {

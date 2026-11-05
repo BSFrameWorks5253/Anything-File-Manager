@@ -394,15 +394,15 @@ export function registerMediaIPC(
     try {
       if (!dirPath || !fs.existsSync(dirPath)) return [];
       const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
-      return entries
-        .map(e => {
+      const mapped = await Promise.all(
+        entries.map(async e => {
           const fullPath = path.join(dirPath, e.name);
           const isDir = e.isDirectory();
           let size = 0,
             mtime = 0;
 
           try {
-            const stat = fs.statSync(fullPath);
+            const stat = await fs.promises.stat(fullPath);
             size = isDir ? 0 : stat.size;
             mtime = stat.mtimeMs;
           } catch {}
@@ -419,10 +419,12 @@ export function registerMediaIPC(
             isHidden
           };
         })
-        .sort((a, b) => {
-          if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-          return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-        });
+      );
+
+      return mapped.sort((a, b) => {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      });
     } catch (err: any) {
       console.error('[media:listDir] Error:', err);
       return [];
