@@ -256,6 +256,78 @@ app.whenReady().then(() => {
     mainWindow?.close();
   });
 
+  ipcMain.handle('userProfile:load', async () => {
+    try {
+      const appData = process.env.APPDATA || (process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'AppData', 'Roaming') : '');
+      const localAppData = process.env.LOCALAPPDATA || (process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'AppData', 'Local') : '');
+      const candidates = [
+        path.join(appData, 'Anything', 'ecosystem_session.json'),
+        path.join(appData, 'anything', 'ecosystem_session.json'),
+        path.join(localAppData, 'anything', 'ecosystem_session.json'),
+        path.join(app.getPath('userData'), 'ecosystem_session.json'),
+      ];
+
+      let sessUser: any = null;
+      for (const p of candidates) {
+        if (fs.existsSync(p)) {
+          try {
+            const sess = JSON.parse(fs.readFileSync(p, 'utf-8'));
+            if (sess?.user) {
+              sessUser = sess.user;
+              break;
+            }
+          } catch {}
+        }
+      }
+
+      for (const arg of process.argv) {
+        if (arg.startsWith('--ecosystem-user-name=') || arg.startsWith('--user-name=')) {
+          const name = decodeURIComponent(arg.split('=')[1] || '');
+          if (name) sessUser = { ...sessUser, name };
+        } else if (arg.startsWith('--ecosystem-user-email=') || arg.startsWith('--user-email=')) {
+          const email = arg.split('=')[1] || '';
+          if (email) sessUser = { ...sessUser, email };
+        } else if (arg.startsWith('--ecosystem-user-id=') || arg.startsWith('--user-id=')) {
+          const id = arg.split('=')[1] || '';
+          if (id) sessUser = { ...sessUser, id };
+        } else if (arg.startsWith('--ecosystem-user-handle=') || arg.startsWith('--user-handle=')) {
+          const username = arg.split('=')[1] || '';
+          if (username) sessUser = { ...sessUser, username };
+        } else if (arg.startsWith('--ecosystem-user-avatar=') || arg.startsWith('--user-avatar=')) {
+          const avatar = decodeURIComponent(arg.split('=')[1] || '');
+          if (avatar) sessUser = { ...sessUser, avatar };
+        }
+      }
+
+      if (sessUser) {
+        const resolvedAvatar = sessUser.avatar || null;
+        return {
+          name: sessUser.name || 'Creative Member',
+          email: sessUser.email || '',
+          username: sessUser.username || (sessUser.email ? sessUser.email.split('@')[0] : 'creator'),
+          userId: sessUser.username || sessUser.id || 'creator',
+          avatar: resolvedAvatar,
+          avatarBase64: resolvedAvatar,
+          role: sessUser.role || 'member'
+        };
+      }
+
+      if (process.env.ANYTHING_USER_ID || process.env.ANYTHING_USER_NAME) {
+        const resolvedAvatar = process.env.ANYTHING_USER_AVATAR || null;
+        return {
+          name: process.env.ANYTHING_USER_NAME || 'Creative Member',
+          email: process.env.ANYTHING_USER_EMAIL || '',
+          username: process.env.ANYTHING_USER_HANDLE || process.env.ANYTHING_USER_ID || 'creator',
+          userId: process.env.ANYTHING_USER_HANDLE || process.env.ANYTHING_USER_ID || 'creator',
+          avatar: resolvedAvatar,
+          avatarBase64: resolvedAvatar,
+          role: process.env.ANYTHING_USER_ROLE || 'member'
+        };
+      }
+    } catch (e) {}
+    return null;
+  });
+
   ipcMain.handle('media:openSeparatePlayer', async (_event, filePath: string) => {
     const fileName = path.basename(filePath);
     const playerWin = new BrowserWindow({

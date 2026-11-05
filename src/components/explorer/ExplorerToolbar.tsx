@@ -128,6 +128,35 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   const [pathInput, setPathInput] = useState(currentPath);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; username: string; avatar?: string | null } | null>(null);
+
+  useEffect(() => {
+    const api = (window as any).mediaViewerAPI || (window as any).electronAPI || (window as any).api;
+    const loadProfile = () => {
+      if (api?.userProfile?.load) {
+        api.userProfile.load().then((p: any) => {
+          if (p && (p.name || p.username || p.email)) {
+            setUserProfile({
+              name: p.name || 'Creator',
+              username: p.username || (p.email ? p.email.split('@')[0] : 'creator'),
+              avatar: p.avatar || p.avatarBase64 || null
+            });
+          }
+        }).catch(() => {});
+      }
+    };
+    loadProfile();
+    const poll = setInterval(loadProfile, 4000);
+    window.addEventListener('storage', loadProfile);
+    window.addEventListener('anything:ecosystem-auth-change', loadProfile);
+    window.addEventListener('focus', loadProfile);
+    return () => {
+      clearInterval(poll);
+      window.removeEventListener('storage', loadProfile);
+      window.removeEventListener('anything:ecosystem-auth-change', loadProfile);
+      window.removeEventListener('focus', loadProfile);
+    };
+  }, []);
 
   useEffect(() => {
     setPathInput(currentPath);
@@ -598,6 +627,30 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
         >
           <Info className="w-3.5 h-3.5" />
         </button>
+
+        {/* User Identity & PFP Pill */}
+        {userProfile && (
+          <div
+            className="flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 select-none shrink-0"
+            title={`${userProfile.name} (@${userProfile.username})`}
+          >
+            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center font-bold text-[10px] text-white bg-gradient-to-tr from-cyan-500 to-indigo-600 shrink-0 shadow-xs border border-white/20">
+              {userProfile.avatar ? (
+                <img src={userProfile.avatar} alt={userProfile.name} className="w-full h-full object-cover" />
+              ) : (
+                <span>{userProfile.name.slice(0, 2).toUpperCase()}</span>
+              )}
+            </div>
+            <div className="flex flex-col leading-none max-w-[110px] hidden sm:flex">
+              <span className="text-[11px] font-semibold text-[var(--mac-text-primary)] truncate">
+                {userProfile.name}
+              </span>
+              <span className="text-[9px] font-mono text-[var(--mac-accent)] truncate">
+                @{userProfile.username}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

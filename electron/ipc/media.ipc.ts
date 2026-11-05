@@ -294,9 +294,9 @@ export async function extractDuration(filePath: string): Promise<number> {
       return cached;
     }
 
-    // 2. Instant container atom parsing for MP4/MOV (0.1ms)
+    // 2. Instant container atom parsing for MP4/MOV/M4V/QT (0.1ms)
     const ext = path.extname(filePath).toLowerCase().replace('.', '');
-    if (['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'qt'].includes(ext)) {
+    if (['mp4', 'mov', 'm4v', 'qt'].includes(ext)) {
       const fastDur = readFastMp4Duration(filePath);
       if (fastDur && fastDur > 0) {
         setCachedVideoDuration(cacheKey, fastDur);
@@ -304,19 +304,36 @@ export async function extractDuration(filePath: string): Promise<number> {
       }
     }
 
-    // 3. Fallback: ffprobe
+    // 3. Fallback: ffprobe with multi-stream detection for MTS, M2TS, MXF, TS
     const ffprobeBin = findFfprobeBinary();
     const { stdout } = await execFileAsync(
       ffprobeBin,
-      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath],
-      { timeout: 3500 }
+      ['-v', 'error', '-show_entries', 'stream=duration,nb_frames,r_frame_rate:format=duration', '-of', 'json', filePath],
+      { timeout: 4000 }
     );
-    const parsed = parseFloat(stdout.trim());
-    if (isFinite(parsed) && parsed > 0) {
-      const val = Math.round(parsed * 10) / 10;
-      setCachedVideoDuration(cacheKey, val);
-      return val;
-    }
+    try {
+      const json = JSON.parse(stdout);
+      let dur = parseFloat(json?.format?.duration || '0');
+      if (!isFinite(dur) || dur <= 0) {
+        const vStream = json?.streams?.find((s: any) => s.duration || s.nb_frames);
+        if (vStream) {
+          dur = parseFloat(vStream.duration || '0');
+          if ((!isFinite(dur) || dur <= 0) && vStream.nb_frames && vStream.r_frame_rate) {
+            const parts = vStream.r_frame_rate.split('/');
+            const num = parseFloat(parts[0]);
+            const den = parseFloat(parts[1] || '1');
+            if (num > 0 && den > 0) {
+              dur = Number(vStream.nb_frames) / (num / den);
+            }
+          }
+        }
+      }
+      if (isFinite(dur) && dur > 0) {
+        const val = Math.round(dur * 10) / 10;
+        setCachedVideoDuration(cacheKey, val);
+        return val;
+      }
+    } catch {}
   } catch {}
   return 0;
 }

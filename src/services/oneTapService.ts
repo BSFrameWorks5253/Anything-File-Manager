@@ -119,13 +119,23 @@ class OneTapService {
     folderPath: string;
     folderName?: string;
     isMaster?: boolean;
+    isSlot?: boolean;
+    mode?: 'master' | 'single';
     excludedFolders?: string[];
   }): Promise<{ ok: boolean; message?: string; error?: string }> {
+    const formattedPayload = {
+      ...payload,
+      isMaster: Boolean(payload.isMaster),
+      isSlot: Boolean(payload.isSlot),
+      mode: payload.mode || (payload.isMaster ? 'master' : 'single')
+    };
+
+    // 1. First attempt: Direct HTTP post if One Tap is already running
     try {
       const response = await fetch('http://127.0.0.1:49152/open-prproj-modal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(formattedPayload)
       });
       if (response.ok) {
         const data = await response.json();
@@ -133,19 +143,24 @@ class OneTapService {
       }
     } catch {}
 
+    // 2. Launch One Tap with --page=prproj and retry connection up to 5 times
     if (this.api?.openOneTap) {
       try {
         const launchRes = await this.api.openOneTap(payload.folderPath);
         if (launchRes && launchRes.ok) {
-          await new Promise(r => setTimeout(r, 1500));
-          try {
-            const retryRes = await fetch('http://127.0.0.1:49152/open-prproj-modal', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-            if (retryRes.ok) return { ok: true, message: 'One Tap preflight overlay activated' };
-          } catch {}
+          for (let attempt = 1; attempt <= 5; attempt++) {
+            await new Promise(r => setTimeout(r, 600));
+            try {
+              const retryRes = await fetch('http://127.0.0.1:49152/open-prproj-modal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formattedPayload)
+              });
+              if (retryRes.ok) {
+                return { ok: true, message: 'One Tap preflight overlay activated' };
+              }
+            } catch {}
+          }
           return { ok: true, message: 'One Tap application launched' };
         }
       } catch (e: any) {

@@ -47,6 +47,10 @@ export interface MediaViewerAPI {
   getItemsByPaths?: (filePaths: string[]) => Promise<any[]>;
   getFileTags?: () => Promise<Record<string, string>>;
   setFileTag?: (filePath: string, tagColor: string | null) => Promise<{ ok: boolean; error?: string }>;
+  userProfile?: {
+    load: () => Promise<any>;
+  };
+  getEcosystemUser?: () => Promise<any>;
 }
 
 const api: MediaViewerAPI = {
@@ -100,7 +104,13 @@ const api: MediaViewerAPI = {
   registerDefaultViewer: (categories: ('videos' | 'photos')[]) => ipcRenderer.invoke('shell:registerDefaultViewer', categories),
   checkDefaultStatus: () => ipcRenderer.invoke('shell:checkDefaultStatus'),
   unregisterDefaultViewer: () => ipcRenderer.invoke('shell:unregisterDefaultViewer'),
-  openWindowsDefaultAppsSettings: () => ipcRenderer.invoke('shell:openWindowsDefaultAppsSettings')
+  openWindowsDefaultAppsSettings: () => ipcRenderer.invoke('shell:openWindowsDefaultAppsSettings'),
+  userProfile: {
+    load: () => ipcRenderer.invoke('userProfile:load'),
+  },
+  getEcosystemUser: () => ipcRenderer.invoke('userProfile:load')
 };
 
 contextBridge.exposeInMainWorld('mediaViewerAPI', api);
+contextBridge.exposeInMainWorld('electronAPI', api);
+contextBridge.exposeInMainWorld('api', api);

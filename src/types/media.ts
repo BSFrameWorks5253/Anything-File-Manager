@@ -84,4 +84,8 @@ export interface MediaViewerAPI {
   getItemsByPaths?: (filePaths: string[]) => Promise<FsItem[]>;
   getFileTags?: () => Promise<Record<string, string>>;
   setFileTag?: (filePath: string, tagColor: string | null) => Promise<{ ok: boolean; error?: string }>;
+  userProfile?: {
+    load: () => Promise<any>;
+  };
+  getEcosystemUser?: () => Promise<any>;
 }

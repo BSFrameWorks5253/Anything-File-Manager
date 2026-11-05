@@ -58,10 +58,13 @@ const SYSTEM_IGNORE_FOLDERS = new Set([
 ]);
 
 // ── REGEX PATTERNS FOR CLASSIFICATION ──
-const MASTER_SAFAR_REGEX = /^(\d{4})[-_](\d{2})\s+([A-Za-z\s]+)(?:-(.*))?$/;
-const DATE_SESSION_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2})\s*_(\d{2})([ME])$/i;
-const SLOT_FORMAT_A_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2}\s*_?\d{2}[ME])-(\d{2})-(?:(\d{2})?([A-Z]+))-(\d{5,8})$/i;
-const SLOT_FORMAT_B_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2}\s*_?\d{2}[ME])-(\d{2})-([A-Z]+)-?$/i;
+const MASTER_SAFAR_REGEX = /^(\d{4})[-_](\d{2})(?:[-_](\d{2}))?[\s\-_]+([A-Za-z\s]+)(?:-(.*))?$/;
+const DATE_SESSION_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2})\s*_?(\d{2})([ME])$/i;
+const SLOT_FORMAT_A_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2}\s*_?\d{2}[ME])-(\d{1,3}[a-zA-Z]?)-(?:(\d{1,3})?([A-Z]+))-(\d{5,8})$/i;
+const SLOT_FORMAT_B_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2}\s*_?\d{2}[ME])-(\d{1,3}[a-zA-Z]?)-([A-Z]+)-?$/i;
+const SLOT_FORMAT_B_MASTER_PREFIX_REGEX = /^(\d{4}[-_]\d{2}(?:[-_]\d{2})?[\s\-_]+[A-Za-z\s]+)-(\d{1,3}[a-zA-Z]?)-([A-Za-z]+)-?$/i;
+const SHORT_SLOT_A_REGEX = /^(\d{1,3}[a-zA-Z]?)-(?:(\d{1,3})?([A-Z]+))-(\d{5,8})$/i;
+const SHORT_SLOT_B_REGEX = /^(\d{1,3}[a-zA-Z]?)-(?:(\d{1,3})?([A-Z]+))-?$/i;
 const CATEGORY_REGEX = /^(\d{2})-([A-Za-z]+)-([A-Za-z\s]+)$/;
 
 export type ProductionStage =
@@ -145,9 +148,9 @@ async function getFastVideoDuration(filePath: string): Promise<number> {
       return diskCached;
     }
 
-    // 2. Instant container atom parsing for MP4/MOV (0.1ms)
+    // 2. Instant container atom parsing for MP4/MOV/M4V/QT (0.1ms)
     const ext = path.extname(filePath).toLowerCase().replace('.', '');
-    if (['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'qt'].includes(ext)) {
+    if (['mp4', 'mov', 'm4v', 'qt'].includes(ext)) {
       const fastDur = readFastMp4Duration(filePath);
       if (fastDur && fastDur > 0) {
         durationCache.set(cacheKey, fastDur);
@@ -156,20 +159,37 @@ async function getFastVideoDuration(filePath: string): Promise<number> {
       }
     }
 
-    // 3. Fallback: ffprobe with real binary location
+    // 3. Fallback: ffprobe with multi-stream detection for MTS, M2TS, MXF, TS
     const ffprobeBin = findFfprobeBinary();
     const { stdout } = await execFileAsync(
       ffprobeBin,
-      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath],
-      { timeout: 3500 }
+      ['-v', 'error', '-show_entries', 'stream=duration,nb_frames,r_frame_rate:format=duration', '-of', 'json', filePath],
+      { timeout: 4000 }
     );
-    const parsed = parseFloat(stdout.trim());
-    if (isFinite(parsed) && parsed > 0) {
-      const rounded = Math.round(parsed * 10) / 10;
-      durationCache.set(cacheKey, rounded);
-      setCachedVideoDuration(cacheKey, rounded);
-      return rounded;
-    }
+    try {
+      const json = JSON.parse(stdout);
+      let dur = parseFloat(json?.format?.duration || '0');
+      if (!isFinite(dur) || dur <= 0) {
+        const vStream = json?.streams?.find((s: any) => s.duration || s.nb_frames);
+        if (vStream) {
+          dur = parseFloat(vStream.duration || '0');
+          if ((!isFinite(dur) || dur <= 0) && vStream.nb_frames && vStream.r_frame_rate) {
+            const parts = vStream.r_frame_rate.split('/');
+            const num = parseFloat(parts[0]);
+            const den = parseFloat(parts[1] || '1');
+            if (num > 0 && den > 0) {
+              dur = Number(vStream.nb_frames) / (num / den);
+            }
+          }
+        }
+      }
+      if (isFinite(dur) && dur > 0) {
+        const rounded = Math.round(dur * 10) / 10;
+        durationCache.set(cacheKey, rounded);
+        setCachedVideoDuration(cacheKey, rounded);
+        return rounded;
+      }
+    } catch {}
   } catch {}
   return 0;
 }
@@ -485,11 +505,22 @@ export function registerAfmIPC(): void {
 
       // Determine classification
       let folderType: AfmFolderAnalytics['folderType'] = 'generic';
-      if (MASTER_SAFAR_REGEX.test(folderName)) folderType = 'master_safar';
-      else if (DATE_SESSION_REGEX.test(folderName)) folderType = 'date_session';
-      else if (SLOT_FORMAT_A_REGEX.test(folderName)) folderType = 'slot_item_a';
-      else if (SLOT_FORMAT_B_REGEX.test(folderName)) folderType = 'slot_item_b';
-      else if (CATEGORY_REGEX.test(folderName)) folderType = 'category';
+      const cleanName = folderName.trim();
+      if (SLOT_FORMAT_A_REGEX.test(cleanName) || SHORT_SLOT_A_REGEX.test(cleanName)) {
+        folderType = 'slot_item_a';
+      } else if (
+        SLOT_FORMAT_B_REGEX.test(cleanName) ||
+        SLOT_FORMAT_B_MASTER_PREFIX_REGEX.test(cleanName) ||
+        SHORT_SLOT_B_REGEX.test(cleanName)
+      ) {
+        folderType = 'slot_item_b';
+      } else if (DATE_SESSION_REGEX.test(cleanName)) {
+        folderType = 'date_session';
+      } else if (CATEGORY_REGEX.test(cleanName)) {
+        folderType = 'category';
+      } else if (!cleanName.includes('_01M') && !cleanName.includes('_02E') && !cleanName.includes('_01E') && MASTER_SAFAR_REGEX.test(cleanName)) {
+        folderType = 'master_safar';
+      }
 
       const meta = getOrInferMetadata(folderPath);
 
@@ -528,65 +559,67 @@ export function registerAfmIPC(): void {
               if (SYSTEM_IGNORE_FOLDERS.has(lower) || lower === 'final' || lower === 'renders' || lower === 'dvd') continue;
               subfolderCount++;
 
-              // Check if directory matches a slot or date session
+              // Check if directory matches a slot or date session (only when scanning parent sessions)
               let slotContext = currentSlotInfo;
-              const matchA = e.name.match(SLOT_FORMAT_A_REGEX);
-              const matchB = e.name.match(SLOT_FORMAT_B_REGEX);
-              const matchDate = e.name.match(DATE_SESSION_REGEX);
+              if (folderType !== 'slot_item_a' && folderType !== 'slot_item_b') {
+                const matchA = e.name.match(SLOT_FORMAT_A_REGEX) || e.name.match(SHORT_SLOT_A_REGEX);
+                const matchB = e.name.match(SLOT_FORMAT_B_REGEX) || e.name.match(SLOT_FORMAT_B_MASTER_PREFIX_REGEX) || e.name.match(SHORT_SLOT_B_REGEX);
+                const matchDate = e.name.match(DATE_SESSION_REGEX);
 
-              if (matchA) {
-                const slotNo = matchA[2];
-                const eventCode = matchA[4]?.toUpperCase() || 'GEN';
-                const its = matchA[5];
-                const isValidIts = /^\d{5,8}$/.test(its);
-                if (!isValidIts) malformedItsList.push(its);
-                if (its) {
-                  const prev = itsSeen.get(its) || [];
-                  prev.push(e.name);
-                  itsSeen.set(its, prev);
+                if (matchA) {
+                  const slotNo = matchA[2] || matchA[1];
+                  const eventCode = (matchA[4] || matchA[3] || 'GEN').toUpperCase();
+                  const its = matchA[5] || matchA[4];
+                  const isValidIts = /^\d{5,8}$/.test(its);
+                  if (!isValidIts) malformedItsList.push(its);
+                  if (its) {
+                    const prev = itsSeen.get(its) || [];
+                    prev.push(e.name);
+                    itsSeen.set(its, prev);
+                  }
+                  slotContext = {
+                    slotFolder: e.name,
+                    slotPath: fullP,
+                    slotNo,
+                    eventCode,
+                    its,
+                    isValidIts,
+                    personName: '—',
+                    clipCount: 0,
+                    duration: 0,
+                    size: 0
+                  };
+                  slots.push(slotContext);
+                } else if (matchB) {
+                  const slotNo = matchB[2] || matchB[1];
+                  const eventCode = (matchB[3] || 'H').toUpperCase();
+                  slotContext = {
+                    slotFolder: e.name,
+                    slotPath: fullP,
+                    slotNo,
+                    eventCode,
+                    its: null,
+                    isValidIts: true,
+                    personName: '—',
+                    clipCount: 0,
+                    duration: 0,
+                    size: 0
+                  };
+                  slots.push(slotContext);
+                } else if (matchDate && folderType === 'master_safar') {
+                  const dateMeta = getOrInferMetadata(fullP);
+                  dates.push({
+                    dateFolder: e.name,
+                    datePath: fullP,
+                    dateLabel: e.name,
+                    itemCount: 0,
+                    clipCount: 0,
+                    duration: 0,
+                    size: 0,
+                    stage: dateMeta.stage,
+                    prprojExists: false
+                  });
                 }
-                slotContext = {
-                  slotFolder: e.name,
-                  slotPath: fullP,
-                  slotNo,
-                  eventCode,
-                  its,
-                  isValidIts,
-                  personName: '—',
-                  clipCount: 0,
-                  duration: 0,
-                  size: 0
-                };
-                slots.push(slotContext);
-              } else if (matchB) {
-                const slotNo = matchB[2];
-                const eventCode = matchB[3]?.toUpperCase() || 'H';
-                slotContext = {
-                  slotFolder: e.name,
-                  slotPath: fullP,
-                  slotNo,
-                  eventCode,
-                  its: null,
-                  isValidIts: true,
-                  personName: '—',
-                  clipCount: 0,
-                  duration: 0,
-                  size: 0
-                };
-                slots.push(slotContext);
-              } else if (matchDate && folderType === 'master_safar') {
-                const dateMeta = getOrInferMetadata(fullP);
-                dates.push({
-                  dateFolder: e.name,
-                  datePath: fullP,
-                  dateLabel: e.name,
-                  itemCount: 0,
-                  clipCount: 0,
-                  duration: 0,
-                  size: 0,
-                  stage: dateMeta.stage,
-                  prprojExists: false
-                });
               }
 
               await crawlDirAsync(fullP, depth + 1, slotContext);
@@ -619,7 +652,7 @@ export function registerAfmIPC(): void {
 
                   if (dur === undefined) {
                     // 2. Instant container atom parsing for MP4/MOV/QT/M4V (head + tail, 0.2ms)
-                    if (['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'qt'].includes(ext)) {
+                    if (['mp4', 'mov', 'm4v', 'qt'].includes(ext)) {
                       const fast = readFastMp4Duration(fullP);
                       if (fast && fast > 0) {
                         dur = fast;
@@ -648,10 +681,9 @@ export function registerAfmIPC(): void {
 
       await crawlDirAsync(folderPath, 0);
 
-      // Controlled background probing for uncached non-atom clips (concurrency: 3)
+      // Fast concurrent probing for uncached clips (concurrency: 8)
       if (videoFilesToProbe.length > 0) {
-        const toProbeNow = videoFilesToProbe.slice(0, 16);
-        await mapConcurrent(toProbeNow, 3, async (item) => {
+        await mapConcurrent(videoFilesToProbe, 8, async (item) => {
           try {
             const probed = await getFastVideoDuration(item.path);
             if (probed > 0) {
@@ -662,22 +694,6 @@ export function registerAfmIPC(): void {
             }
           } catch {}
         });
-
-        // Queue remaining clips smoothly in background without locking UI
-        if (videoFilesToProbe.length > 16) {
-          const remaining = videoFilesToProbe.slice(16);
-          setTimeout(async () => {
-            for (const item of remaining) {
-              try {
-                const p = await getFastVideoDuration(item.path);
-                if (p > 0) {
-                  durationCache.set(item.cacheKey, p);
-                  setCachedVideoDuration(item.cacheKey, p);
-                }
-              } catch {}
-            }
-          }, 300);
-        }
       }
 
       // Check for duplicate ITS numbers
@@ -927,7 +943,7 @@ export function registerAfmIPC(): void {
         return { ok: false, error: 'One Tap executable not found at standard installation paths' };
       }
 
-      const args = [];
+      const args = ['--page=prproj'];
       if (targetPath) {
         args.push(targetPath);
       }

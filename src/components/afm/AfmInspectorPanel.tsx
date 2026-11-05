@@ -95,12 +95,17 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
     }
   };
 
+  const isMasterSafar = classification.type === 'master_safar';
+  const isSlotFolder = classification.type === 'slot_item_a' || classification.type === 'slot_item_b';
+
   const handlePreflightClick = async () => {
     try {
       const res = await oneTapService.openPremiereOverlay({
         folderPath,
         folderName,
-        isMaster: isMasterSafar
+        isMaster: isMasterSafar,
+        isSlot: isSlotFolder,
+        mode: isMasterSafar ? 'master' : 'single'
       });
       if (res && res.ok) {
         return;

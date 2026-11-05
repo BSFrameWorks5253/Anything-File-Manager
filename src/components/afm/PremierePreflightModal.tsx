@@ -209,6 +209,8 @@ export const PremierePreflightModal: React.FC<PremierePreflightModalProps> = ({
         folderPath,
         folderName,
         isMaster,
+        isSlot: !isMaster,
+        mode: isMaster ? 'master' : 'single',
         excludedFolders: Array.from(excludedFolderNames)
       });
 

@@ -128,19 +128,24 @@ export interface AfmFolderClassification {
 
 // ── REGEX CLASSIFIERS ──
 
-// 1. Master Safar Folder: e.g. "1448-03 Mumbai", "1448-02 Raipur", "1448-10-Istefada ilmiyah"
-const MASTER_SAFAR_REGEX = /^(\d{4})[-_](\d{2})\s+([A-Za-z\s]+)(?:-(.*))?$/;
+// 1. Master Safar Folder: e.g. "1448-03 Mumbai", "1448-02 Raipur", "1448-05-08 Coimbatore", "1448-10-Istefada ilmiyah"
+const MASTER_SAFAR_REGEX = /^(\d{4})[-_](\d{2})(?:[-_](\d{2}))?[\s\-_]+([A-Za-z\s]+)(?:-(.*))?$/;
 
-// 2. Date / Session Work Folder: e.g. "1448-03-13 _01M", "1448-05-07_01M", "1448-03-12 _02E"
-const DATE_SESSION_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2})\s*_(\d{2})([ME])$/i;
+// 2. Date / Session Work Folder: e.g. "1448-03-13 _01M", "1448-05-07_01M", "1448-03-12 _02E", "1448-05-09 _01M"
+const DATE_SESSION_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2})\s*_?(\d{2})([ME])$/i;
 
-// 3. Item / Slot Folder Format A (with ITS): e.g. "1448-05-07_01M-01-01N-40905764"
-const SLOT_FORMAT_A_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2}\s*_?\d{2}[ME])-(\d{2})-(?:(\d{2})?([A-Z]+))-(\d{5,8})$/i;
+// 3. Item / Slot Folder Format A (Full with session & ITS): e.g. "1448-05-07_01M-01-01N-40905764"
+const SLOT_FORMAT_A_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2}\s*_?\d{2}[ME])-(\d{1,3}[a-zA-Z]?)-(?:(\d{1,3})?([A-Z]+))-(\d{5,8})$/i;
 
-// 4. Item / Slot Folder Format B (No ITS / Hadiyah): e.g. "1448-03-13 _01M-05-H-", "1448-03-13 _01M-08-SP-"
-const SLOT_FORMAT_B_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2}\s*_?\d{2}[ME])-(\d{2})-([A-Z]+)-?$/i;
+// 4. Item / Slot Folder Format B (Full without ITS): e.g. "1448-03-13 _01M-05-H-", "1448-05-09 _01M-01-Z", "1448-05-08 Coimbatore-01-Z"
+const SLOT_FORMAT_B_REGEX = /^(\d{4}[-_]\d{2}[-_]\d{2}\s*_?\d{2}[ME])-(\d{1,3}[a-zA-Z]?)-([A-Z]+)-?$/i;
+const SLOT_FORMAT_B_MASTER_PREFIX_REGEX = /^(\d{4}[-_]\d{2}(?:[-_]\d{2})?[\s\-_]+[A-Za-z\s]+)-(\d{1,3}[a-zA-Z]?)-([A-Za-z]+)-?$/i;
 
-// 5. Category Grouping Folder: e.g. "01-Mumbai-Bethak", "02-Mumbai-Waaz"
+// 5. Short / Relative Slot Folders (inside Date Session): e.g. "01-01N-40905764", "02-01AQ-30338708", "01-Z", "05-H", "08-SP"
+const SHORT_SLOT_A_REGEX = /^(\d{1,3}[a-zA-Z]?)-(?:(\d{1,3})?([A-Z]+))-(\d{5,8})$/i;
+const SHORT_SLOT_B_REGEX = /^(\d{1,3}[a-zA-Z]?)-(?:(\d{1,3})?([A-Z]+))-?$/i;
+
+// 6. Category Grouping Folder: e.g. "01-Mumbai-Bethak", "02-Mumbai-Waaz"
 const CATEGORY_REGEX = /^(\d{2})-([A-Za-z]+)-([A-Za-z\s]+)$/;
 
 /**
@@ -149,22 +154,7 @@ const CATEGORY_REGEX = /^(\d{2})-([A-Za-z]+)-([A-Za-z\s]+)$/;
 export function classifyFolder(name: string, fullPath: string = ''): AfmFolderClassification {
   const clean = name.trim();
 
-  // Test 1: Date Session Folder (checked early to prevent sub-part clash)
-  const dateMatch = clean.match(DATE_SESSION_REGEX);
-  if (dateMatch) {
-    return {
-      type: 'date_session',
-      rawName: clean,
-      fullPath,
-      dateTokens: {
-        date: dateMatch[1].replace(/_/g, '-'),
-        sessionIndex: dateMatch[2],
-        sessionPeriod: dateMatch[3].toUpperCase() as 'M' | 'E'
-      }
-    };
-  }
-
-  // Test 2: Slot Folder Format A (with ITS ID)
+  // Test 1: Full Slot Folder Format A (with ITS ID)
   const slotAMatch = clean.match(SLOT_FORMAT_A_REGEX);
   if (slotAMatch) {
     const its = slotAMatch[5];
@@ -184,8 +174,8 @@ export function classifyFolder(name: string, fullPath: string = ''): AfmFolderCl
     };
   }
 
-  // Test 3: Slot Folder Format B (No ITS / Hadiyah)
-  const slotBMatch = clean.match(SLOT_FORMAT_B_REGEX);
+  // Test 2: Full Slot Folder Format B (No ITS / Hadiyah / Ziyafat)
+  const slotBMatch = clean.match(SLOT_FORMAT_B_REGEX) || clean.match(SLOT_FORMAT_B_MASTER_PREFIX_REGEX);
   if (slotBMatch) {
     return {
       type: 'slot_item_b',
@@ -201,7 +191,60 @@ export function classifyFolder(name: string, fullPath: string = ''): AfmFolderCl
     };
   }
 
-  // Test 4: Category Folder
+  // Test 3: Short Slot Format A (e.g. 01-01N-40905764)
+  const shortSlotAMatch = clean.match(SHORT_SLOT_A_REGEX);
+  if (shortSlotAMatch) {
+    const its = shortSlotAMatch[4];
+    const isValidIts = /^\d{5,8}$/.test(its);
+    return {
+      type: 'slot_item_a',
+      rawName: clean,
+      fullPath,
+      slotTokens: {
+        session: '',
+        slotNo: shortSlotAMatch[1],
+        occurrence: shortSlotAMatch[2] || '01',
+        eventCode: shortSlotAMatch[3].toUpperCase(),
+        its
+      },
+      isValidIts
+    };
+  }
+
+  // Test 4: Short Slot Format B (e.g. 01-Z, 05-H, 08-SP)
+  const shortSlotBMatch = clean.match(SHORT_SLOT_B_REGEX);
+  if (shortSlotBMatch) {
+    return {
+      type: 'slot_item_b',
+      rawName: clean,
+      fullPath,
+      slotTokens: {
+        session: '',
+        slotNo: shortSlotBMatch[1],
+        occurrence: shortSlotBMatch[2] || '01',
+        eventCode: shortSlotBMatch[3].toUpperCase(),
+        its: null
+      },
+      isValidIts: true
+    };
+  }
+
+  // Test 5: Date Session Folder (e.g. 1448-05-09 _01M)
+  const dateMatch = clean.match(DATE_SESSION_REGEX);
+  if (dateMatch) {
+    return {
+      type: 'date_session',
+      rawName: clean,
+      fullPath,
+      dateTokens: {
+        date: dateMatch[1].replace(/_/g, '-'),
+        sessionIndex: dateMatch[2],
+        sessionPeriod: dateMatch[3].toUpperCase() as 'M' | 'E'
+      }
+    };
+  }
+
+  // Test 6: Category Folder (e.g. 01-Mumbai-Bethak)
   const catMatch = clean.match(CATEGORY_REGEX);
   if (catMatch) {
     return {
@@ -216,20 +259,23 @@ export function classifyFolder(name: string, fullPath: string = ''): AfmFolderCl
     };
   }
 
-  // Test 5: Master Safar Folder
-  const masterMatch = clean.match(MASTER_SAFAR_REGEX);
-  if (masterMatch) {
-    return {
-      type: 'master_safar',
-      rawName: clean,
-      fullPath,
-      masterTokens: {
-        hijriYear: masterMatch[1],
-        safarSerial: masterMatch[2],
-        city: masterMatch[3].trim(),
-        event: masterMatch[4]?.trim()
-      }
-    };
+  // Test 7: Master Safar Folder (e.g. 1448-05-08 Coimbatore, 1448-03 Mumbai)
+  // Ensure it does not have session tokens or slot tokens
+  if (!clean.includes('_01M') && !clean.includes('_02E') && !clean.includes('_01E')) {
+    const masterMatch = clean.match(MASTER_SAFAR_REGEX);
+    if (masterMatch) {
+      return {
+        type: 'master_safar',
+        rawName: clean,
+        fullPath,
+        masterTokens: {
+          hijriYear: masterMatch[1],
+          safarSerial: masterMatch[2],
+          city: (masterMatch[4] || masterMatch[3] || '').trim(),
+          event: masterMatch[5]?.trim()
+        }
+      };
+    }
   }
 
   return {
