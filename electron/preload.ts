@@ -56,7 +56,34 @@ export interface MediaViewerAPI {
   onOpenDualSync?: (cb: (config: any) => void) => () => void;
 }
 
-const api: MediaViewerAPI = {
+const api: any = {
+
+  prproj: {
+    getTemplateStatus: () => ipcRenderer.invoke('prproj:getTemplateStatus'),
+    scanSubfolders: (params: any) => ipcRenderer.invoke('prproj:scanSubfolders', params),
+    scan: (params: any) => ipcRenderer.invoke('prproj:scan', params),
+    generate: (params: any) => ipcRenderer.invoke('prproj:generate', params),
+    generateRelinkManifest: (params: any) => ipcRenderer.invoke('prproj:generateRelinkManifest', params),
+    onProgress: (cb: any) => {
+      const sub = (_e: any, data: any) => cb(data);
+      ipcRenderer.on('prproj:progress', sub);
+      return () => ipcRenderer.removeListener('prproj:progress', sub);
+    },
+    onSetParentFolder: (cb: any) => {
+      const sub = (_e: any, payload: any) => cb(payload);
+      ipcRenderer.on('prproj:set-parent-folder', sub);
+      return () => ipcRenderer.removeListener('prproj:set-parent-folder', sub);
+    },
+    removeListeners: () => ipcRenderer.removeAllListeners('prproj:progress')
+  },
+  dialog: {
+    openFolder: (opts?: any) => ipcRenderer.invoke('dialog:openFolder', opts),
+    openFile: (opts?: any) => ipcRenderer.invoke('dialog:openFile', opts)
+  },
+  shell: {
+    openFolder: (p: string) => ipcRenderer.invoke('shell:openFolder', p),
+    openExternal: (url: string) => ipcRenderer.invoke('media:openExternal', url)
+  },
   createFolder: (parentDir: string, customName?: string) => ipcRenderer.invoke('media:createFolder', parentDir, customName),
   createFile: (parentDir: string, fileName?: string, defaultContent?: string) => ipcRenderer.invoke('media:createFile', parentDir, fileName, defaultContent),
   renameItem: (oldPath: string, newName: string) => ipcRenderer.invoke('media:renameItem', oldPath, newName),

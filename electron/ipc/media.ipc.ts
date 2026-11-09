@@ -269,8 +269,9 @@ export function readFastMp4Duration(filePath: string): number | null {
         timescale = buf.readUInt32BE(idx + 24);
         duration = Number(buf.readBigUInt64BE(idx + 28));
       }
-      if (timescale > 0 && duration > 0) {
-        return Math.round((duration / timescale) * 10) / 10;
+      if (timescale > 0 && duration > 0 && duration < 0xFFFFFF00) {
+        const val = Math.round((duration / timescale) * 10) / 10;
+        if (val > 0 && val < 500000) return val;
       }
     }
   } catch {
@@ -280,6 +281,19 @@ export function readFastMp4Duration(filePath: string): number | null {
     }
   }
   return null;
+}
+
+function parseDurationString(str: any): number {
+  if (!str || typeof str !== 'string') return 0;
+  const parts = str.trim().split(':');
+  if (parts.length === 3) {
+    const h = parseFloat(parts[0]) || 0;
+    const m = parseFloat(parts[1]) || 0;
+    const s = parseFloat(parts[2]) || 0;
+    return h * 3600 + m * 60 + s;
+  }
+  const direct = parseFloat(str);
+  return isFinite(direct) && direct > 0 ? direct : 0;
 }
 
 /**
@@ -306,26 +320,38 @@ export async function extractDuration(filePath: string): Promise<number> {
       }
     }
 
-    // 3. Fallback: ffprobe with multi-stream detection for MTS, M2TS, MXF, TS
+    // 3. Fallback: ffprobe with multi-stream detection for MTS, M2TS, MXF, TS, BRAW, etc.
     const ffprobeBin = findFfprobeBinary();
     const { stdout } = await execFileAsync(
       ffprobeBin,
-      ['-v', 'error', '-show_entries', 'stream=duration,nb_frames,r_frame_rate:format=duration', '-of', 'json', filePath],
-      { timeout: 4000 }
+      ['-v', 'error', '-show_entries', 'stream=duration,nb_frames,r_frame_rate,avg_frame_rate,tags:format=duration,tags', '-of', 'json', filePath],
+      { timeout: 12000 }
     );
     try {
       const json = JSON.parse(stdout);
       let dur = parseFloat(json?.format?.duration || '0');
       if (!isFinite(dur) || dur <= 0) {
-        const vStream = json?.streams?.find((s: any) => s.duration || s.nb_frames);
+        if (json?.format?.tags?.DURATION) {
+          dur = parseDurationString(json.format.tags.DURATION);
+        }
+      }
+      if (!isFinite(dur) || dur <= 0) {
+        const streams = json?.streams || [];
+        const vStream = streams.find((s: any) => s.codec_type === 'video') || streams[0];
         if (vStream) {
           dur = parseFloat(vStream.duration || '0');
-          if ((!isFinite(dur) || dur <= 0) && vStream.nb_frames && vStream.r_frame_rate) {
-            const parts = vStream.r_frame_rate.split('/');
-            const num = parseFloat(parts[0]);
-            const den = parseFloat(parts[1] || '1');
-            if (num > 0 && den > 0) {
-              dur = Number(vStream.nb_frames) / (num / den);
+          if ((!isFinite(dur) || dur <= 0) && vStream.tags?.DURATION) {
+            dur = parseDurationString(vStream.tags.DURATION);
+          }
+          if ((!isFinite(dur) || dur <= 0) && vStream.nb_frames) {
+            const rateStr = (vStream.r_frame_rate && vStream.r_frame_rate !== '0/0') ? vStream.r_frame_rate : (vStream.avg_frame_rate || '');
+            if (rateStr) {
+              const parts = rateStr.split('/');
+              const num = parseFloat(parts[0]);
+              const den = parseFloat(parts[1] || '1');
+              if (num > 0 && den > 0) {
+                dur = Number(vStream.nb_frames) / (num / den);
+              }
             }
           }
         }

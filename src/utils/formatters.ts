@@ -21,22 +21,34 @@ export function formatDate(mtime: number): string {
 
 /**
  * Formats duration in seconds into a clean timelapse or video badge.
- * E.g. 10 -> "10s", 45 -> "45s", 75 -> "1m 15s"
+ * E.g. 10 -> "10s", 45 -> "45s", 75 -> "1m 15s", 3675 -> "1h 1m 15s"
  */
 export function formatTimelapse(secs: number): string {
   if (!isFinite(secs) || secs <= 0) return '';
-  if (secs < 60) return `${Math.round(secs)}s`;
-  const m = Math.floor(secs / 60);
-  const s = Math.round(secs % 60);
-  return `${m}m ${s}s`;
+  const total = Math.round(secs);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) {
+    return `${h}h ${m}m ${s.toString().padStart(2, '0')}s`;
+  }
+  if (m > 0) {
+    return `${m}m ${s.toString().padStart(2, '0')}s`;
+  }
+  return `${s}s`;
 }
 
 /**
- * Formats playback timestamp into MM:SS format.
+ * Formats playback timestamp into MM:SS or HH:MM:SS format.
  */
 export function formatPlaybackTime(secs: number): string {
   if (!isFinite(secs) || secs < 0) return '0:00';
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
+  const total = Math.floor(secs);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
   return `${m}:${s.toString().padStart(2, '0')}`;
 }

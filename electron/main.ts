@@ -6,6 +6,7 @@ import { registerLocalResourceProtocol, handleLocalResourceProtocol } from './pr
 import { registerMediaIPC } from './ipc/media.ipc';
 import { registerShellIntegrationIPC } from './ipc/shellIntegration.ipc';
 import { registerAfmIPC } from './ipc/afm.ipc';
+import { registerPrprojIPC } from './ipc/prproj.ipc';
 import { resolveChildAppLoaderConfig, showChildAppSplash, closeChildAppSplash } from './splash/splash';
 
 // Windows Taskbar & Action Center Model ID
@@ -282,6 +283,7 @@ function createWindow(showImmediately = false) {
 registerMediaIPC(() => mainWindow, () => initialFileToOpen);
 registerShellIntegrationIPC();
 registerAfmIPC();
+registerPrprojIPC();
 ipcMain.handle('afm:getInitialDualSync', () => initialDualSync);
 ipcMain.handle('afm:clearInitialDualSync', () => { initialDualSync = null; return true; });
 
