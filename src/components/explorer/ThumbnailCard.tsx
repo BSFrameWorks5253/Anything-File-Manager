@@ -91,9 +91,9 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Lazy observer: only extract thumbnail frames when the card is in or near viewport
+  // Lazy observer: only extract thumbnail frames and load images when the card is in or near viewport
   useEffect(() => {
-    if (isDirectBrowserPhoto || item.isDir) {
+    if (item.isDir) {
       setIsVisible(true);
       return;
     }
@@ -117,7 +117,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [item.fullPath, isDirectBrowserPhoto, item.isDir]);
+  }, [item.fullPath, item.isDir]);
 
   useEffect(() => {
     if (isDirectBrowserPhoto || item.isDir || !isVisible) return;
@@ -158,7 +158,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
     };
   }, [item.fullPath, isDirectBrowserPhoto, item.isDir, isRaw, isVisible]);
 
-  const directPhotoUrl = isDirectBrowserPhoto ? mediaService.toLocalResourceUrl(item.fullPath) : null;
+  const directPhotoUrl = (isDirectBrowserPhoto && isVisible) ? mediaService.toLocalResourceUrl(item.fullPath) : null;
 
   // Density dimensions
   const folderSize = density === 'compact' ? 52 : density === 'broad' ? 90 : 68;

@@ -840,6 +840,16 @@ export function registerMediaIPC(
     return true;
   });
 
+  ipcMain.handle('media:openSeparatePlayer', async (_event, filePath: string) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return { ok: false, error: 'File not found' };
+      await shell.openPath(filePath);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
   ipcMain.handle('media:getInitialFile', async () => getInitialFile());
 
   // ═══════════════════════════════════════════════════════════════════════════
