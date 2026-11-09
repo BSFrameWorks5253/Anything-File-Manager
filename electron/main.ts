@@ -111,7 +111,7 @@ if (!gotLock) {
 app.on('second-instance', (_event, argv) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
+    if (!mainWindow.isVisible()) mainWindow.show();
     mainWindow.focus();
     const dual = extractDualSyncFromArgv(argv);
     if (dual) {
@@ -220,7 +220,7 @@ function createWindow(showImmediately = false) {
       splashCompleted = true;
     }
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
+      if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
     }
   });
@@ -229,13 +229,13 @@ function createWindow(showImmediately = false) {
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDesc, validatedURL) => {
     console.error(`[AFM MainWindow] Failed to load ${validatedURL}: ${errorDesc} (${errorCode})`);
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
-      mainWindow.show();
+      if (!mainWindow.isVisible()) mainWindow.show();
     }
   });
   mainWindow.webContents.once('did-finish-load', () => {
     isMainWindowReady = true;
     if (splashCompleted && mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
-      mainWindow.show();
+      if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
     }
     if (initialDualSync && mainWindow) {

@@ -103,14 +103,30 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
     () => items.filter(f => !f.isDir && (isPhotoExtension(f.ext) || isVideoExtension(f.ext))),
     [items]
   );
-  const currentIndex = mediaList.findIndex(f => f.fullPath === item.fullPath);
+
+  const normalizePathForCompare = (p?: string | null) => {
+    if (!p) return '';
+    return p.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '');
+  };
+
+  const currentIndex = useMemo(() => {
+    if (!item || !mediaList.length) return -1;
+    const targetNorm = normalizePathForCompare(item.fullPath);
+    const directIdx = mediaList.findIndex(f => normalizePathForCompare(f.fullPath) === targetNorm);
+    if (directIdx !== -1) return directIdx;
+    return mediaList.findIndex(f => f.name.toLowerCase() === item.name.toLowerCase());
+  }, [mediaList, item]);
 
   const goPrev = useCallback(() => {
-    if (currentIndex > 0) onNavigate(mediaList[currentIndex - 1]);
+    if (!mediaList.length) return;
+    const prevIdx = currentIndex <= 0 ? mediaList.length - 1 : currentIndex - 1;
+    onNavigate(mediaList[prevIdx]);
   }, [currentIndex, mediaList, onNavigate]);
 
   const goNext = useCallback(() => {
-    if (currentIndex < mediaList.length - 1) onNavigate(mediaList[currentIndex + 1]);
+    if (!mediaList.length) return;
+    const nextIdx = (currentIndex === -1 || currentIndex >= mediaList.length - 1) ? 0 : currentIndex + 1;
+    onNavigate(mediaList[nextIdx]);
   }, [currentIndex, mediaList, onNavigate]);
 
   // Reset zoom & pan when item changes

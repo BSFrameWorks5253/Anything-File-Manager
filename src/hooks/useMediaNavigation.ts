@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { FsItem, QuickAccessItem, DriveInfo } from '../types';
 import { mediaService } from '../services';
 
@@ -12,11 +12,21 @@ export function useMediaNavigation() {
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
 
+  // Cancellation sequence token to prevent race conditions & flickering
+  const navSeqRef = useRef(0);
+  const currentPathRef = useRef('');
+  currentPathRef.current = currentPath;
+
   const navigate = useCallback(async (dirPath: string) => {
     if (!dirPath) return;
+    const reqSeq = ++navSeqRef.current;
     setLoading(true);
     try {
       const results = await mediaService.listDir(dirPath);
+      if (reqSeq !== navSeqRef.current) {
+        // Discard stale in-flight results
+        return;
+      }
       setItems(results || []);
       setCurrentPath(dirPath);
       setHistory(prev => {
@@ -25,25 +35,37 @@ export function useMediaNavigation() {
         return next;
       });
     } catch (err) {
-      console.error('[useMediaNavigation] navigate error:', err);
-      setItems([]);
+      if (reqSeq === navSeqRef.current) {
+        console.error('[useMediaNavigation] navigate error:', err);
+        setItems([]);
+      }
     } finally {
-      setLoading(false);
+      if (reqSeq === navSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, [historyIdx]);
 
   const loadPath = useCallback(async (p: string) => {
     if (!p) return;
+    const reqSeq = ++navSeqRef.current;
     setLoading(true);
     try {
       const results = await mediaService.listDir(p);
+      if (reqSeq !== navSeqRef.current) {
+        return;
+      }
       setItems(results || []);
       setCurrentPath(p);
     } catch (err) {
-      console.error('[useMediaNavigation] loadPath error:', err);
-      setItems([]);
+      if (reqSeq === navSeqRef.current) {
+        console.error('[useMediaNavigation] loadPath error:', err);
+        setItems([]);
+      }
     } finally {
-      setLoading(false);
+      if (reqSeq === navSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -80,25 +102,46 @@ export function useMediaNavigation() {
   }, [currentPath, loadPath]);
 
   useEffect(() => {
+    let isMounted = true;
+
     // 1. Fetch drives & storage space
     mediaService.getDrivesWithSpace().then(dInfo => {
-      setDrivesWithSpace(dInfo);
-      setDrives(dInfo.map(d => d.drive));
-    });
-
-    // 2. Fetch Mac/Win Quick Access paths
-    mediaService.getQuickAccess().then(qa => {
-      setQuickAccess(qa);
-      // Prefer Videos or Pictures or Desktop or Home or first drive
-      const defaultFolder = qa.find(q => q.icon === 'videos' || q.icon === 'pictures' || q.icon === 'desktop') || qa[0];
-      if (defaultFolder && !currentPath) {
-        navigate(defaultFolder.path);
-      } else if (!currentPath) {
-        mediaService.getDrives().then(d => {
-          if (d.length > 0) navigate(d[0]);
-        });
+      if (isMounted) {
+        setDrivesWithSpace(dInfo);
+        setDrives(dInfo.map(d => d.drive));
       }
     });
+
+    // 2. Fetch Quick Access & initial path safely without overriding CLI/external targets
+    (async () => {
+      try {
+        const initialFile = await mediaService.getInitialFile();
+        const qa = await mediaService.getQuickAccess();
+        if (!isMounted) return;
+        setQuickAccess(qa);
+
+        // If an initial file/folder target was already provided, do not navigate to default folder!
+        if (initialFile || currentPathRef.current) {
+          return;
+        }
+
+        const defaultFolder = qa.find(q => q.icon === 'videos' || q.icon === 'pictures' || q.icon === 'desktop') || qa[0];
+        if (defaultFolder && !currentPathRef.current) {
+          navigate(defaultFolder.path);
+        } else if (!currentPathRef.current) {
+          const d = await mediaService.getDrives();
+          if (isMounted && d.length > 0 && !currentPathRef.current) {
+            navigate(d[0]);
+          }
+        }
+      } catch (err) {
+        console.warn('[useMediaNavigation] initial load error:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return {

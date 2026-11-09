@@ -233,12 +233,17 @@ export function MainFileManagerApp() {
     });
   }, [items, tagItems, selectedTagColor, colorTags, search, filterCategory, sortField, sortOrder, showHidden]);
 
-  // Selected item object (reliable across folders and columns)
+  // Selected item object (reliable across folders, slashes, and columns)
   const selectedItem = useMemo(() => {
-    if (selectedItemState && selectedItemState.fullPath === selectedPath) {
-      return selectedItemState;
+    if (!selectedPath) return null;
+    const norm = selectedPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '');
+    if (selectedItemState) {
+      const stateNorm = selectedItemState.fullPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '');
+      if (stateNorm === norm) {
+        return selectedItemState;
+      }
     }
-    return items.find(i => i.fullPath === selectedPath) || null;
+    return items.find(i => i.fullPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '') === norm) || null;
   }, [items, selectedPath, selectedItemState]);
 
   // Total size of selected items
@@ -520,15 +525,46 @@ export function MainFileManagerApp() {
   const handleOpenTarget = useCallback(async (target: string) => {
     if (!target) return;
     const clean = target.replace(/^["']|["']$/g, '');
+
+    // 1. First probe disk stats using getItemsByPaths to accurately determine if it's a directory or a file
+    try {
+      const queried = await mediaService.getItemsByPaths([clean]);
+      if (queried && queried.length > 0) {
+        const item = queried[0];
+        if (item.isDir) {
+          // It's a folder! Navigate to it, dismiss any open viewer or quick look modals
+          setActiveItem(null);
+          setIsQuickLookOpen(false);
+          await navigate(clean);
+          return;
+        } else {
+          // It's a file! Navigate to parent directory, select item, open viewer
+          const lastSlash = Math.max(clean.lastIndexOf('\\'), clean.lastIndexOf('/'));
+          const parentDir = lastSlash !== -1 ? clean.substring(0, lastSlash) : clean;
+          if (parentDir && parentDir !== clean) {
+            await navigate(parentDir);
+          }
+          setSelectedPath(clean);
+          setSelectedPaths(new Set([clean]));
+          setSelectedItemState(item);
+          setActiveItem(item);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[handleOpenTarget] Probe error:', err);
+    }
+
+    // 2. Fallback heuristic for paths not yet on disk or remote
     const lastSlash = Math.max(clean.lastIndexOf('\\'), clean.lastIndexOf('/'));
     const baseName = lastSlash !== -1 ? clean.substring(lastSlash + 1) : clean;
-    const hasExt = baseName.includes('.') && !baseName.startsWith('.');
+    const ext = (baseName.split('.').pop() || '').toLowerCase();
+    const isMedia = isVideoExtension(ext) || isPhotoExtension(ext) || isAudioExtension(ext);
 
-    if (hasExt) {
+    if (isMedia) {
       const parentDir = clean.substring(0, lastSlash) || clean;
       if (parentDir && parentDir !== clean) {
         await navigate(parentDir);
-        const ext = (baseName.split('.').pop() || '').toLowerCase();
         const itemObj: FsItem = {
           name: baseName,
           isDir: false,
@@ -539,11 +575,14 @@ export function MainFileManagerApp() {
         };
         setSelectedPath(clean);
         setSelectedPaths(new Set([clean]));
+        setSelectedItemState(itemObj);
         setActiveItem(itemObj);
       } else {
         navigate(clean);
       }
     } else {
+      setActiveItem(null);
+      setIsQuickLookOpen(false);
       navigate(clean);
     }
   }, [navigate]);
@@ -602,7 +641,11 @@ export function MainFileManagerApp() {
       // Spacebar -> macOS Quick Look
       if (e.code === 'Space') {
         e.preventDefault();
-        if (selectedItem) {
+        const targetItem = selectedItem || (filteredItems.length > 0 ? filteredItems[0] : null);
+        if (targetItem) {
+          if (!selectedItem) {
+            handleSelectItem(targetItem);
+          }
           setIsQuickLookOpen(prev => !prev);
         }
       }
@@ -700,10 +743,31 @@ export function MainFileManagerApp() {
         goUp();
       }
 
+      // Arrow keys navigation across items in current folder (when Quick Look is closed)
+      if (!isQuickLookOpen && !activeItem && filteredItems.length > 0 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const normSel = selectedPath ? selectedPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '') : '';
+          const curIdx = normSel ? filteredItems.findIndex(i => i.fullPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '') === normSel) : -1;
+          const nextIdx = (curIdx === -1 || curIdx >= filteredItems.length - 1) ? 0 : curIdx + 1;
+          handleSelectItem(filteredItems[nextIdx]);
+          return;
+        }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          const normSel = selectedPath ? selectedPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '') : '';
+          const curIdx = normSel ? filteredItems.findIndex(i => i.fullPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '') === normSel) : -1;
+          const prevIdx = curIdx <= 0 ? filteredItems.length - 1 : curIdx - 1;
+          handleSelectItem(filteredItems[prevIdx]);
+          return;
+        }
+      }
+
       // Tab key navigation across files in folder
       if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !isQuickLookOpen && filteredItems.length > 0) {
         e.preventDefault();
-        const curIdx = selectedItem ? filteredItems.findIndex(i => i.fullPath === selectedItem.fullPath) : -1;
+        const normSel = selectedPath ? selectedPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '') : '';
+        const curIdx = normSel ? filteredItems.findIndex(i => i.fullPath.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '') === normSel) : -1;
         let nextIdx = 0;
         if (e.shiftKey) {
           nextIdx = curIdx > 0 ? curIdx - 1 : filteredItems.length - 1;
@@ -718,8 +782,12 @@ export function MainFileManagerApp() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [
     selectedItem,
+    selectedPath,
     selectedPaths,
     filteredItems,
+    isQuickLookOpen,
+    activeItem,
+    handleSelectItem,
     renamingPath,
     activeTabId,
     goUp,

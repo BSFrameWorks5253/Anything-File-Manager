@@ -513,12 +513,21 @@ function hasDateSessionSubfolders(parentDir: string): boolean {
 }
 
 export function registerAfmIPC(): void {
+  // In-memory 15s cache to ensure 0ms instantaneous response on repeated folder clicks
+  const analyzeFolderCache = new Map<string, { timestamp: number; data: AfmFolderAnalytics }>();
+
   /**
    * 1. Analyze Production Folder & Calculate Metrics (Blazing Fast & Robust)
    */
   ipcMain.handle('afm:analyzeFolder', async (_event, folderPath: string): Promise<AfmFolderAnalytics | null> => {
     try {
       if (!folderPath || !fs.existsSync(folderPath)) return null;
+
+      const cached = analyzeFolderCache.get(folderPath);
+      if (cached && (Date.now() - cached.timestamp < 15000)) {
+        return cached.data;
+      }
+
       const folderName = path.basename(folderPath);
 
       // Determine classification
@@ -735,7 +744,7 @@ export function registerAfmIPC(): void {
         }
       }
 
-      return {
+      const analyticsResult: AfmFolderAnalytics = {
         folderType,
         folderName,
         folderPath,
@@ -752,6 +761,9 @@ export function registerAfmIPC(): void {
         duplicateItsList,
         malformedItsList
       };
+
+      analyzeFolderCache.set(folderPath, { timestamp: Date.now(), data: analyticsResult });
+      return analyticsResult;
     } catch (err) {
       console.error('[afm:analyzeFolder] Error:', err);
       return null;
@@ -761,6 +773,7 @@ export function registerAfmIPC(): void {
   ipcMain.handle('afm:setStage', async (_event, folderPath: string, stage: ProductionStage): Promise<boolean> => {
     try {
       if (!folderPath || !fs.existsSync(folderPath)) return false;
+      analyzeFolderCache.delete(folderPath);
       const metaFile = path.join(folderPath, '.afm_meta.json');
       const existing = getOrInferMetadata(folderPath);
       const oldStage = existing.stage || 'stage1';

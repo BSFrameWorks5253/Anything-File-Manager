@@ -78,32 +78,62 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
   onNavigate
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [activeItem, setActiveItem] = useState<FsItem | null>(item);
+
+  // Synchronize active item when prop changes
+  useEffect(() => {
+    if (item) {
+      setActiveItem(item);
+    }
+  }, [item]);
+
+  const currentItem = activeItem || item;
 
   // File type categorizations
-  const ext = (item?.ext || '').toLowerCase();
-  const isVid = item ? isVideoExtension(ext) : false;
-  const isRaw = item ? isRawExtension(ext) : false;
-  const isPhoto = item ? isPhotoExtension(ext) && !isRaw : false;
-  const isAudio = item ? isAudioExtension(ext) : false;
+  const ext = (currentItem?.ext || '').toLowerCase();
+  const isVid = currentItem ? isVideoExtension(ext) : false;
+  const isRaw = currentItem ? isRawExtension(ext) : false;
+  const isPhoto = currentItem ? isPhotoExtension(ext) && !isRaw : false;
+  const isAudio = currentItem ? isAudioExtension(ext) : false;
   const isPdf = ext === 'pdf';
   const isCsv = ext === 'csv' || ext === 'tsv';
-  const isCodeOrText = item ? isCodeOrTextExtension(ext) || ext === 'txt' || ext === 'md' : false;
-  const isArchive = item ? isArchiveExtension(ext) : false;
+  const isCodeOrText = currentItem ? isCodeOrTextExtension(ext) || ext === 'txt' || ext === 'md' : false;
+  const isArchive = currentItem ? isArchiveExtension(ext) : false;
   const isApp = ext === 'exe' || ext === 'msi' || ext === 'bat' || ext === 'cmd';
 
   // Navigation list (all items in folder including subfolders)
   const navList = useMemo(() => items, [items]);
-  const currentIndex = navList.findIndex(f => f.fullPath === item?.fullPath);
+
+  const normalizePathForCompare = (p?: string | null) => {
+    if (!p) return '';
+    return p.replace(/[\/\\]+/g, '/').toLowerCase().replace(/\/$/, '');
+  };
+
+  const currentIndex = useMemo(() => {
+    if (!currentItem || !navList.length) return -1;
+    const targetNorm = normalizePathForCompare(currentItem.fullPath);
+    const directIdx = navList.findIndex(f => normalizePathForCompare(f.fullPath) === targetNorm);
+    if (directIdx !== -1) return directIdx;
+    return navList.findIndex(f => f.name.toLowerCase() === currentItem.name.toLowerCase());
+  }, [navList, currentItem]);
 
   const goPrev = useCallback(() => {
-    if (currentIndex > 0 && onNavigate) {
-      onNavigate(navList[currentIndex - 1]);
+    if (!navList.length) return;
+    const prevIdx = currentIndex <= 0 ? navList.length - 1 : currentIndex - 1;
+    const prevItem = navList[prevIdx];
+    setActiveItem(prevItem);
+    if (onNavigate) {
+      onNavigate(prevItem);
     }
   }, [currentIndex, navList, onNavigate]);
 
   const goNext = useCallback(() => {
-    if (currentIndex < navList.length - 1 && onNavigate) {
-      onNavigate(navList[currentIndex + 1]);
+    if (!navList.length) return;
+    const nextIdx = (currentIndex === -1 || currentIndex >= navList.length - 1) ? 0 : currentIndex + 1;
+    const nextItem = navList[nextIdx];
+    setActiveItem(nextItem);
+    if (onNavigate) {
+      onNavigate(nextItem);
     }
   }, [currentIndex, navList, onNavigate]);
 
@@ -112,13 +142,15 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
       const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
 
       if (e.code === 'Space' || e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         onClose();
       } else if (e.key === 'Tab') {
         e.preventDefault();
+        e.stopPropagation();
         if (e.shiftKey) {
           goPrev();
         } else {
@@ -126,9 +158,11 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
         }
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
+        e.stopPropagation();
         goPrev();
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
+        e.stopPropagation();
         goNext();
       } else if (e.key === 'k' || e.key === 'K') {
         e.preventDefault();
@@ -149,18 +183,22 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
         window.dispatchEvent(new CustomEvent('quicklook:mark-in'));
       } else if (e.key === 'o' || e.key === 'O') {
         window.dispatchEvent(new CustomEvent('quicklook:mark-out'));
-      } else if (e.key === 'Enter' && item) {
+      } else if (e.key === 'Enter' && currentItem) {
         e.preventDefault();
         onClose();
-        mediaService.openSeparatePlayer(item.fullPath);
+        if (currentItem.isDir) {
+          if (onNavigate) onNavigate(currentItem);
+        } else {
+          mediaService.openSeparatePlayer(currentItem.fullPath);
+        }
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, goPrev, goNext, item, isVid, onOpenViewer]);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose, goPrev, goNext, currentItem, onNavigate]);
 
-  if (!isOpen || !item) return null;
+  if (!isOpen || !currentItem) return null;
 
   return (
     <div
@@ -190,12 +228,12 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               className="w-3 h-3 rounded-full bg-[#27c93f] hover:opacity-80 cursor-pointer"
               onClick={() => {
                 onClose();
-                mediaService.openSeparatePlayer(item.fullPath);
+                mediaService.openSeparatePlayer(currentItem.fullPath);
               }}
               title="Open in Separate Window"
             />
-            <span className="text-xs font-semibold text-gray-200 ml-2 truncate max-w-sm" title={item.name}>
-              {item.name}
+            <span className="text-xs font-semibold text-gray-200 ml-2 truncate max-w-sm" title={currentItem.name}>
+              {currentItem.name}
             </span>
             <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex-shrink-0">
               Quick Look
@@ -208,9 +246,8 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5">
                 <button
                   onClick={goPrev}
-                  disabled={currentIndex <= 0}
-                  className="p-1 rounded hover:bg-white/10 disabled:opacity-30 text-gray-300 hover:text-white"
-                  title="Previous (Left Arrow)"
+                  className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                  title="Previous Item (Left/Up Arrow)"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
@@ -219,9 +256,8 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
                 </span>
                 <button
                   onClick={goNext}
-                  disabled={currentIndex >= navList.length - 1}
-                  className="p-1 rounded hover:bg-white/10 disabled:opacity-30 text-gray-300 hover:text-white"
-                  title="Next (Right Arrow)"
+                  className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                  title="Next Item (Right/Down Arrow)"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -242,9 +278,9 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               onClick={() => {
                 onClose();
                 if (isVid || isPhoto || isRaw) {
-                  mediaService.openSeparatePlayer(item.fullPath);
+                  mediaService.openSeparatePlayer(currentItem.fullPath);
                 } else {
-                  mediaService.openExternal(item.fullPath);
+                  mediaService.openExternal(currentItem.fullPath);
                 }
               }}
               className="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--mac-accent)] hover:opacity-90 text-white rounded-md text-xs font-medium shadow-sm transition-all"
@@ -264,39 +300,39 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
 
         {/* ── Dynamic Universal Preview Body ── */}
         <div className="flex-1 overflow-hidden flex flex-col bg-black/90 relative">
-          {item.isDir ? (
+          {currentItem.isDir ? (
             /* 0. Folder / Directory Quick Look */
-            <FolderQuickLook item={item} onClose={onClose} onNavigate={onNavigate} />
+            <FolderQuickLook item={currentItem} onClose={onClose} onNavigate={onNavigate} />
           ) : isVid ? (
             /* 1. Adobe Premiere Pro / Timeline Video Preview */
-            <AdobePremiereQuickLook item={item} />
+            <AdobePremiereQuickLook item={currentItem} />
           ) : isRaw ? (
             /* 2. Camera RAW Photo (.CR3, .CR2, .NEF, etc.) */
-            <CameraRawQuickLook item={item} />
+            <CameraRawQuickLook item={currentItem} />
           ) : isPhoto ? (
             /* 3. Standard Photos (JPG, PNG, WEBP, GIF, SVG) */
-            <StandardPhotoQuickLook item={item} />
+            <StandardPhotoQuickLook item={currentItem} />
           ) : isAudio ? (
             /* 4. Audio Files (MP3, WAV, FLAC, M4A) */
-            <AudioQuickLook item={item} />
+            <AudioQuickLook item={currentItem} />
           ) : isPdf ? (
             /* 5. PDF Documents */
-            <PdfQuickLook item={item} />
+            <PdfQuickLook item={currentItem} />
           ) : isCsv ? (
             /* 6. CSV / TSV Data Table */
-            <CsvQuickLook item={item} />
+            <CsvQuickLook item={currentItem} />
           ) : isCodeOrText ? (
             /* 7. Code & Text Files */
-            <CodeTextQuickLook item={item} />
+            <CodeTextQuickLook item={currentItem} />
           ) : isApp ? (
             /* 8. Executable / App Files */
-            <AppQuickLook item={item} />
+            <AppQuickLook item={currentItem} />
           ) : isArchive ? (
             /* 9. Archives (.zip, .rar, .7z) */
-            <ArchiveQuickLook item={item} />
+            <ArchiveQuickLook item={currentItem} />
           ) : (
             /* 10. Generic Universal File Inspector */
-            <GenericFileQuickLook item={item} />
+            <GenericFileQuickLook item={currentItem} />
           )}
         </div>
 
@@ -304,12 +340,12 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
         <div className="px-5 py-2.5 border-t border-white/10 bg-[#161826] flex items-center justify-between text-xs text-gray-300 flex-shrink-0">
           <div className="flex items-center gap-4">
             <span>
-              Size: <strong className="text-white font-mono">{formatBytes(item.size)}</strong>
+              Size: <strong className="text-white font-mono">{formatBytes(currentItem.size)}</strong>
             </span>
             <span>
-              Modified: <strong className="text-white font-mono">{formatDate(item.mtime)}</strong>
+              Modified: <strong className="text-white font-mono">{formatDate(currentItem.mtime)}</strong>
             </span>
-            <span className="uppercase text-indigo-400 font-bold">{item.ext}</span>
+            <span className="uppercase text-indigo-400 font-bold">{currentItem.ext}</span>
           </div>
           <span className="text-[11px] text-gray-400">
             <strong>Space</strong> close • <strong>Arrows / Tab</strong> navigate • <strong>K</strong> play/stop • <strong>Scroll</strong> zoom
