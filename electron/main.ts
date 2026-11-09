@@ -67,6 +67,40 @@ function extractMediaFromArgv(argv: string[]): string | null {
 
 initialFileToOpen = extractMediaFromArgv(process.argv);
 
+export interface DualSyncConfig {
+  videoPath?: string;
+  photoPath?: string;
+  folderName?: string;
+  date?: string;
+  slot?: string;
+}
+
+function extractDualSyncFromArgv(argv: string[]): DualSyncConfig | null {
+  let isDual = false;
+  let videoPath = '';
+  let photoPath = '';
+  let folderName = '';
+  let date = '';
+  let slot = '';
+
+  for (const rawArg of argv) {
+    const arg = rawArg.replace(/^["']|["']$/g, '');
+    if (arg === '--dual-sync' || arg.startsWith('--dual-sync=')) isDual = true;
+    if (arg.startsWith('--video=')) videoPath = arg.slice(8).replace(/^["']|["']$/g, '');
+    if (arg.startsWith('--photo=')) photoPath = arg.slice(8).replace(/^["']|["']$/g, '');
+    if (arg.startsWith('--folder=')) folderName = arg.slice(9).replace(/^["']|["']$/g, '');
+    if (arg.startsWith('--date=')) date = arg.slice(7).replace(/^["']|["']$/g, '');
+    if (arg.startsWith('--slot=')) slot = arg.slice(7).replace(/^["']|["']$/g, '');
+  }
+
+  if (isDual || (videoPath && photoPath)) {
+    return { videoPath, photoPath, folderName, date, slot };
+  }
+  return null;
+}
+
+let initialDualSync: DualSyncConfig | null = extractDualSyncFromArgv(process.argv);
+
 // Single instance lock
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -79,6 +113,10 @@ app.on('second-instance', (_event, argv) => {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
+    const dual = extractDualSyncFromArgv(argv);
+    if (dual) {
+      mainWindow.webContents.send('afm:openDualSync', dual);
+    }
     const file = extractMediaFromArgv(argv);
     if (file) {
       mainWindow.webContents.send('media:openTarget', file);
@@ -200,6 +238,11 @@ function createWindow(showImmediately = false) {
       mainWindow.show();
       mainWindow.focus();
     }
+    if (initialDualSync && mainWindow) {
+      setTimeout(() => {
+        mainWindow?.webContents.send('afm:openDualSync', initialDualSync);
+      }, 550);
+    }
     if (initialFileToOpen && mainWindow) {
       setTimeout(() => {
         mainWindow?.webContents.send('media:openTarget', initialFileToOpen);
@@ -239,6 +282,8 @@ function createWindow(showImmediately = false) {
 registerMediaIPC(() => mainWindow, () => initialFileToOpen);
 registerShellIntegrationIPC();
 registerAfmIPC();
+ipcMain.handle('afm:getInitialDualSync', () => initialDualSync);
+ipcMain.handle('afm:clearInitialDualSync', () => { initialDualSync = null; return true; });
 
 // ── App Lifecycle ─────────────────────────────────────────────
 app.whenReady().then(() => {

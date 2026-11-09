@@ -23,6 +23,7 @@ import { FullscreenViewer } from './components/viewer';
 import { MacStandaloneMediaPlayer } from './components/viewer/MacStandaloneMediaPlayer';
 import { DefaultAppsModal, SettingsModal, PropertiesModal } from './components/modals';
 import { PremierePreflightModal } from './components/afm/PremierePreflightModal';
+import { DualSyncPanel, DualSyncConfig } from './components/afm/DualSyncPanel';
 
 export function MainFileManagerApp() {
   const {
@@ -48,6 +49,7 @@ export function MainFileManagerApp() {
     { id: 'tab-1', title: 'Home', path: '' }
   ]);
   const [activeTabId, setActiveTabId] = useState<string>('tab-1');
+  const [dualSyncConfig, setDualSyncConfig] = useState<DualSyncConfig | null>(null);
 
   // Filter & View State
   const [search, setSearch] = useState('');
@@ -558,6 +560,28 @@ export function MainFileManagerApp() {
     return () => unsubscribe();
   }, [handleOpenTarget]);
 
+  useEffect(() => {
+    const api = (window as any).mediaViewerAPI || (window as any).electronAPI;
+    if (api?.getInitialDualSync) {
+      api.getInitialDualSync().then((cfg: any) => {
+        if (cfg && (cfg.videoPath || cfg.photoPath)) {
+          setDualSyncConfig(cfg);
+        }
+      }).catch(() => {});
+    }
+
+    if (api?.onOpenDualSync) {
+      const unsub = api.onOpenDualSync((cfg: any) => {
+        if (cfg) {
+          setDualSyncConfig(cfg);
+        }
+      });
+      return () => {
+        if (typeof unsub === 'function') unsub();
+      };
+    }
+  }, []);
+
   // Global Keyboard Shortcuts (Native Mac Finder / Win Explorer)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -757,6 +781,16 @@ export function MainFileManagerApp() {
   };
 
   const subfolders = useMemo(() => items.filter(i => i.isDir), [items]);
+
+  if (dualSyncConfig) {
+    return (
+      <DualSyncPanel
+        config={dualSyncConfig}
+        onClose={() => setDualSyncConfig(null)}
+        onPreviewItem={(item) => setActiveItem(item)}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen mac-window select-none overflow-hidden transition-colors duration-200">

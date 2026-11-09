@@ -51,6 +51,9 @@ export interface MediaViewerAPI {
     load: () => Promise<any>;
   };
   getEcosystemUser?: () => Promise<any>;
+  getInitialDualSync?: () => Promise<any>;
+  clearInitialDualSync?: () => Promise<any>;
+  onOpenDualSync?: (cb: (config: any) => void) => () => void;
 }
 
 const api: MediaViewerAPI = {
@@ -108,7 +111,14 @@ const api: MediaViewerAPI = {
   userProfile: {
     load: () => ipcRenderer.invoke('userProfile:load'),
   },
-  getEcosystemUser: () => ipcRenderer.invoke('userProfile:load')
+  getEcosystemUser: () => ipcRenderer.invoke('userProfile:load'),
+  getInitialDualSync: () => ipcRenderer.invoke('afm:getInitialDualSync'),
+  clearInitialDualSync: () => ipcRenderer.invoke('afm:clearInitialDualSync'),
+  onOpenDualSync: (cb: (config: any) => void) => {
+    const sub = (_e: any, config: any) => cb(config);
+    ipcRenderer.on('afm:openDualSync', sub);
+    return () => ipcRenderer.removeListener('afm:openDualSync', sub);
+  }
 };
 
 contextBridge.exposeInMainWorld('mediaViewerAPI', api);
