@@ -113,7 +113,8 @@ class OneTapService {
   }
 
   /**
-   * Pushes One Tap's native preflight overlay window for Premiere Pro project creation
+   * Opens the in-app Premiere Pro project generation overlay directly inside AFM
+   * without launching the separate One Tap application.
    */
   async openPremiereOverlay(payload: {
     folderPath: string;
@@ -130,45 +131,9 @@ class OneTapService {
       mode: payload.mode || (payload.isMaster ? 'master' : 'single')
     };
 
-    // 1. First attempt: Direct HTTP post if One Tap is already running
-    try {
-      const response = await fetch('http://127.0.0.1:49152/open-prproj-modal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formattedPayload)
-      });
-      if (response.ok) {
-        const data = await response.json();
-        return { ok: true, message: data.message || 'One Tap preflight overlay activated' };
-      }
-    } catch {}
-
-    // 2. Launch One Tap with --page=prproj and retry connection up to 5 times
-    if (this.api?.openOneTap) {
-      try {
-        const launchRes = await this.api.openOneTap(payload.folderPath);
-        if (launchRes && launchRes.ok) {
-          for (let attempt = 1; attempt <= 5; attempt++) {
-            await new Promise(r => setTimeout(r, 600));
-            try {
-              const retryRes = await fetch('http://127.0.0.1:49152/open-prproj-modal', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formattedPayload)
-              });
-              if (retryRes.ok) {
-                return { ok: true, message: 'One Tap preflight overlay activated' };
-              }
-            } catch {}
-          }
-          return { ok: true, message: 'One Tap application launched' };
-        }
-      } catch (e: any) {
-        return { ok: false, error: e.message || String(e) };
-      }
-    }
-
-    return { ok: false, error: 'Could not connect to One Tap application' };
+    // Open natively inside AFM as an in-app overlay window without launching One Tap app
+    window.dispatchEvent(new CustomEvent('afm:open-premiere-overlay', { detail: formattedPayload }));
+    return { ok: true, message: 'Premiere Pro project generator opened directly in Anything File Manager' };
   }
 
   /**

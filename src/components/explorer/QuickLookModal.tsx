@@ -289,6 +289,28 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               <span>{isVid || isPhoto || isRaw ? 'Open in Player Window' : 'Open in App'}</span>
             </button>
 
+            {/* Quick Premiere Pro Generator from Quick Look */}
+            {(currentItem.isDir || isVid) && (
+              <button
+                onClick={() => {
+                  onClose();
+                  const targetFolder = currentItem.isDir
+                    ? currentItem.fullPath
+                    : currentItem.fullPath.substring(0, Math.max(currentItem.fullPath.lastIndexOf('\\'), currentItem.fullPath.lastIndexOf('/')));
+                  window.dispatchEvent(
+                    new CustomEvent('afm:open-premiere-overlay', {
+                      detail: { folderPath: targetFolder }
+                    })
+                  );
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 rounded-md text-xs font-semibold shadow-sm transition-all"
+                title="Generate Premiere Pro Project (F8)"
+              >
+                <Film className="w-3 h-3 text-purple-300" />
+                <span className="hidden sm:inline">Premiere Project</span>
+              </button>
+            )}
+
             <button
               onClick={onClose}
               className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"

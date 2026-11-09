@@ -193,7 +193,7 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
                 >
                   <div className="flex items-center gap-2">
                     <Film className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
-                    <span className="font-semibold text-purple-600 dark:text-purple-300 group-hover:text-white">One Tap Sequence Maker...</span>
+                    <span className="font-semibold text-purple-600 dark:text-purple-300 group-hover:text-white">Create Premiere Pro Project (F8)...</span>
                   </div>
                 </button>
               )}
@@ -431,7 +431,7 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
             >
               <div className="flex items-center gap-2">
                 <Film className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
-                <span className="font-semibold text-purple-600 dark:text-purple-300 group-hover:text-white">One Tap Sequence Maker...</span>
+                <span className="font-semibold text-purple-600 dark:text-purple-300 group-hover:text-white">Create Premiere Pro Project (F8)...</span>
               </div>
             </button>
           )}

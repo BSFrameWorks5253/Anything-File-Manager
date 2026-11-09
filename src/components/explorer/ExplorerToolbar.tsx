@@ -381,6 +381,18 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
           </button>
         )}
 
+        {/* 🎬 Premiere Pro Project In-App Overlay Trigger */}
+        {onOpenSequenceMaker && (
+          <button
+            onClick={onOpenSequenceMaker}
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-semibold text-xs shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
+            title="Generate Premiere Pro Project (F8) - Directly inside AFM"
+          >
+            <Film className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden md:inline">Premiere Project</span>
+          </button>
+        )}
+
         {/* ── macOS Action Menu [ ⋯ ] ── */}
         <div className="relative" ref={actionMenuRef}>
           <button

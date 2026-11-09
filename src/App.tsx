@@ -621,6 +621,29 @@ export function MainFileManagerApp() {
     }
   }, []);
 
+  // Listen for direct in-app Premiere Pro Generator Overlay triggers (One Tap bypass)
+  useEffect(() => {
+    const handleOverlayEvent = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.folderPath) {
+        const fPath = detail.folderPath;
+        const fName = detail.folderName || fPath.split(/[\\/]/).filter(Boolean).pop() || 'Folder';
+        setPreflightTarget({
+          folderPath: fPath,
+          folderName: fName,
+          clipCount: undefined,
+          duration: 0
+        });
+        setIsPreflightOpen(true);
+      } else {
+        handleOpenSequenceMaker(selectedItem);
+      }
+    };
+
+    window.addEventListener('afm:open-premiere-overlay', handleOverlayEvent);
+    return () => window.removeEventListener('afm:open-premiere-overlay', handleOverlayEvent);
+  }, [selectedItem, handleOpenSequenceMaker]);
+
   // Global Keyboard Shortcuts (Native Mac Finder / Win Explorer)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -735,6 +758,13 @@ export function MainFileManagerApp() {
       if (e.altKey && e.key === 'Enter') {
         e.preventDefault();
         handleOpenProperties(selectedItem);
+      }
+
+      // F8 -> Open Premiere Pro Project Generator directly inside AFM as an overlay
+      if (e.key === 'F8') {
+        e.preventDefault();
+        handleOpenSequenceMaker(selectedItem);
+        return;
       }
 
       // Alt+Up -> Parent folder
