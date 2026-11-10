@@ -79,6 +79,7 @@ interface ExplorerToolbarProps {
   clipboardCount?: number;
   clipboardOp?: 'copy' | 'move' | null;
   onOpenSequenceMaker?: () => void;
+  onOpenJumpPalette?: () => void;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -121,7 +122,8 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   selectedCount = 0,
   clipboardCount = 0,
   clipboardOp = null,
-  onOpenSequenceMaker
+  onOpenSequenceMaker,
+  onOpenJumpPalette
 }) => {
   const { actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -302,6 +304,18 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
             </span>
             <Edit2 className="w-3 h-3 text-[var(--mac-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 flex-shrink-0" />
           </div>
+        )}
+
+        {onOpenJumpPalette && (
+          <button
+            onClick={onOpenJumpPalette}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-black/5 dark:bg-white/[0.06] hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-xs text-[var(--mac-text-secondary)] hover:text-[var(--mac-text-primary)] transition-all font-medium ml-1.5 flex-shrink-0"
+            title="Go to Folder / Fuzzy Jump (Cmd+P or Ctrl+P)"
+          >
+            <Search className="w-3 h-3 text-[var(--mac-accent)]" />
+            <span className="hidden xl:inline text-[11px]">Go to Folder...</span>
+            <span className="text-[9.5px] font-mono opacity-60 bg-black/5 dark:bg-white/10 px-1 rounded border border-black/10 dark:border-white/10">⌘P</span>
+          </button>
         )}
       </div>
 

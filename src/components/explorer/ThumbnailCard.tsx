@@ -22,6 +22,7 @@ import { classifyFolder } from '../../utils/afmTaxonomy';
 interface ThumbnailCardProps {
   item: FsItem;
   isSelected?: boolean;
+  selectedPaths?: Set<string>;
   isCut?: boolean;
   isRenaming?: boolean;
   colorTag?: string | null;
@@ -31,6 +32,8 @@ interface ThumbnailCardProps {
   onContextMenu?: (e: React.MouseEvent) => void;
   onCommitRename?: (newName: string) => void;
   onCancelRename?: () => void;
+  onDropItems?: (targetDir: string, items: string[], op: 'copy' | 'move') => void;
+  onSpringOpen?: (targetDir: string) => void;
 }
 
 function getFolderType(name: string): 'generic' | 'desktop' | 'downloads' | 'pictures' | 'videos' | 'documents' | 'home' {
@@ -47,6 +50,7 @@ function getFolderType(name: string): 'generic' | 'desktop' | 'downloads' | 'pic
 export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   item,
   isSelected = false,
+  selectedPaths,
   isCut = false,
   isRenaming = false,
   colorTag = null,
@@ -55,7 +59,9 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   onOpen,
   onContextMenu,
   onCommitRename,
-  onCancelRename
+  onCancelRename,
+  onDropItems,
+  onSpringOpen
 }) => {
   const isRaw = isRawExtension(item.ext);
   const isVideo = isVideoExtension(item.ext);
@@ -65,7 +71,9 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   const isDirectBrowserPhoto = isPhoto && !isRaw;
 
   const [renameVal, setRenameVal] = useState(item.name);
+  const [isSpringTarget, setIsSpringTarget] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const springTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setRenameVal(item.name);
@@ -168,14 +176,96 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   const cardMaxWidth = density === 'compact' ? 'max-w-[110px]' : density === 'broad' ? 'max-w-[160px]' : 'max-w-[130px]';
   const labelMaxWidth = density === 'compact' ? 'max-w-[100px]' : density === 'broad' ? 'max-w-[150px]' : 'max-w-[124px]';
 
+  const handleDragStart = (e: React.DragEvent) => {
+    if (isRenaming) {
+      e.preventDefault();
+      return;
+    }
+    const pathsToDrag = selectedPaths && selectedPaths.has(item.fullPath)
+      ? Array.from(selectedPaths)
+      : [item.fullPath];
+    e.dataTransfer.setData('text/plain', item.fullPath);
+    e.dataTransfer.setData('application/json', JSON.stringify(pathsToDrag));
+    e.dataTransfer.effectAllowed = 'copyMove';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!item.isDir) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+
+    if (!isSpringTarget) {
+      setIsSpringTarget(true);
+      if (springTimerRef.current) clearTimeout(springTimerRef.current);
+      springTimerRef.current = setTimeout(() => {
+        if (onSpringOpen) onSpringOpen(item.fullPath);
+        else onOpen();
+        setIsSpringTarget(false);
+      }, 500);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!item.isDir) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (springTimerRef.current) {
+      clearTimeout(springTimerRef.current);
+      springTimerRef.current = null;
+    }
+    setIsSpringTarget(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    if (!item.isDir) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (springTimerRef.current) {
+      clearTimeout(springTimerRef.current);
+      springTimerRef.current = null;
+    }
+    setIsSpringTarget(false);
+
+    let droppedPaths: string[] = [];
+    const jsonStr = e.dataTransfer.getData('application/json');
+    if (jsonStr) {
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (Array.isArray(parsed)) droppedPaths = parsed;
+      } catch {}
+    }
+    if (droppedPaths.length === 0) {
+      const text = e.dataTransfer.getData('text/plain');
+      if (text) droppedPaths = [text];
+    }
+
+    droppedPaths = droppedPaths.filter(p => p !== item.fullPath);
+    if (droppedPaths.length > 0) {
+      const op = e.altKey ? 'copy' : 'move';
+      if (onDropItems) {
+        onDropItems(item.fullPath, droppedPaths, op);
+      } else {
+        await mediaService.clipboardPaste(item.fullPath, droppedPaths, op);
+      }
+    }
+  };
+
   return (
     <div
       ref={cardRef}
       data-item-path={item.fullPath}
+      draggable={!isRenaming}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       onClick={onClick}
       onDoubleClick={onOpen}
       onContextMenu={onContextMenu}
       className={`group relative flex flex-col items-center justify-start p-2 rounded-xl cursor-pointer select-none transition-all duration-150 w-full self-start flex-shrink-0 overflow-hidden ${cardHeight} ${cardMaxWidth} ${
+        isSpringTarget ? 'mac-spring-target' : ''
+      } ${
         isSelected
           ? 'bg-black/[0.06] dark:bg-white/[0.08] ring-1 ring-[var(--mac-accent)]/40 shadow-sm'
           : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Film, RefreshCw, X, Tag } from 'lucide-react';
 import { FsItem, FilterCategory, ViewMode, SortField, SortOrder } from './types';
-import { isPhotoExtension, isVideoExtension } from './utils';
+import { isPhotoExtension, isVideoExtension, isRawExtension, isAudioExtension } from './utils';
 import { mediaService, thumbnailService } from './services';
 import { useMediaNavigation } from './hooks';
 import {
@@ -15,13 +15,14 @@ import {
   ExplorerInspector,
   QuickLookModal,
   ExplorerStatusBar,
+  ExplorerPathBar,
   ExplorerTabBar,
   TabData
 } from './components/explorer';
 import { ExplorerContextMenu, ContextMenuState } from './components/explorer/ExplorerContextMenu';
 import { FullscreenViewer } from './components/viewer';
 import { MacStandaloneMediaPlayer } from './components/viewer/MacStandaloneMediaPlayer';
-import { DefaultAppsModal, SettingsModal, PropertiesModal } from './components/modals';
+import { DefaultAppsModal, SettingsModal, PropertiesModal, FuzzyJumpPalette } from './components/modals';
 import { PremierePreflightModal } from './components/afm/PremierePreflightModal';
 import { DualSyncPanel, DualSyncConfig } from './components/afm/DualSyncPanel';
 
@@ -68,6 +69,7 @@ export function MainFileManagerApp() {
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [isPreflightOpen, setIsPreflightOpen] = useState(false);
   const [preflightTarget, setPreflightTarget] = useState<{ folderPath: string; folderName: string; clipCount?: number; duration?: number } | null>(null);
+  const [isJumpPaletteOpen, setIsJumpPaletteOpen] = useState(false);
 
   const handleOpenSequenceMaker = useCallback((target?: FsItem | null) => {
     const folder = target && target.isDir ? target : (currentPath ? {
@@ -447,6 +449,16 @@ export function MainFileManagerApp() {
     }
   }, [clipboard, currentPath, refresh]);
 
+  const handleDropItemsToDir = useCallback(async (targetDir: string, paths: string[], op: 'copy' | 'move') => {
+    if (!targetDir || !paths || paths.length === 0) return;
+    const res = await mediaService.clipboardPaste(targetDir, paths, op);
+    if (res.ok) {
+      await refresh();
+    } else if (res.errors && res.errors.length > 0) {
+      alert(`Transfer failed: ${res.errors.join(', ')}`);
+    }
+  }, [refresh]);
+
   const handleDuplicateSelected = useCallback(async (singleItem?: FsItem) => {
     const targets = singleItem ? [singleItem.fullPath] : Array.from(selectedPaths);
     if (targets.length === 0 && selectedPath) targets.push(selectedPath);
@@ -644,6 +656,16 @@ export function MainFileManagerApp() {
     return () => window.removeEventListener('afm:open-premiere-overlay', handleOverlayEvent);
   }, [selectedItem, handleOpenSequenceMaker]);
 
+  const handleItemOpen = useCallback((item: FsItem) => {
+    if (item.isDir) {
+      navigate(item.fullPath);
+    } else if (isVideoExtension(item.ext) || isPhotoExtension(item.ext) || isRawExtension(item.ext)) {
+      mediaService.openSeparatePlayer(item.fullPath);
+    } else {
+      mediaService.openExternal(item.fullPath);
+    }
+  }, [navigate]);
+
   // Global Keyboard Shortcuts (Native Mac Finder / Win Explorer)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -656,10 +678,17 @@ export function MainFileManagerApp() {
           handleCancelRename();
           return;
         }
+        if (isJumpPaletteOpen) {
+          setIsJumpPaletteOpen(false);
+          return;
+        }
       }
 
       // If user is editing filename inline, do not intercept hotkeys
       if (isInput) return;
+
+      // When Jump Palette is open, let it capture input
+      if (isJumpPaletteOpen) return;
 
       // Spacebar -> macOS Quick Look
       if (e.code === 'Space') {
@@ -733,6 +762,20 @@ export function MainFileManagerApp() {
           // Select All
           e.preventDefault();
           setSelectedPaths(new Set(filteredItems.map(i => i.fullPath)));
+        } else if (e.key.toLowerCase() === 'p' || (e.shiftKey && e.key.toLowerCase() === 'g')) {
+          // macOS Quick Jump Palette (Cmd+P) / Go to Folder (Cmd+Shift+G)
+          e.preventDefault();
+          setIsJumpPaletteOpen(true);
+        } else if (e.key === 'ArrowUp') {
+          // macOS Cmd+Up: Navigate to parent folder
+          e.preventDefault();
+          goUp();
+        } else if (e.key === 'ArrowDown') {
+          // macOS Cmd+Down: Open selected item/folder
+          e.preventDefault();
+          if (selectedItem) {
+            handleItemOpen(selectedItem);
+          }
         }
       }
 
@@ -832,22 +875,14 @@ export function MainFileManagerApp() {
     handleDuplicateSelected,
     handleDeleteSelected,
     handleToggleShowHidden,
-    handleOpenProperties
+    handleOpenProperties,
+    isJumpPaletteOpen,
+    handleItemOpen
   ]);
 
   const handleChooseFolder = async () => {
     const folder = await mediaService.selectFolder();
     if (folder) navigate(folder);
-  };
-
-  const handleItemOpen = (item: FsItem) => {
-    if (item.isDir) {
-      navigate(item.fullPath);
-    } else if (isVideoExtension(item.ext) || isPhotoExtension(item.ext) || isRawExtension(item.ext)) {
-      mediaService.openSeparatePlayer(item.fullPath);
-    } else {
-      mediaService.openExternal(item.fullPath);
-    }
   };
 
   const handleOpenSeparately = (item: FsItem) => {
@@ -932,6 +967,7 @@ export function MainFileManagerApp() {
         onChooseFolder={handleChooseFolder}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenSequenceMaker={() => handleOpenSequenceMaker(selectedItem)}
+        onOpenJumpPalette={() => setIsJumpPaletteOpen(true)}
         showHidden={showHidden}
         onToggleShowHidden={handleToggleShowHidden}
         density={density}
@@ -965,6 +1001,7 @@ export function MainFileManagerApp() {
               colorTags={colorTags}
               selectedTagColor={selectedTagColor}
               onSelectTagColor={setSelectedTagColor}
+              onDropItems={handleDropItemsToDir}
             />
 
             {/* Resizable Divider between Sidebar and Main Content */}
@@ -1049,6 +1086,8 @@ export function MainFileManagerApp() {
                 onCancelRename={handleCancelRename}
                 onClearSelection={handleClearSelection}
                 onSelectMultiple={handleSelectMultiple}
+                onDropItems={handleDropItemsToDir}
+                onSpringOpenFolder={navigate}
               />
             </div>
           ) : viewMode === 'table' ? (
@@ -1066,6 +1105,8 @@ export function MainFileManagerApp() {
                 onContextMenu={handleContextMenu}
                 onCommitRename={handleCommitRename}
                 onCancelRename={handleCancelRename}
+                onDropItems={handleDropItemsToDir}
+                onSpringOpenFolder={navigate}
               />
             </div>
           ) : viewMode === 'columns' ? (
@@ -1116,6 +1157,16 @@ export function MainFileManagerApp() {
           />
         )}
       </div>
+
+      {/* macOS Finder Path Bar with Breadcrumb Navigation & Spring-Loaded Drops */}
+      {currentPath && (
+        <ExplorerPathBar
+          currentPath={currentPath}
+          onNavigate={navigate}
+          onOpenJumpPalette={() => setIsJumpPaletteOpen(true)}
+          onRefresh={refresh}
+        />
+      )}
 
       {/* Bottom Status Bar */}
       <ExplorerStatusBar
@@ -1225,6 +1276,18 @@ export function MainFileManagerApp() {
         onOpenDefaultAppsModal={() => setIsDefaultAppsModalOpen(true)}
         showHidden={showHidden}
         onToggleShowHidden={handleToggleShowHidden}
+      />
+
+      {/* macOS Spotlight / Fuzzy Quick Jump Palette (Cmd+P / Ctrl+P / Cmd+Shift+G) */}
+      <FuzzyJumpPalette
+        isOpen={isJumpPaletteOpen}
+        onClose={() => setIsJumpPaletteOpen(false)}
+        currentPath={currentPath}
+        currentItems={filteredItems}
+        quickAccess={quickAccess}
+        drivesWithSpace={drivesWithSpace}
+        onNavigate={navigate}
+        onOpenItem={handleItemOpen}
       />
     </div>
   );

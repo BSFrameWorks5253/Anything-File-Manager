@@ -1,7 +1,7 @@
 {
   "name": "anything-file-manager",
   "productName": "Anything File Manager",
-  "version": "26.11.16",
+  "version": "26.11.17",
   "description": "Anything File Manager — High-performance Media & Production File Explorer",
   "main": "dist-electron/main.js",
   "author": "Burhanuddin Sounasath",

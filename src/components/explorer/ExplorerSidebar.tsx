@@ -38,6 +38,7 @@ interface ExplorerSidebarProps {
   colorTags?: Record<string, string>;
   selectedTagColor?: string | null;
   onSelectTagColor?: (color: string | null) => void;
+  onDropItems?: (targetDir: string, items: string[], op: 'copy' | 'move') => void;
 }
 
 export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
@@ -50,8 +51,70 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   width = 240,
   colorTags = {},
   selectedTagColor = null,
-  onSelectTagColor
+  onSelectTagColor,
+  onDropItems
 }) => {
+  const [springHoverPath, setSpringHoverPath] = React.useState<string | null>(null);
+  const springTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDragOverItem = (e: React.DragEvent, fullPath: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+
+    if (springHoverPath !== fullPath) {
+      setSpringHoverPath(fullPath);
+      if (springTimerRef.current) clearTimeout(springTimerRef.current);
+      springTimerRef.current = setTimeout(() => {
+        onSelectPath(fullPath);
+        setSpringHoverPath(null);
+      }, 500); // 500ms spring-loaded folder delay
+    }
+  };
+
+  const handleDragLeaveItem = (e: React.DragEvent, fullPath: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (springHoverPath === fullPath) {
+      if (springTimerRef.current) {
+        clearTimeout(springTimerRef.current);
+        springTimerRef.current = null;
+      }
+      setSpringHoverPath(null);
+    }
+  };
+
+  const handleDropOnItem = async (e: React.DragEvent, targetDir: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (springTimerRef.current) {
+      clearTimeout(springTimerRef.current);
+      springTimerRef.current = null;
+    }
+    setSpringHoverPath(null);
+
+    let droppedPaths: string[] = [];
+    const jsonStr = e.dataTransfer.getData('application/json');
+    if (jsonStr) {
+      try {
+        const p = JSON.parse(jsonStr);
+        if (Array.isArray(p)) droppedPaths = p;
+      } catch {}
+    }
+    if (droppedPaths.length === 0) {
+      const text = e.dataTransfer.getData('text/plain');
+      if (text) droppedPaths = [text];
+    }
+    droppedPaths = droppedPaths.filter(p => p !== targetDir);
+    if (droppedPaths.length > 0) {
+      const op = e.altKey ? 'copy' : 'move';
+      if (onDropItems) {
+        onDropItems(targetDir, droppedPaths, op);
+      } else {
+        await mediaService.clipboardPaste(targetDir, droppedPaths, op);
+      }
+    }
+  };
   const getIconForQuickAccess = (icon: string) => {
     switch (icon) {
       case 'home':
@@ -99,6 +162,7 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
       <div className="space-y-0.5 mb-4">
         {quickAccess.map(item => {
           const active = isPathActive(item.path);
+          const isSpringTarget = springHoverPath === item.path;
           return (
             <button
               key={item.path}
@@ -106,8 +170,13 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
                 onSelectTagColor?.(null);
                 onSelectPath(item.path);
               }}
+              onDragOver={e => handleDragOverItem(e, item.path)}
+              onDragLeave={e => handleDragLeaveItem(e, item.path)}
+              onDrop={e => handleDropOnItem(e, item.path)}
               className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                active && !selectedTagColor
+                isSpringTarget
+                  ? 'mac-spring-target'
+                  : active && !selectedTagColor
                   ? 'bg-[var(--mac-accent)] text-white shadow-sm font-semibold'
                   : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
               }`}
@@ -126,6 +195,7 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
       <div className="space-y-1 mb-4">
         {drivesWithSpace.map(d => {
           const active = currentPath.toLowerCase().startsWith(d.drive.toLowerCase());
+          const isSpringTarget = springHoverPath === d.drive;
           return (
             <button
               key={d.drive}
@@ -133,8 +203,13 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
                 onSelectTagColor?.(null);
                 onSelectPath(d.drive);
               }}
+              onDragOver={e => handleDragOverItem(e, d.drive)}
+              onDragLeave={e => handleDragLeaveItem(e, d.drive)}
+              onDrop={e => handleDropOnItem(e, d.drive)}
               className={`w-full flex flex-col p-2 rounded-xl text-xs transition-all ${
-                active && !selectedTagColor
+                isSpringTarget
+                  ? 'mac-spring-target'
+                  : active && !selectedTagColor
                   ? 'bg-blue-600/15 border border-blue-500/40 text-blue-300'
                   : 'border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
               }`}

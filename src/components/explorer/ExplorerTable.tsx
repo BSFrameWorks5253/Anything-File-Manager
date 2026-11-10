@@ -32,6 +32,8 @@ interface ExplorerTableProps {
   onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
   onCommitRename?: (item: FsItem, newName: string) => void;
   onCancelRename?: () => void;
+  onDropItems?: (targetDir: string, items: string[], op: 'copy' | 'move') => void;
+  onSpringOpenFolder?: (targetDir: string) => void;
 }
 
 function getItemKind(item: FsItem): string {
@@ -99,10 +101,14 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
   onQuickLook,
   onContextMenu,
   onCommitRename,
-  onCancelRename
+  onCancelRename,
+  onDropItems,
+  onSpringOpenFolder
 }) => {
   const [tableRenameVal, setTableRenameVal] = useState('');
+  const [springHoverPath, setSpringHoverPath] = useState<string | null>(null);
   const tableRenameRef = useRef<HTMLInputElement>(null);
+  const springTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (renamingPath) {
@@ -232,10 +238,80 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
             const isRaw = isRawExtension(item.ext);
             const isPhoto = isPhotoExtension(item.ext);
             const isVideo = isVideoExtension(item.ext);
+            const isSpringTarget = springHoverPath === item.fullPath;
 
             return (
               <tr
                 key={item.fullPath}
+                draggable={!isRenaming}
+                onDragStart={e => {
+                  const paths = selectedPaths && selectedPaths.has(item.fullPath)
+                    ? Array.from(selectedPaths)
+                    : [item.fullPath];
+                  e.dataTransfer.setData('text/plain', item.fullPath);
+                  e.dataTransfer.setData('application/json', JSON.stringify(paths));
+                  e.dataTransfer.effectAllowed = 'copyMove';
+                }}
+                onDragOver={e => {
+                  if (!item.isDir) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+                  if (springHoverPath !== item.fullPath) {
+                    setSpringHoverPath(item.fullPath);
+                    if (springTimerRef.current) clearTimeout(springTimerRef.current);
+                    springTimerRef.current = setTimeout(() => {
+                      if (onSpringOpenFolder) onSpringOpenFolder(item.fullPath);
+                      else onOpenItem(item);
+                      setSpringHoverPath(null);
+                    }, 500);
+                  }
+                }}
+                onDragLeave={e => {
+                  if (!item.isDir) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (springHoverPath === item.fullPath) {
+                    if (springTimerRef.current) {
+                      clearTimeout(springTimerRef.current);
+                      springTimerRef.current = null;
+                    }
+                    setSpringHoverPath(null);
+                  }
+                }}
+                onDrop={async e => {
+                  if (!item.isDir) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (springTimerRef.current) {
+                    clearTimeout(springTimerRef.current);
+                    springTimerRef.current = null;
+                  }
+                  setSpringHoverPath(null);
+
+                  let droppedPaths: string[] = [];
+                  const jsonStr = e.dataTransfer.getData('application/json');
+                  if (jsonStr) {
+                    try {
+                      const p = JSON.parse(jsonStr);
+                      if (Array.isArray(p)) droppedPaths = p;
+                    } catch {}
+                  }
+                  if (droppedPaths.length === 0) {
+                    const text = e.dataTransfer.getData('text/plain');
+                    if (text) droppedPaths = [text];
+                  }
+
+                  droppedPaths = droppedPaths.filter(p => p !== item.fullPath);
+                  if (droppedPaths.length > 0) {
+                    const op = e.altKey ? 'copy' : 'move';
+                    if (onDropItems) {
+                      onDropItems(item.fullPath, droppedPaths, op);
+                    } else {
+                      await mediaService.clipboardPaste(item.fullPath, droppedPaths, op);
+                    }
+                  }
+                }}
                 onClick={e => onSelectItem(item, e)}
                 onDoubleClick={() => onOpenItem(item)}
                 onContextMenu={e => {
@@ -244,6 +320,8 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                   onContextMenu?.(e, item);
                 }}
                 className={`group cursor-pointer transition-colors border-b border-[var(--mac-border-subtle)] text-xs ${
+                  isSpringTarget ? 'mac-spring-target' : ''
+                } ${
                   isSelected
                     ? 'bg-[#007AFF] text-white font-medium shadow-xs'
                     : 'hover:bg-black/5 dark:hover:bg-white/[0.04] text-[var(--mac-text-primary)]'

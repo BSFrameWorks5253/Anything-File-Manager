@@ -17,6 +17,8 @@ interface ExplorerGridProps {
   onCancelRename?: () => void;
   onClearSelection?: () => void;
   onSelectMultiple?: (paths: string[]) => void;
+  onDropItems?: (targetDir: string, items: string[], op: 'copy' | 'move') => void;
+  onSpringOpenFolder?: (targetDir: string) => void;
 }
 
 export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
@@ -33,7 +35,9 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onCommitRename,
   onCancelRename,
   onClearSelection,
-  onSelectMultiple
+  onSelectMultiple,
+  onDropItems,
+  onSpringOpenFolder
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragBox, setDragBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -140,6 +144,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             item={item}
             density={density}
             isSelected={isSelected}
+            selectedPaths={selectedPaths}
             isCut={isCut}
             isRenaming={isRenaming}
             colorTag={tag}
@@ -153,6 +158,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             }}
             onCommitRename={newName => onCommitRename?.(item, newName)}
             onCancelRename={onCancelRename}
+            onDropItems={onDropItems}
+            onSpringOpen={onSpringOpenFolder}
           />
         );
       })}
