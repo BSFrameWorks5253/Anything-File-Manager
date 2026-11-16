@@ -55,6 +55,8 @@ interface ExplorerContextMenuProps {
   currentColorTag?: string | null;
   canPaste?: boolean;
   onOpenSequenceMaker?: (item: FsItem) => void;
+  onOpenBatchRename?: () => void;
+  selectedCount?: number;
 }
 
 const MAC_TAGS = [
@@ -91,7 +93,9 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
   onSetColorTag,
   currentColorTag,
   canPaste = false,
-  onOpenSequenceMaker
+  onOpenSequenceMaker,
+  onOpenBatchRename,
+  selectedCount = 0
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -331,6 +335,22 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
                 <span>Rename</span>
               </div>
               <span className="text-[10px] opacity-60">F2</span>
+            </button>
+          )}
+
+          {onOpenBatchRename && selectedCount > 1 && (
+            <button
+              onClick={() => {
+                onOpenBatchRename();
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-amber-500 hover:text-black font-semibold text-amber-300 transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Batch Rename ({selectedCount} items)...</span>
+              </div>
+              <span className="text-[10px] opacity-80">Cmd+R</span>
             </button>
           )}
 

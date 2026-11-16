@@ -38,6 +38,8 @@ interface ExplorerSidebarProps {
   colorTags?: Record<string, string>;
   selectedTagColor?: string | null;
   onSelectTagColor?: (color: string | null) => void;
+  smartFilter?: string | null;
+  onSelectSmartFilter?: (filter: string | null) => void;
   onDropItems?: (targetDir: string, items: string[], op: 'copy' | 'move') => void;
 }
 
@@ -52,6 +54,8 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   colorTags = {},
   selectedTagColor = null,
   onSelectTagColor,
+  smartFilter = null,
+  onSelectSmartFilter,
   onDropItems
 }) => {
   const [springHoverPath, setSpringHoverPath] = React.useState<string | null>(null);
@@ -239,6 +243,53 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
                   />
                 </div>
               )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Section: Smart Searches (macOS Smart Folders) ── */}
+      <div className="px-2 pb-1.5 text-[10.5px] font-bold text-[var(--mac-text-muted)] uppercase tracking-wider flex items-center justify-between">
+        <span>Smart Searches</span>
+        {smartFilter && (
+          <button
+            onClick={() => onSelectSmartFilter?.(null)}
+            className="text-[10px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-0.5 lowercase tracking-normal"
+            title="Clear smart filter"
+          >
+            <X className="w-3 h-3" />
+            <span>clear</span>
+          </button>
+        )}
+      </div>
+      <div className="space-y-0.5 mb-4">
+        {[
+          { id: 'hfr', label: 'High Frame Rate (60+ fps)', icon: <Film className="w-3.5 h-3.5 text-rose-400" />, badge: 'Slow-Mo' },
+          { id: 'raw', label: 'RAW Stills', icon: <ImageIcon className="w-3.5 h-3.5 text-amber-400" />, badge: '.RAW' },
+          { id: 'recent', label: 'Recent Shoots (< 48 hrs)', icon: <Clock className="w-3.5 h-3.5 text-sky-400" />, badge: '48h' },
+          { id: 'large', label: 'Large Clips (> 2 GB)', icon: <HardDrive className="w-3.5 h-3.5 text-purple-400" />, badge: '> 2 GB' }
+        ].map(s => {
+          const isSelected = smartFilter === s.id;
+          return (
+            <button
+              key={s.id}
+              onClick={() => {
+                onSelectTagColor?.(null);
+                onSelectSmartFilter?.(isSelected ? null : s.id);
+              }}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                isSelected
+                  ? 'bg-purple-600/25 border border-purple-500/40 text-purple-200 font-semibold shadow-xs'
+                  : 'text-[var(--mac-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--mac-text-primary)]'
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate">
+                {s.icon}
+                <span className="truncate">{s.label}</span>
+              </div>
+              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-neutral-400 flex-shrink-0">
+                {s.badge}
+              </span>
             </button>
           );
         })}

@@ -10,3 +10,4 @@ export * from './QuickLookModal';
 export * from './ExplorerStatusBar';
 export * from './ExplorerPathBar';
 export * from './ExplorerTabBar';
+export * from './DualPaneSplitView';

@@ -78,6 +78,9 @@ export interface MediaViewerAPI {
   createFolder?: (parentDir: string, customName?: string) => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>;
   createFile?: (parentDir: string, fileName?: string, defaultContent?: string) => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>;
   renameItem?: (oldPath: string, newName: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;
+  batchRename?: (items: { oldPath: string; newName: string }[]) => Promise<{ ok: boolean; renamedCount?: number; historyId?: string; error?: string }>;
+  undoBatchRename?: (historyId?: string) => Promise<{ ok: boolean; revertedCount?: number; error?: string }>;
+  getSiblingMediaFiles?: (filePath: string) => Promise<{ ok: boolean; items: FsItem[]; error?: string }>;
   deleteItems?: (filePaths: string[], permanent?: boolean) => Promise<{ ok: boolean; deletedCount: number; errors?: string[] }>;
   clipboardPaste?: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => Promise<{ ok: boolean; pastedCount: number; errors?: string[] }>;
   duplicateItem?: (sourcePath: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;

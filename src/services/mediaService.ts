@@ -63,6 +63,21 @@ export const mediaService = {
     return api.renameItem(oldPath, newName);
   },
 
+  async batchRename(items: { oldPath: string; newName: string }[]): Promise<{ ok: boolean; renamedCount?: number; historyId?: string; error?: string }> {
+    if (!api?.batchRename) return { ok: false, error: 'API unavailable' };
+    return api.batchRename(items);
+  },
+
+  async undoBatchRename(historyId?: string): Promise<{ ok: boolean; revertedCount?: number; error?: string }> {
+    if (!api?.undoBatchRename) return { ok: false, error: 'API unavailable' };
+    return api.undoBatchRename(historyId);
+  },
+
+  async getSiblingMediaFiles(filePath: string): Promise<{ ok: boolean; items: FsItem[]; error?: string }> {
+    if (!api?.getSiblingMediaFiles) return { ok: false, items: [], error: 'API unavailable' };
+    return api.getSiblingMediaFiles(filePath);
+  },
+
   async deleteItems(filePaths: string[], permanent = false): Promise<{ ok: boolean; deletedCount: number; errors?: string[] }> {
     if (!api?.deleteItems) return { ok: false, deletedCount: 0, errors: ['API unavailable'] };
     return api.deleteItems(filePaths, permanent);

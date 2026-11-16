@@ -45,6 +45,10 @@ import {
 import { mediaService, thumbnailService } from '../../services';
 import { classifyFolder } from '../../utils/afmTaxonomy';
 import { MacFolderIcon, MacDocumentIcon } from '../common/MacIcons';
+import { LutSelectorPill } from '../common/LutSelectorPill';
+import { getLutFilterStyle } from '../../utils/lutFilters';
+import { AudioWaveformBar } from '../common/AudioWaveformBar';
+import { NleShuttleBadge } from '../common/NleShuttleBadge';
 
 interface QuickLookModalProps {
   item: FsItem | null;
@@ -398,6 +402,10 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
   const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
   const [hasPlaybackError, setHasPlaybackError] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [selectedLut, setSelectedLut] = useState<string>('off');
+  const [shuttleSpeed, setShuttleSpeed] = useState<number>(1);
+  const [isFrameStep, setIsFrameStep] = useState<-1 | 1 | null>(null);
+  const [shuttleTriggerKey, setShuttleTriggerKey] = useState<number>(0);
 
   const mediaUrl = mediaService.toLocalResourceUrl(item.fullPath);
   const afmInfo = classifyFolder(item.name, item.fullPath);
@@ -458,6 +466,9 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
           videoRef.current.play();
           setIsPlaying(true);
         }
+        setShuttleSpeed(nextSpeed);
+        setIsFrameStep(null);
+        setShuttleTriggerKey(k => k + 1);
         return nextSpeed;
       });
     };
@@ -471,6 +482,9 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
           if (videoRef.current) {
             videoRef.current.playbackRate = nextSpeed;
           }
+          setShuttleSpeed(nextSpeed);
+          setIsFrameStep(null);
+          setShuttleTriggerKey(k => k + 1);
           return nextSpeed;
         });
       }
@@ -507,9 +521,15 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
     if (videoRef.current.paused) {
       videoRef.current.play();
       setIsPlaying(true);
+      setShuttleSpeed(1);
+      setIsFrameStep(null);
+      setShuttleTriggerKey(k => k + 1);
     } else {
       videoRef.current.pause();
       setIsPlaying(false);
+      setShuttleSpeed(0);
+      setIsFrameStep(null);
+      setShuttleTriggerKey(k => k + 1);
     }
   };
 
@@ -517,6 +537,9 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
     if (!videoRef.current) return;
     videoRef.current.pause();
     setIsPlaying(false);
+    setShuttleSpeed(0);
+    setIsFrameStep(frames > 0 ? 1 : -1);
+    setShuttleTriggerKey(k => k + 1);
     const fps = 30;
     const newTime = Math.max(0, Math.min(duration || 100, videoRef.current.currentTime + frames / fps));
     videoRef.current.currentTime = newTime;
@@ -656,10 +679,18 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
               }}
               style={{
                 transform: `scale(${zoom})`,
-                transition: 'transform 0.1s ease-out'
+                transition: 'transform 0.1s ease-out',
+                ...getLutFilterStyle(selectedLut)
               }}
               className="max-h-full max-w-full object-contain"
               onClick={togglePlay}
+            />
+
+            {/* NLE Shuttle Feedback HUD */}
+            <NleShuttleBadge
+              shuttleSpeed={shuttleSpeed}
+              isFrameStep={isFrameStep}
+              triggerKey={shuttleTriggerKey}
             />
 
             {/* Buffering Indicator Overlay */}
@@ -704,6 +735,9 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <div className="pointer-events-auto">
+              <LutSelectorPill currentLut={selectedLut} onSelectLut={setSelectedLut} />
+            </div>
             <span className="bg-black/75 backdrop-blur-md px-2.5 py-1 rounded text-gray-300 font-mono text-xs border border-white/10">
               DURATION: {toSMPTETimecode(duration)}
             </span>
@@ -867,21 +901,20 @@ function AdobePremiereQuickLook({ item }: { item: FsItem }) {
             )}
           </div>
 
-          {/* A1 Audio Track */}
-          <div className="relative h-7 bg-emerald-950/20 flex items-center px-2 overflow-hidden pointer-events-none">
+          {/* A1 Audio Track with Dynamic Waveform */}
+          <div className="relative h-7 bg-emerald-950/25 flex items-center px-2 overflow-hidden pointer-events-none">
             <span className="text-[9px] font-black text-emerald-400 mr-2 flex-shrink-0 z-10">A1</span>
-            {/* Waveform Bars */}
-            <div className="absolute inset-y-0 left-6 right-0 flex items-center gap-1 opacity-50 overflow-hidden">
-              {Array.from({ length: 64 }).map((_, i) => {
-                const height = 20 + Math.sin(i * 0.8) * 15 + Math.cos(i * 1.5) * 8;
-                return (
-                  <div
-                    key={i}
-                    style={{ height: `${height}%` }}
-                    className="w-1 bg-emerald-400/80 rounded-full flex-shrink-0"
-                  />
-                );
-              })}
+            <div className="absolute inset-y-0 left-6 right-0 flex items-center">
+              <AudioWaveformBar
+                currentTime={currentTime}
+                duration={duration}
+                onSeek={time => {
+                  if (videoRef.current) videoRef.current.currentTime = time;
+                  setCurrentTime(time);
+                }}
+                seedPath={item.fullPath}
+                className="w-full h-full"
+              />
             </div>
           </div>
 

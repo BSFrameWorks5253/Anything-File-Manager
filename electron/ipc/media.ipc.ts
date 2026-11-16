@@ -866,17 +866,138 @@ export function registerMediaIPC(
     return true;
   });
 
-  ipcMain.handle('media:openSeparatePlayer', async (_event, filePath: string) => {
+  ipcMain.handle('media:getInitialFile', async () => getInitialFile());
+
+  interface BatchRenameOperation {
+    oldPath: string;
+    newName: string;
+  }
+
+  interface UndoEntry {
+    id: string;
+    timestamp: number;
+    items: { originalPath: string; renamedPath: string }[];
+  }
+
+  const undoHistory: UndoEntry[] = [];
+
+  ipcMain.handle('media:batchRename', async (_event, payload: { items: BatchRenameOperation[] }) => {
     try {
-      if (!filePath || !fs.existsSync(filePath)) return { ok: false, error: 'File not found' };
-      await shell.openPath(filePath);
-      return { ok: true };
+      const items = payload?.items;
+      if (!items || items.length === 0) return { ok: false, error: 'No items to rename' };
+
+      // Validation
+      for (const item of items) {
+        if (!item.oldPath || !fs.existsSync(item.oldPath)) {
+          return { ok: false, error: `File not found: ${path.basename(item.oldPath)}` };
+        }
+        if (isRootOrSystemPath(item.oldPath)) {
+          return { ok: false, error: `Cannot rename protected system path: ${item.oldPath}` };
+        }
+        if (/[<>:"/\\|?*]/.test(item.newName)) {
+          return { ok: false, error: `Invalid characters in new name: ${item.newName}` };
+        }
+      }
+
+      // Safe 2-Pass Rename Algorithm (prevents collisions, e.g. file1 -> file2, file2 -> file3)
+      // Pass 1: Rename all targets to temporary unique names
+      const staged: { originalPath: string; tempPath: string; finalPath: string }[] = [];
+      for (const item of items) {
+        const dir = path.dirname(item.oldPath);
+        const ext = path.extname(item.oldPath);
+        const tempPath = path.join(dir, `__afm_tmp_${crypto.randomUUID()}${ext}`);
+        fs.renameSync(item.oldPath, tempPath);
+        const finalPath = path.join(dir, item.newName);
+        staged.push({ originalPath: item.oldPath, tempPath, finalPath });
+      }
+
+      // Pass 2: Rename from temp to final names
+      const historyItems: { originalPath: string; renamedPath: string }[] = [];
+      for (const s of staged) {
+        fs.renameSync(s.tempPath, s.finalPath);
+        historyItems.push({ originalPath: s.originalPath, renamedPath: s.finalPath });
+      }
+
+      // Record in Undo history (up to 25 operations)
+      const historyId = crypto.randomUUID();
+      undoHistory.push({ id: historyId, timestamp: Date.now(), items: historyItems });
+      if (undoHistory.length > 25) undoHistory.shift();
+
+      return { ok: true, renamedCount: staged.length, historyId };
     } catch (err: any) {
       return { ok: false, error: err.message || String(err) };
     }
   });
 
-  ipcMain.handle('media:getInitialFile', async () => getInitialFile());
+  ipcMain.handle('media:undoBatchRename', async (_event, historyId?: string) => {
+    try {
+      const entry = historyId
+        ? undoHistory.find(u => u.id === historyId)
+        : undoHistory.pop();
+      if (!entry) return { ok: false, error: 'No rename operation to undo' };
+
+      let revertedCount = 0;
+      // Revert in 2-pass reverse order
+      const staged: { renamedPath: string; tempPath: string; originalPath: string }[] = [];
+      for (const item of entry.items) {
+        if (fs.existsSync(item.renamedPath)) {
+          const dir = path.dirname(item.renamedPath);
+          const ext = path.extname(item.renamedPath);
+          const tempPath = path.join(dir, `__afm_undo_${crypto.randomUUID()}${ext}`);
+          fs.renameSync(item.renamedPath, tempPath);
+          staged.push({ renamedPath: item.renamedPath, tempPath, originalPath: item.originalPath });
+        }
+      }
+
+      for (const s of staged) {
+        fs.renameSync(s.tempPath, s.originalPath);
+        revertedCount++;
+      }
+
+      return { ok: true, revertedCount };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle('media:getSiblingMediaFiles', async (_event, filePath: string) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return { ok: false, items: [] };
+      const dir = path.dirname(filePath);
+      const files = fs.readdirSync(dir);
+      const mediaItems: { name: string; fullPath: string; isDir: boolean; ext: string; size: number; mtime: number }[] = [];
+
+      for (const f of files) {
+        if (isItemHidden(f)) continue;
+        const full = path.join(dir, f);
+        try {
+          const stat = fs.statSync(full);
+          if (stat.isDirectory()) continue;
+          const ext = path.extname(f).slice(1).toLowerCase();
+          if (
+            VIDEO_EXTS.has(ext) ||
+            RAW_EXTS.has(ext) ||
+            AUDIO_EXTS.has(ext) ||
+            ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'tiff', 'tif', 'heic', 'heif'].includes(ext)
+          ) {
+            mediaItems.push({
+              name: f,
+              fullPath: full,
+              isDir: false,
+              ext,
+              size: stat.size,
+              mtime: stat.mtimeMs
+            });
+          }
+        } catch {}
+      }
+
+      mediaItems.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+      return { ok: true, items: mediaItems };
+    } catch (err: any) {
+      return { ok: false, items: [], error: err.message || String(err) };
+    }
+  });
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FULL CRUD FILE ENGINE (CROSS-DISK SUPPORT, RECYCLE BIN, DUPLICATION)

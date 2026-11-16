@@ -29,7 +29,8 @@ import {
   CopyPlus,
   MoreHorizontal,
   Info,
-  Film
+  Film,
+  Split
 } from 'lucide-react';
 import { ViewMode, SortField, SortOrder } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
@@ -80,6 +81,9 @@ interface ExplorerToolbarProps {
   clipboardOp?: 'copy' | 'move' | null;
   onOpenSequenceMaker?: () => void;
   onOpenJumpPalette?: () => void;
+  isDualPane?: boolean;
+  onToggleDualPane?: () => void;
+  onOpenBatchRename?: () => void;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -123,7 +127,10 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   clipboardCount = 0,
   clipboardOp = null,
   onOpenSequenceMaker,
-  onOpenJumpPalette
+  onOpenJumpPalette,
+  isDualPane = false,
+  onToggleDualPane,
+  onOpenBatchRename
 }) => {
   const { actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -369,6 +376,22 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
           </button>
         </div>
 
+        {/* Dual-Pane Mode Toggle (TotalFinder / ForkLift style) */}
+        {onToggleDualPane && (
+          <button
+            onClick={onToggleDualPane}
+            className={`px-2 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-all ${
+              isDualPane
+                ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-bold shadow-xs'
+                : 'border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.06] text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] hover:bg-black/10 dark:hover:bg-white/10'
+            }`}
+            title="Toggle Dual-Pane Split View (Cmd+Option+2 or Ctrl+Alt+2)"
+          >
+            <Split className="w-3.5 h-3.5" />
+            <span className="hidden md:inline text-[11px]">Dual Pane</span>
+          </button>
+        )}
+
         {/* Minimalist Sort Control */}
         <div className="hidden sm:flex items-center bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 rounded-lg px-2 h-8 gap-1 text-xs text-[var(--mac-text-secondary)]">
           <ArrowUpDown className="w-3 h-3 text-[var(--mac-text-muted)]" />
@@ -523,6 +546,23 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
                     <span>Rename</span>
                   </div>
                   <span className="text-[10px] opacity-60">F2</span>
+                </button>
+              )}
+
+              {onOpenBatchRename && (
+                <button
+                  onClick={() => {
+                    setIsActionMenuOpen(false);
+                    onOpenBatchRename();
+                  }}
+                  disabled={selectedCount <= 1}
+                  className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-amber-500 hover:text-black text-amber-300 font-semibold disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Batch Rename {selectedCount > 1 ? `(${selectedCount})` : ''}...</span>
+                  </div>
+                  <span className="text-[10px] opacity-80">Cmd+R</span>
                 </button>
               )}
 

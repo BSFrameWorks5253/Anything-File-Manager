@@ -17,12 +17,13 @@ import {
   ExplorerStatusBar,
   ExplorerPathBar,
   ExplorerTabBar,
+  DualPaneSplitView,
   TabData
 } from './components/explorer';
 import { ExplorerContextMenu, ContextMenuState } from './components/explorer/ExplorerContextMenu';
 import { FullscreenViewer } from './components/viewer';
 import { MacStandaloneMediaPlayer } from './components/viewer/MacStandaloneMediaPlayer';
-import { DefaultAppsModal, SettingsModal, PropertiesModal, FuzzyJumpPalette } from './components/modals';
+import { DefaultAppsModal, SettingsModal, PropertiesModal, FuzzyJumpPalette, BatchRenameModal } from './components/modals';
 import { PremierePreflightModal } from './components/afm/PremierePreflightModal';
 import { DualSyncPanel, DualSyncConfig } from './components/afm/DualSyncPanel';
 
@@ -70,6 +71,17 @@ export function MainFileManagerApp() {
   const [isPreflightOpen, setIsPreflightOpen] = useState(false);
   const [preflightTarget, setPreflightTarget] = useState<{ folderPath: string; folderName: string; clipCount?: number; duration?: number } | null>(null);
   const [isJumpPaletteOpen, setIsJumpPaletteOpen] = useState(false);
+  const [isBatchRenameOpen, setIsBatchRenameOpen] = useState(false);
+  const [smartFilter, setSmartFilter] = useState<string | null>(null);
+
+  // TotalFinder / ForkLift Dual-Pane Mode State
+  const [isDualPane, setIsDualPane] = useState(false);
+  const [rightPath, setRightPath] = useState<string>('');
+  const [rightItems, setRightItems] = useState<FsItem[]>([]);
+  const [rightLoading, setRightLoading] = useState(false);
+  const [activePane, setActivePane] = useState<'left' | 'right'>('left');
+  const [rightSelectedPath, setRightSelectedPath] = useState<string | null>(null);
+  const [rightSelectedPaths, setRightSelectedPaths] = useState<Set<string>>(new Set());
 
   const handleOpenSequenceMaker = useCallback((target?: FsItem | null) => {
     const folder = target && target.isDir ? target : (currentPath ? {
@@ -142,6 +154,38 @@ export function MainFileManagerApp() {
       );
     }
   }, [currentPath, activeTabId]);
+
+  // Dual-Pane initialization & directory loader
+  useEffect(() => {
+    if (isDualPane && !rightPath) {
+      if (drives.length > 1) {
+        setRightPath(drives[1]);
+      } else if (quickAccess.length > 1) {
+        setRightPath(quickAccess[1].path);
+      } else {
+        setRightPath(currentPath);
+      }
+    }
+  }, [isDualPane, rightPath, drives, quickAccess, currentPath]);
+
+  const refreshRightPane = useCallback(async () => {
+    if (!rightPath) return;
+    setRightLoading(true);
+    try {
+      const fetched = await mediaService.listDir(rightPath);
+      setRightItems(fetched || []);
+    } catch {
+      setRightItems([]);
+    } finally {
+      setRightLoading(false);
+    }
+  }, [rightPath]);
+
+  useEffect(() => {
+    if (isDualPane && rightPath) {
+      refreshRightPane();
+    }
+  }, [isDualPane, rightPath, refreshRightPane]);
 
   // Load color tags
   useEffect(() => {
@@ -218,6 +262,24 @@ export function MainFileManagerApp() {
       });
     }
 
+    // macOS Smart Searches filter criteria
+    if (smartFilter === 'hfr') {
+      list = list.filter(i => {
+        if (i.isDir) return true;
+        if (!isVideoExtension(i.ext)) return false;
+        const cached = thumbnailService.getCached(i.fullPath);
+        return cached ? cached.duration <= 90 : true;
+      });
+    } else if (smartFilter === 'raw') {
+      list = list.filter(i => i.isDir || isRawExtension(i.ext));
+    } else if (smartFilter === 'recent') {
+      const cutoff = Date.now() - 48 * 3600 * 1000;
+      list = list.filter(i => i.isDir || i.mtime >= cutoff);
+    } else if (smartFilter === 'large') {
+      const minSize = 2 * 1024 * 1024 * 1024;
+      list = list.filter(i => i.isDir || i.size >= minSize);
+    }
+
     // Sort items (folders always on top)
     return [...list].sort((a, b) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
@@ -233,7 +295,12 @@ export function MainFileManagerApp() {
       }
       return sortOrder === 'asc' ? cmp : -cmp;
     });
-  }, [items, tagItems, selectedTagColor, colorTags, search, filterCategory, sortField, sortOrder, showHidden]);
+  }, [items, tagItems, selectedTagColor, colorTags, search, filterCategory, smartFilter, sortField, sortOrder, showHidden]);
+
+  // Selected items list (for Batch Rename & multi-selection operations)
+  const selectedItemsList = useMemo(() => {
+    return filteredItems.filter(i => selectedPaths.has(i.fullPath));
+  }, [filteredItems, selectedPaths]);
 
   // Selected item object (reliable across folders, slashes, and columns)
   const selectedItem = useMemo(() => {
@@ -454,10 +521,60 @@ export function MainFileManagerApp() {
     const res = await mediaService.clipboardPaste(targetDir, paths, op);
     if (res.ok) {
       await refresh();
+      if (isDualPane) await refreshRightPane();
     } else if (res.errors && res.errors.length > 0) {
       alert(`Transfer failed: ${res.errors.join(', ')}`);
     }
-  }, [refresh]);
+  }, [refresh, isDualPane, refreshRightPane]);
+
+  // Dual-Pane Transfer Operations (F5 / F6 / Toolbar)
+  const handleCopyLeftToRight = useCallback(async () => {
+    if (!rightPath || selectedPaths.size === 0) return;
+    const paths = Array.from(selectedPaths);
+    const res = await mediaService.clipboardPaste(rightPath, paths, 'copy');
+    if (res.ok) await refreshRightPane();
+  }, [rightPath, selectedPaths, refreshRightPane]);
+
+  const handleMoveLeftToRight = useCallback(async () => {
+    if (!rightPath || selectedPaths.size === 0) return;
+    const paths = Array.from(selectedPaths);
+    const res = await mediaService.clipboardPaste(rightPath, paths, 'move');
+    if (res.ok) {
+      await refresh();
+      await refreshRightPane();
+    }
+  }, [rightPath, selectedPaths, refresh, refreshRightPane]);
+
+  const handleCopyRightToLeft = useCallback(async () => {
+    if (!currentPath || rightSelectedPaths.size === 0) return;
+    const paths = Array.from(rightSelectedPaths);
+    const res = await mediaService.clipboardPaste(currentPath, paths, 'copy');
+    if (res.ok) await refresh();
+  }, [currentPath, rightSelectedPaths, refresh]);
+
+  const handleMoveRightToLeft = useCallback(async () => {
+    if (!currentPath || rightSelectedPaths.size === 0) return;
+    const paths = Array.from(rightSelectedPaths);
+    const res = await mediaService.clipboardPaste(currentPath, paths, 'move');
+    if (res.ok) {
+      await refresh();
+      await refreshRightPane();
+    }
+  }, [currentPath, rightSelectedPaths, refresh, refreshRightPane]);
+
+  const handleSwapPanes = useCallback(() => {
+    const temp = currentPath;
+    navigate(rightPath);
+    setRightPath(temp);
+  }, [currentPath, rightPath, navigate]);
+
+  const handleMirrorPath = useCallback(() => {
+    if (activePane === 'left') {
+      setRightPath(currentPath);
+    } else {
+      navigate(rightPath);
+    }
+  }, [activePane, currentPath, rightPath, navigate]);
 
   const handleDuplicateSelected = useCallback(async (singleItem?: FsItem) => {
     const targets = singleItem ? [singleItem.fullPath] : Array.from(selectedPaths);
@@ -762,6 +879,18 @@ export function MainFileManagerApp() {
           // Select All
           e.preventDefault();
           setSelectedPaths(new Set(filteredItems.map(i => i.fullPath)));
+        } else if (e.key.toLowerCase() === 'r') {
+          // Cmd+R: Batch rename (when multiple selected) or Refresh
+          e.preventDefault();
+          if (selectedPaths.size > 1) {
+            setIsBatchRenameOpen(true);
+          } else {
+            refresh();
+          }
+        } else if (e.altKey && e.key === '2') {
+          // Cmd+Option+2 / Ctrl+Alt+2: Toggle Dual-Pane
+          e.preventDefault();
+          setIsDualPane(p => !p);
         } else if (e.key.toLowerCase() === 'p' || (e.shiftKey && e.key.toLowerCase() === 'g')) {
           // macOS Quick Jump Palette (Cmd+P) / Go to Folder (Cmd+Shift+G)
           e.preventDefault();
@@ -779,10 +908,14 @@ export function MainFileManagerApp() {
         }
       }
 
-      // F2 -> Inline Rename
+      // F2 -> Inline Rename (single) or Batch Rename (multiple)
       if (e.key === 'F2') {
         e.preventDefault();
-        handleStartRename();
+        if (selectedPaths.size > 1) {
+          setIsBatchRenameOpen(true);
+        } else {
+          handleStartRename();
+        }
       }
 
       // Delete -> Move to Recycle Bin (Delete) or Permanent (Shift+Delete)
@@ -968,6 +1101,9 @@ export function MainFileManagerApp() {
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenSequenceMaker={() => handleOpenSequenceMaker(selectedItem)}
         onOpenJumpPalette={() => setIsJumpPaletteOpen(true)}
+        isDualPane={isDualPane}
+        onToggleDualPane={() => setIsDualPane(p => !p)}
+        onOpenBatchRename={() => setIsBatchRenameOpen(true)}
         showHidden={showHidden}
         onToggleShowHidden={handleToggleShowHidden}
         density={density}
@@ -1001,6 +1137,8 @@ export function MainFileManagerApp() {
               colorTags={colorTags}
               selectedTagColor={selectedTagColor}
               onSelectTagColor={setSelectedTagColor}
+              smartFilter={smartFilter}
+              onSelectSmartFilter={setSmartFilter}
               onDropItems={handleDropItemsToDir}
             />
 
@@ -1044,11 +1182,76 @@ export function MainFileManagerApp() {
             </div>
           )}
 
+          {/* Active Smart Search Filter Banner */}
+          {smartFilter && (
+            <div className="flex items-center justify-between px-4 py-2 bg-purple-500/10 dark:bg-purple-500/15 border-b border-purple-500/20 text-xs text-[var(--mac-text-primary)] select-none">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-500 ring-2 ring-purple-300 shadow-xs flex-shrink-0" />
+                <span className="font-semibold">
+                  Smart Search:{' '}
+                  {smartFilter === 'hfr'
+                    ? 'High Frame Rate (60+ fps / Slow-Mo)'
+                    : smartFilter === 'raw'
+                    ? 'RAW Stills (.CR3, .ARW, .DNG, .NEF)'
+                    : smartFilter === 'recent'
+                    ? 'Recent Shoots (Last 48 Hours)'
+                    : 'Large Media Clips (> 2 GB)'}
+                </span>
+                <span className="text-[var(--mac-text-muted)] font-mono text-[11px]">
+                  ({filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'})
+                </span>
+              </div>
+              <button
+                onClick={() => setSmartFilter(null)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-purple-400 hover:text-purple-300 hover:bg-black/5 dark:hover:bg-white/10 px-2 py-0.5 rounded-md transition-colors"
+                title="Clear Smart Search Filter"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Show All Items</span>
+              </button>
+            </div>
+          )}
+
           {!currentPath ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Film className="w-16 h-16 mb-4 opacity-20" />
               <p className="text-base font-semibold">Select a location or drive to browse media</p>
             </div>
+          ) : isDualPane ? (
+            <DualPaneSplitView
+              leftPath={currentPath}
+              leftItems={filteredItems}
+              leftLoading={loading}
+              leftSelectedPath={selectedPath}
+              leftSelectedPaths={selectedPaths}
+              onSelectLeftItem={handleSelectItem}
+              onOpenLeftItem={handleItemOpen}
+              onNavigateLeft={navigate}
+              rightPath={rightPath}
+              rightItems={rightItems}
+              rightLoading={rightLoading}
+              rightSelectedPath={rightSelectedPath}
+              rightSelectedPaths={rightSelectedPaths}
+              onSelectRightItem={(item) => {
+                setRightSelectedPath(item.fullPath);
+                setRightSelectedPaths(new Set([item.fullPath]));
+              }}
+              onOpenRightItem={handleItemOpen}
+              onNavigateRight={setRightPath}
+              activePane={activePane}
+              onSetActivePane={setActivePane}
+              onCopyLeftToRight={handleCopyLeftToRight}
+              onMoveLeftToRight={handleMoveLeftToRight}
+              onCopyRightToLeft={handleCopyRightToLeft}
+              onMoveRightToLeft={handleMoveRightToLeft}
+              onMirrorPath={handleMirrorPath}
+              onSwapPanes={handleSwapPanes}
+              onDropItems={handleDropItemsToDir}
+              viewMode={viewMode}
+              density={density}
+              colorTags={colorTags}
+              onContextMenu={handleContextMenu}
+            />
           ) : loading ? (
             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
               <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading assets...
@@ -1213,6 +1416,8 @@ export function MainFileManagerApp() {
         currentColorTag={contextMenu.item ? colorTags[contextMenu.item.fullPath] : null}
         canPaste={Boolean(clipboard && clipboard.paths.length > 0)}
         onOpenSequenceMaker={handleOpenSequenceMaker}
+        onOpenBatchRename={() => setIsBatchRenameOpen(true)}
+        selectedCount={selectedPaths.size}
       />
 
 
@@ -1288,6 +1493,17 @@ export function MainFileManagerApp() {
         drivesWithSpace={drivesWithSpace}
         onNavigate={navigate}
         onOpenItem={handleItemOpen}
+      />
+
+      {/* Batch Renaming Modal (macOS Finder & NLE Style) */}
+      <BatchRenameModal
+        isOpen={isBatchRenameOpen}
+        onClose={() => setIsBatchRenameOpen(false)}
+        items={selectedItemsList}
+        onSuccess={() => {
+          refresh();
+          if (isDualPane) refreshRightPane();
+        }}
       />
     </div>
   );

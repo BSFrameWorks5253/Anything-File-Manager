@@ -295,18 +295,21 @@ app.whenReady().then(() => {
 
   handleLocalResourceProtocol();
 
-  ipcMain.on('window:minimize', () => {
-    mainWindow?.minimize();
+  ipcMain.on('window:minimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+    win?.minimize();
   });
-  ipcMain.on('window:maximize', () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.unmaximize();
+  ipcMain.on('window:maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+    if (win?.isMaximized()) {
+      win.unmaximize();
     } else {
-      mainWindow?.maximize();
+      win?.maximize();
     }
   });
-  ipcMain.on('window:close', () => {
-    mainWindow?.close();
+  ipcMain.on('window:close', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+    win?.close();
   });
 
   ipcMain.handle('userProfile:load', async () => {
@@ -384,13 +387,15 @@ app.whenReady().then(() => {
   ipcMain.handle('media:openSeparatePlayer', async (_event, filePath: string) => {
     const fileName = path.basename(filePath);
     const playerWin = new BrowserWindow({
-      width: 1120,
-      height: 740,
-      minWidth: 640,
-      minHeight: 460,
+      width: 1200,
+      height: 780,
+      minWidth: 680,
+      minHeight: 480,
       title: `${fileName} — Anything Media Player`,
       icon: getAppIconPath('open'),
-      backgroundColor: '#07080b',
+      backgroundColor: '#05070a',
+      frame: false,
+      titleBarStyle: 'hidden',
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),

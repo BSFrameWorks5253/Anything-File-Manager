@@ -1,96 +1,97 @@
 {
-  "name": "anything-file-manager",
-  "productName": "Anything File Manager",
-  "version": "26.11.17",
-  "description": "Anything File Manager — High-performance Media & Production File Explorer",
-  "main": "dist-electron/main.js",
-  "author": "Burhanuddin Sounasath",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/BSFrameWorks5253/Anything-File-Manager.git"
-  },
-  "homepage": "https://github.com/BSFrameWorks5253/Anything-File-Manager",
-  "build": {
-    "appId": "com.anything.filemanager",
+    "name": "anything-file-manager",
     "productName": "Anything File Manager",
-    "publish": {
-      "provider": "github",
-      "owner": "BSFrameWorks5253",
-      "repo": "Anything-File-Manager"
-    },
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "build/icon.ico",
-      "artifactName": "Anything-File-Manager-Setup-V-${version}.${ext}"
-    },
-    "directories": {
-      "output": "C:/temp/afm-release"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "package.json",
-      "!node_modules/**/*",
-      "!release/**/*",
-      "!scripts/**/*",
-      "!src/**/*",
-      "!**/*.map"
-    ],
-    "artifactName": "Anything-File-Manager-Setup-V-${version}.${ext}",
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": "always",
-      "createStartMenuShortcut": true,
-      "shortcutName": "Anything File Manager",
-      "artifactName": "Anything-File-Manager-Setup-V-${version}.${ext}"
-    },
-    "extraResources": [
-      {
-        "from": "build/templates",
-        "to": "templates",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ]
-  },
-  "scripts": {
-    "dev": "concurrently -k -r \"npm run dev:vite\" \"npm run dev:electron\"",
-    "dev:vite": "vite",
-    "dev:electron": "wait-on -t 30000 tcp:127.0.0.1:5188 && cross-env NODE_ENV=development VITE_DEV_SERVER_URL=http://localhost:5188 electron dist-electron/main.js",
-    "build:vite": "vite build",
-    "build:electron": "tsc -p tsconfig.electron.json",
-    "build": "npm run build:vite && npm run build:electron",
-    "dist": "npm run build && electron-builder --win nsis",
-    "start": "npm run build && electron dist-electron/main.js",
-    "start:fast": "electron dist-electron/main.js",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@types/canvas-confetti": "^1.9.0",
-    "canvas-confetti": "^1.9.4",
-    "clsx": "^2.1.1",
-    "lucide-react": "^1.63.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.1.18",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
-    "electron": "^45.1.0",
-    "electron-builder": "^26.18.0",
-    "tailwindcss": "^4.1.18",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.5",
-    "wait-on": "^9.0.4"
-  }
+    "version": "26.11.18",
+    "description": "Anything File Manager — High-performance Media & Production File Explorer",
+    "main":  "dist-electron/main.js",
+    "author":  "Burhanuddin Sounasath",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "https://github.com/BSFrameWorks5253/Anything-File-Manager.git"
+                   },
+    "homepage":  "https://github.com/BSFrameWorks5253/Anything-File-Manager",
+    "build":  {
+                  "appId":  "com.anything.filemanager",
+                  "productName":  "Anything File Manager",
+                  "publish":  {
+                                  "provider":  "github",
+                                  "owner":  "BSFrameWorks5253",
+                                  "repo":  "Anything-File-Manager"
+                              },
+                  "win":  {
+                              "target":  [
+                                             "nsis"
+                                         ],
+                              "icon":  "build/icon.ico",
+                              "artifactName":  "Anything-File-Manager-Setup-V-${version}.${ext}"
+                          },
+                  "directories":  {
+                                      "output":  "C:/temp/afm-release"
+                                  },
+                  "files":  [
+                                "dist/**/*",
+                                "dist-electron/**/*",
+                                "package.json",
+                                "!node_modules/**/*",
+                                "!release/**/*",
+                                "!scripts/**/*",
+                                "!src/**/*",
+                                "!**/*.map"
+                            ],
+                  "artifactName":  "Anything-File-Manager-Setup-V-${version}.${ext}",
+                  "nsis":  {
+                               "oneClick":  false,
+                               "perMachine":  false,
+                               "allowToChangeInstallationDirectory":  true,
+                               "createDesktopShortcut":  "always",
+                               "createStartMenuShortcut":  true,
+                               "shortcutName":  "Anything File Manager",
+                               "artifactName":  "Anything-File-Manager-Setup-V-${version}.${ext}"
+                           },
+                  "extraResources":  [
+                                         {
+                                             "from":  "build/templates",
+                                             "to":  "templates",
+                                             "filter":  [
+                                                            "**/*"
+                                                        ]
+                                         }
+                                     ]
+              },
+    "scripts":  {
+                    "dev":  "concurrently -k -r \"npm run dev:vite\" \"npm run dev:electron\"",
+                    "dev:vite":  "vite",
+                    "dev:electron":  "wait-on -t 30000 tcp:127.0.0.1:5188 \u0026\u0026 cross-env NODE_ENV=development VITE_DEV_SERVER_URL=http://localhost:5188 electron dist-electron/main.js",
+                    "build:vite":  "vite build",
+                    "build:electron":  "tsc -p tsconfig.electron.json",
+                    "build":  "npm run build:vite \u0026\u0026 npm run build:electron",
+                    "dist":  "npm run build \u0026\u0026 electron-builder --win nsis",
+                    "start":  "npm run build \u0026\u0026 electron dist-electron/main.js",
+                    "start:fast":  "electron dist-electron/main.js",
+                    "preview":  "vite preview",
+                    "live":  "node .agent/skills/live-edit/scripts/live.mjs start --target http://localhost:5188"
+                },
+    "dependencies":  {
+                         "@types/canvas-confetti":  "^1.9.0",
+                         "canvas-confetti":  "^1.9.4",
+                         "clsx":  "^2.1.1",
+                         "lucide-react":  "^1.63.0",
+                         "react":  "^19.3.1",
+                         "react-dom":  "^19.3.1",
+                         "xlsx":  "^0.18.5"
+                     },
+    "devDependencies":  {
+                            "@tailwindcss/vite":  "^4.1.18",
+                            "@types/react":  "^19.3.0",
+                            "@types/react-dom":  "^19.3.0",
+                            "@vitejs/plugin-react":  "^6.1.2",
+                            "concurrently":  "^9.2.1",
+                            "cross-env":  "^10.1.0",
+                            "electron":  "^45.1.0",
+                            "electron-builder":  "^26.18.0",
+                            "tailwindcss":  "^4.1.18",
+                            "typescript":  "^7.0.2",
+                            "vite":  "^8.3.5",
+                            "wait-on":  "^9.0.4"
+                        }
 }
