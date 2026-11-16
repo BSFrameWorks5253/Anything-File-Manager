@@ -2,11 +2,103 @@ import { ipcMain, dialog, shell, app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { exec, execFile } from 'child_process';
+import net from 'net';
+import { exec, execFile, execSync, spawn } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
+
+// ── Native QL-Win QuickLook Integration (https://github.com/QL-Win/QuickLook.git) ──
+let cachedUserSid: string | null = null;
+
+function getUserSid(): string | null {
+  if (cachedUserSid) return cachedUserSid;
+  if (process.platform !== 'win32') return null;
+  try {
+    const out = execSync('whoami /user', { encoding: 'utf8', timeout: 1500 });
+    const match = out.match(/S-1-5-21-\d+-\d+-\d+-\d+/);
+    if (match) {
+      cachedUserSid = match[0];
+      return cachedUserSid;
+    }
+  } catch {}
+  return null;
+}
+
+function sendQuickLookNamedPipe(filePath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') return resolve(false);
+    const sid = getUserSid();
+    if (!sid) return resolve(false);
+    const pipePath = `\\\\.\\pipe\\QuickLook.App.Pipe.${sid}`;
+
+    const client = net.connect(pipePath, () => {
+      client.write(`QuickLook.App.PipeMessages.Toggle|${filePath}\r\n`, () => {
+        client.end();
+        resolve(true);
+      });
+    });
+
+    client.on('error', () => {
+      resolve(false);
+    });
+
+    client.setTimeout(350, () => {
+      try { client.destroy(); } catch {}
+      resolve(false);
+    });
+  });
+}
+
+function findQuickLookExe(): string | null {
+  if (process.platform !== 'win32') return null;
+  const candidates: string[] = [
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'QuickLook', 'QuickLook.exe'),
+    path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'QuickLook', 'QuickLook.exe'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'QuickLook', 'QuickLook.exe')
+  ];
+
+  const winApps = 'C:\\Program Files\\WindowsApps';
+  if (fs.existsSync(winApps)) {
+    try {
+      const dirs = fs.readdirSync(winApps);
+      const qlDir = dirs.find(d => d.startsWith('21090PaddyXu.QuickLook_'));
+      if (qlDir) {
+        candidates.unshift(path.join(winApps, qlDir, 'Package', 'QuickLook.exe'));
+      }
+    } catch {}
+  }
+
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return null;
+}
+
+async function invokeQuickLook(filePath: string): Promise<{ ok: boolean; method?: string; error?: string }> {
+  // 1. Try Named Pipe first (instant zero-process-spawn native QL-Win IPC)
+  const pipeOk = await sendQuickLookNamedPipe(filePath);
+  if (pipeOk) {
+    return { ok: true, method: 'pipe' };
+  }
+
+  // 2. Try launching QuickLook.exe if not running
+  const qlExe = findQuickLookExe();
+  if (qlExe) {
+    try {
+      const child = spawn(qlExe, [filePath], { detached: true, stdio: 'ignore' });
+      child.unref();
+      return { ok: true, method: 'exe' };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'Failed to spawn QuickLook.exe' };
+    }
+  }
+
+  return { ok: false, error: 'QuickLook is not installed or running' };
+}
 
 // File extension categories
 const RAW_EXTS = new Set([
@@ -1301,5 +1393,16 @@ function isRootOrSystemPath(p: string): boolean {
       }
     }
     return results;
+  });
+
+  // Native QL-Win QuickLook Spacebar Trigger
+  ipcMain.handle('media:quickLook', async (_event, filePath: string) => {
+    return invokeQuickLook(filePath);
+  });
+
+  ipcMain.handle('media:isQuickLookAvailable', async () => {
+    const pipeOk = await sendQuickLookNamedPipe('');
+    if (pipeOk) return true;
+    return Boolean(findQuickLookExe());
   });
 }

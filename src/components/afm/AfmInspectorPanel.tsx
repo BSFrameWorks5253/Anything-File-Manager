@@ -30,35 +30,48 @@ interface AfmInspectorPanelProps {
   onRefresh?: () => void;
 }
 
+// In-memory cache for folder analytics to prevent lag and repeated disk thrashing
+const analyticsCache = new Map<string, { data: any; otRes: any; timestamp: number }>();
+
 export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
   folderPath,
   folderName,
   onRefresh
 }) => {
   const [loading, setLoading] = useState(false);
-  const [analytics, setAnalytics] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<any>(() => analyticsCache.get(folderPath)?.data || null);
   const [currentStage, setCurrentStage] = useState<ProductionStage>('stage1');
   const [isPreflightOpen, setIsPreflightOpen] = useState(false);
-  const [oneTapStats, setOneTapStats] = useState<any>(null);
+  const [oneTapStats, setOneTapStats] = useState<any>(() => analyticsCache.get(folderPath)?.otRes || null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   const classification = classifyFolder(folderName, folderPath);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (force = false) => {
     if (!folderPath) return;
+    const cached = analyticsCache.get(folderPath);
+    if (!force && cached && Date.now() - cached.timestamp < 30000) {
+      setAnalytics(cached.data);
+      if (cached.data?.stage) setCurrentStage(cached.data.stage);
+      setOneTapStats(cached.otRes);
+      return;
+    }
+
     setLoading(true);
     try {
       const data = await mediaService.analyzeAfmFolder(folderPath);
+      let otRes: any = null;
       if (data) {
         setAnalytics(data);
         if (data.stage) setCurrentStage(data.stage);
       }
 
       // Fetch One Tap tracker metrics for this session/folder
-      const otRes = await oneTapService.getTaskTrackerStats(folderName);
+      otRes = await oneTapService.getTaskTrackerStats(folderName);
       if (otRes.ok) {
         setOneTapStats(otRes);
       }
+      analyticsCache.set(folderPath, { data, otRes, timestamp: Date.now() });
     } catch (err) {
       console.error('[AfmInspector] Error:', err);
     } finally {

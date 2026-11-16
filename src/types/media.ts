@@ -81,6 +81,8 @@ export interface MediaViewerAPI {
   batchRename?: (items: { oldPath: string; newName: string }[]) => Promise<{ ok: boolean; renamedCount?: number; historyId?: string; error?: string }>;
   undoBatchRename?: (historyId?: string) => Promise<{ ok: boolean; revertedCount?: number; error?: string }>;
   getSiblingMediaFiles?: (filePath: string) => Promise<{ ok: boolean; items: FsItem[]; error?: string }>;
+  quickLook?: (filePath: string) => Promise<{ ok: boolean; method?: string; error?: string }>;
+  isQuickLookAvailable?: () => Promise<boolean>;
   deleteItems?: (filePaths: string[], permanent?: boolean) => Promise<{ ok: boolean; deletedCount: number; errors?: string[] }>;
   clipboardPaste?: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => Promise<{ ok: boolean; pastedCount: number; errors?: string[] }>;
   duplicateItem?: (sourcePath: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;

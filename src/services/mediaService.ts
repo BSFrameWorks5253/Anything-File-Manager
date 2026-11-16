@@ -199,6 +199,16 @@ export const mediaService = {
     return api.openSeparatePlayer(filePath);
   },
 
+  async quickLook(filePath: string): Promise<{ ok: boolean; method?: string; error?: string }> {
+    if (!api?.quickLook) return { ok: false, error: 'QuickLook API not available' };
+    return api.quickLook(filePath);
+  },
+
+  async isQuickLookAvailable(): Promise<boolean> {
+    if (!api?.isQuickLookAvailable) return false;
+    return api.isQuickLookAvailable();
+  },
+
   async getVideoDuration(filePath: string): Promise<number> {
     if (!api?.getVideoDuration) return 0;
     return api.getVideoDuration(filePath);

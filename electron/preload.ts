@@ -44,6 +44,8 @@ export interface MediaViewerAPI {
   batchRename?: (items: { oldPath: string; newName: string }[]) => Promise<{ ok: boolean; renamedCount?: number; historyId?: string; error?: string }>;
   undoBatchRename?: (historyId?: string) => Promise<{ ok: boolean; revertedCount?: number; error?: string }>;
   getSiblingMediaFiles?: (filePath: string) => Promise<{ ok: boolean; items: any[]; error?: string }>;
+  quickLook?: (filePath: string) => Promise<{ ok: boolean; method?: string; error?: string }>;
+  isQuickLookAvailable?: () => Promise<boolean>;
   deleteItems?: (filePaths: string[], permanent?: boolean) => Promise<{ ok: boolean; deletedCount: number; errors?: string[] }>;
   clipboardPaste?: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => Promise<{ ok: boolean; pastedCount: number; errors?: string[] }>;
   duplicateItem?: (sourcePath: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;
@@ -101,6 +103,8 @@ const api: any = {
   setFileTag: (filePath: string, tagColor: string | null) => ipcRenderer.invoke('media:setFileTag', filePath, tagColor),
   readTextFile: (filePath: string, maxBytes?: number) => ipcRenderer.invoke('media:readTextFile', filePath, maxBytes),
   openSeparatePlayer: (filePath: string) => ipcRenderer.invoke('media:openSeparatePlayer', filePath),
+  quickLook: (filePath: string) => ipcRenderer.invoke('media:quickLook', filePath),
+  isQuickLookAvailable: () => ipcRenderer.invoke('media:isQuickLookAvailable'),
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),

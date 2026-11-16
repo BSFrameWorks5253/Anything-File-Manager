@@ -109,11 +109,23 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
     return (
       <div
         style={{ width: `${width}px` }}
-        className="flex-shrink-0 border-l mac-sidebar p-4 flex flex-col items-center justify-center text-center text-[var(--mac-text-muted)] select-none transition-colors duration-200"
+        className="flex-shrink-0 border-l mac-sidebar p-4 flex flex-col select-none transition-colors duration-200"
       >
-        <Film className="w-10 h-10 mb-2 opacity-30" />
-        <p className="text-xs font-semibold">No item selected</p>
-        <p className="text-[11px] mt-1">Select any photo, video, or folder to inspect details</p>
+        <div className="flex items-center justify-between pb-2 border-b mac-header mb-4">
+          <span className="text-xs font-semibold">Inspector</span>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
+            title="Close Inspector"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center text-[var(--mac-text-muted)]">
+          <Film className="w-10 h-10 mb-2 opacity-30" />
+          <p className="text-xs font-semibold">No item selected</p>
+          <p className="text-[11px] mt-1">Select any photo, video, or folder to inspect details</p>
+        </div>
       </div>
     );
   }

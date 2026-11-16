@@ -63,7 +63,26 @@ export function MainFileManagerApp() {
   const [density, setDensity] = useState<'compact' | 'normal' | 'broad'>('normal');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
-  const [isInspectorOpen, setIsInspectorOpen] = useState(true);
+  const [isInspectorOpen, setIsInspectorOpen] = useState(() => {
+    try {
+      return localStorage.getItem('afm:isInspectorOpen') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleInspector = useCallback(() => {
+    setIsInspectorOpen(prev => {
+      const next = !prev;
+      try { localStorage.setItem('afm:isInspectorOpen', String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleCloseInspector = useCallback(() => {
+    setIsInspectorOpen(false);
+    try { localStorage.setItem('afm:isInspectorOpen', 'false'); } catch {}
+  }, []);
   const [isQuickLookOpen, setIsQuickLookOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<FsItem | null>(null);
   const [isDefaultAppsModalOpen, setIsDefaultAppsModalOpen] = useState(false);
@@ -485,11 +504,16 @@ export function MainFileManagerApp() {
     setLastSelectedPath(null);
   }, []);
 
-  const handleQuickLook = (item: FsItem) => {
+  const handleQuickLook = useCallback(async (item: FsItem) => {
     setSelectedPath(item.fullPath);
     setSelectedItemState(item);
-    setIsQuickLookOpen(true);
-  };
+    // 1. Attempt native QL-Win QuickLook (https://github.com/QL-Win/QuickLook.git)
+    const res = await mediaService.quickLook(item.fullPath);
+    if (!res.ok) {
+      // 2. Fall back to built-in AFM Quick Look modal
+      setIsQuickLookOpen(prev => !prev);
+    }
+  }, []);
 
   const handleOpenProperties = useCallback((item?: FsItem | null) => {
     const target = item || selectedItem || (currentPath ? {
@@ -869,7 +893,7 @@ export function MainFileManagerApp() {
       // When Jump Palette is open, let it capture input
       if (isJumpPaletteOpen) return;
 
-      // Spacebar -> macOS Quick Look
+      // Spacebar -> QL-Win QuickLook (https://github.com/QL-Win/QuickLook.git) or AFM Quick Look
       if (e.code === 'Space') {
         e.preventDefault();
         const targetItem = selectedItem || (filteredItems.length > 0 ? filteredItems[0] : null);
@@ -877,7 +901,7 @@ export function MainFileManagerApp() {
           if (!selectedItem) {
             handleSelectItem(targetItem);
           }
-          setIsQuickLookOpen(prev => !prev);
+          handleQuickLook(targetItem);
         }
       }
 
@@ -1156,7 +1180,7 @@ export function MainFileManagerApp() {
         onSetSort={handleSortToggle}
         isInspectorOpen={isInspectorOpen}
         onOpenProperties={() => handleOpenProperties(selectedItem)}
-        onToggleInspector={() => setIsInspectorOpen(prev => !prev)}
+        onToggleInspector={handleToggleInspector}
         isSidebarVisible={isSidebarVisible}
         onToggleSidebar={() => setIsSidebarVisible(prev => !prev)}
         onChooseFolder={handleChooseFolder}
@@ -1427,7 +1451,7 @@ export function MainFileManagerApp() {
             item={selectedItem}
             currentPath={currentPath}
             width={inspectorWidth}
-            onClose={() => setIsInspectorOpen(false)}
+            onClose={handleCloseInspector}
             onOpenViewer={handleOpenSeparately}
             onQuickLook={handleQuickLook}
           />
