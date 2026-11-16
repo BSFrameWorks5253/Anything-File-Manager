@@ -26,6 +26,7 @@ interface ExplorerTableProps {
   cutPaths?: Set<string>;
   renamingPath?: string | null;
   colorTags?: Record<string, string>;
+  isHoverPreviewEnabled?: boolean;
   onSelectItem: (item: FsItem, e?: React.MouseEvent) => void;
   onOpenItem: (item: FsItem) => void;
   onQuickLook?: (item: FsItem) => void;
@@ -34,6 +35,8 @@ interface ExplorerTableProps {
   onCancelRename?: () => void;
   onDropItems?: (targetDir: string, items: string[], op: 'copy' | 'move') => void;
   onSpringOpenFolder?: (targetDir: string) => void;
+  onHoverStart?: (item: FsItem, rect: DOMRect) => void;
+  onHoverEnd?: () => void;
 }
 
 function getItemKind(item: FsItem): string {
@@ -96,6 +99,7 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
   cutPaths,
   renamingPath,
   colorTags = {},
+  isHoverPreviewEnabled = true,
   onSelectItem,
   onOpenItem,
   onQuickLook,
@@ -103,7 +107,9 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
   onCommitRename,
   onCancelRename,
   onDropItems,
-  onSpringOpenFolder
+  onSpringOpenFolder,
+  onHoverStart,
+  onHoverEnd
 }) => {
   const [tableRenameVal, setTableRenameVal] = useState('');
   const [springHoverPath, setSpringHoverPath] = useState<string | null>(null);
@@ -314,6 +320,12 @@ export const ExplorerTable: React.FC<ExplorerTableProps> = ({
                 }}
                 onClick={e => onSelectItem(item, e)}
                 onDoubleClick={() => onOpenItem(item)}
+                onMouseEnter={e => {
+                  if (isHoverPreviewEnabled && onHoverStart) {
+                    onHoverStart(item, e.currentTarget.getBoundingClientRect());
+                  }
+                }}
+                onMouseLeave={() => onHoverEnd?.()}
                 onContextMenu={e => {
                   e.stopPropagation();
                   onSelectItem(item, e);

@@ -24,6 +24,7 @@ import { ExplorerContextMenu, ContextMenuState } from './components/explorer/Exp
 import { FullscreenViewer } from './components/viewer';
 import { MacStandaloneMediaPlayer } from './components/viewer/MacStandaloneMediaPlayer';
 import { DefaultAppsModal, SettingsModal, PropertiesModal, FuzzyJumpPalette, BatchRenameModal } from './components/modals';
+import { HoverMediaPreview } from './components/common/HoverMediaPreview';
 import { PremierePreflightModal } from './components/afm/PremierePreflightModal';
 import { DualSyncPanel, DualSyncConfig } from './components/afm/DualSyncPanel';
 
@@ -82,6 +83,67 @@ export function MainFileManagerApp() {
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [rightSelectedPath, setRightSelectedPath] = useState<string | null>(null);
   const [rightSelectedPaths, setRightSelectedPaths] = useState<Set<string>>(new Set());
+
+  // Pro Hover Preview Popover State
+  const [isHoverPreviewEnabled, setIsHoverPreviewEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('afm:hoverPreview') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [hoverItem, setHoverItem] = useState<FsItem | null>(null);
+  const [hoverAnchorRect, setHoverAnchorRect] = useState<DOMRect | null>(null);
+  const hoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoverPopoverHoveredRef = useRef(false);
+
+  const handleHoverStart = useCallback((item: FsItem, rect: DOMRect) => {
+    if (!isHoverPreviewEnabled) return;
+    if (hoverLeaveTimerRef.current) {
+      clearTimeout(hoverLeaveTimerRef.current);
+      hoverLeaveTimerRef.current = null;
+    }
+    setHoverItem(item);
+    setHoverAnchorRect(rect);
+  }, [isHoverPreviewEnabled]);
+
+  const handleHoverEnd = useCallback(() => {
+    if (hoverLeaveTimerRef.current) clearTimeout(hoverLeaveTimerRef.current);
+    hoverLeaveTimerRef.current = setTimeout(() => {
+      if (!isHoverPopoverHoveredRef.current) {
+        setHoverItem(null);
+        setHoverAnchorRect(null);
+      }
+    }, 180);
+  }, []);
+
+  const handleToggleHoverPreview = useCallback(() => {
+    setIsHoverPreviewEnabled(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('afm:hoverPreview', String(next));
+      } catch {}
+      if (!next) {
+        setHoverItem(null);
+        setHoverAnchorRect(null);
+      }
+      return next;
+    });
+  }, []);
+
+  // Dismiss hover popover on scroll, keydown, or click
+  useEffect(() => {
+    const dismissHover = () => {
+      setHoverItem(null);
+      setHoverAnchorRect(null);
+    };
+    window.addEventListener('scroll', dismissHover, true);
+    window.addEventListener('keydown', dismissHover);
+    return () => {
+      window.removeEventListener('scroll', dismissHover, true);
+      window.removeEventListener('keydown', dismissHover);
+    };
+  }, []);
 
   const handleOpenSequenceMaker = useCallback((target?: FsItem | null) => {
     const folder = target && target.isDir ? target : (currentPath ? {
@@ -1104,6 +1166,8 @@ export function MainFileManagerApp() {
         isDualPane={isDualPane}
         onToggleDualPane={() => setIsDualPane(p => !p)}
         onOpenBatchRename={() => setIsBatchRenameOpen(true)}
+        isHoverPreviewEnabled={isHoverPreviewEnabled}
+        onToggleHoverPreview={handleToggleHoverPreview}
         showHidden={showHidden}
         onToggleShowHidden={handleToggleShowHidden}
         density={density}
@@ -1250,7 +1314,10 @@ export function MainFileManagerApp() {
               viewMode={viewMode}
               density={density}
               colorTags={colorTags}
+              isHoverPreviewEnabled={isHoverPreviewEnabled}
               onContextMenu={handleContextMenu}
+              onHoverStart={handleHoverStart}
+              onHoverEnd={handleHoverEnd}
             />
           ) : loading ? (
             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
@@ -1291,6 +1358,9 @@ export function MainFileManagerApp() {
                 onSelectMultiple={handleSelectMultiple}
                 onDropItems={handleDropItemsToDir}
                 onSpringOpenFolder={navigate}
+                isHoverPreviewEnabled={isHoverPreviewEnabled}
+                onHoverStart={handleHoverStart}
+                onHoverEnd={handleHoverEnd}
               />
             </div>
           ) : viewMode === 'table' ? (
@@ -1302,6 +1372,7 @@ export function MainFileManagerApp() {
                 cutPaths={cutPaths}
                 renamingPath={renamingPath}
                 colorTags={colorTags}
+                isHoverPreviewEnabled={isHoverPreviewEnabled}
                 onSelectItem={handleSelectItem}
                 onOpenItem={handleItemOpen}
                 onQuickLook={handleQuickLook}
@@ -1310,6 +1381,8 @@ export function MainFileManagerApp() {
                 onCancelRename={handleCancelRename}
                 onDropItems={handleDropItemsToDir}
                 onSpringOpenFolder={navigate}
+                onHoverStart={handleHoverStart}
+                onHoverEnd={handleHoverEnd}
               />
             </div>
           ) : viewMode === 'columns' ? (
@@ -1503,6 +1576,30 @@ export function MainFileManagerApp() {
         onSuccess={() => {
           refresh();
           if (isDualPane) refreshRightPane();
+        }}
+      />
+
+      {/* Floating macOS Hover Media Preview Popover */}
+      <HoverMediaPreview
+        item={hoverItem}
+        anchorRect={hoverAnchorRect}
+        isOpen={Boolean(isHoverPreviewEnabled && hoverItem && hoverAnchorRect && !isQuickLookOpen && !activeItem && !isPropertiesOpen)}
+        onClose={() => {
+          setHoverItem(null);
+          setHoverAnchorRect(null);
+        }}
+        onOpenQuickLook={handleQuickLook}
+        onOpenItem={handleItemOpen}
+        onMouseEnterPopover={() => {
+          isHoverPopoverHoveredRef.current = true;
+          if (hoverLeaveTimerRef.current) {
+            clearTimeout(hoverLeaveTimerRef.current);
+            hoverLeaveTimerRef.current = null;
+          }
+        }}
+        onMouseLeavePopover={() => {
+          isHoverPopoverHoveredRef.current = false;
+          handleHoverEnd();
         }}
       />
     </div>

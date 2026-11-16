@@ -10,6 +10,7 @@ interface ExplorerGridProps {
   renamingPath?: string | null;
   colorTags?: Record<string, string>;
   density?: 'compact' | 'normal' | 'broad';
+  isHoverPreviewEnabled?: boolean;
   onSelectItem: (item: FsItem, e?: React.MouseEvent) => void;
   onOpenItem: (item: FsItem) => void;
   onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
@@ -19,6 +20,8 @@ interface ExplorerGridProps {
   onSelectMultiple?: (paths: string[]) => void;
   onDropItems?: (targetDir: string, items: string[], op: 'copy' | 'move') => void;
   onSpringOpenFolder?: (targetDir: string) => void;
+  onHoverStart?: (item: FsItem, rect: DOMRect) => void;
+  onHoverEnd?: () => void;
 }
 
 export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
@@ -29,6 +32,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   renamingPath,
   colorTags = {},
   density = 'normal',
+  isHoverPreviewEnabled = true,
   onSelectItem,
   onOpenItem,
   onContextMenu,
@@ -37,7 +41,9 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onClearSelection,
   onSelectMultiple,
   onDropItems,
-  onSpringOpenFolder
+  onSpringOpenFolder,
+  onHoverStart,
+  onHoverEnd
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragBox, setDragBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -148,6 +154,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             isCut={isCut}
             isRenaming={isRenaming}
             colorTag={tag}
+            isHoverPreviewEnabled={isHoverPreviewEnabled}
             onClick={e => onSelectItem(item, e)}
             onOpen={() => onOpenItem(item)}
             onContextMenu={e => {
@@ -160,6 +167,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             onCancelRename={onCancelRename}
             onDropItems={onDropItems}
             onSpringOpen={onSpringOpenFolder}
+            onHoverStart={onHoverStart}
+            onHoverEnd={onHoverEnd}
           />
         );
       })}

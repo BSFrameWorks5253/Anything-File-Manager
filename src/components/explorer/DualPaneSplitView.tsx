@@ -55,7 +55,10 @@ interface DualPaneSplitViewProps {
   viewMode: ViewMode;
   density: 'compact' | 'normal' | 'broad';
   colorTags: Record<string, string>;
+  isHoverPreviewEnabled?: boolean;
   onContextMenu: (e: React.MouseEvent, item: FsItem | null) => void;
+  onHoverStart?: (item: FsItem, rect: DOMRect) => void;
+  onHoverEnd?: () => void;
 }
 
 export const DualPaneSplitView: React.FC<DualPaneSplitViewProps> = ({
@@ -91,7 +94,10 @@ export const DualPaneSplitView: React.FC<DualPaneSplitViewProps> = ({
   viewMode,
   density,
   colorTags,
-  onContextMenu
+  isHoverPreviewEnabled = true,
+  onContextMenu,
+  onHoverStart,
+  onHoverEnd
 }) => {
   const getParentDir = (p: string) => {
     const lastSlash = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'));
@@ -168,11 +174,14 @@ export const DualPaneSplitView: React.FC<DualPaneSplitViewProps> = ({
               selectedPath={leftSelectedPath}
               selectedPaths={leftSelectedPaths}
               colorTags={colorTags}
+              isHoverPreviewEnabled={isHoverPreviewEnabled}
               onSelectItem={onSelectLeftItem}
               onOpenItem={onOpenLeftItem}
               onContextMenu={onContextMenu}
               onDropItems={onDropItems}
               onSpringOpenFolder={onNavigateLeft}
+              onHoverStart={onHoverStart}
+              onHoverEnd={onHoverEnd}
             />
           ) : (
             <ExplorerGrid
@@ -181,11 +190,14 @@ export const DualPaneSplitView: React.FC<DualPaneSplitViewProps> = ({
               selectedPaths={leftSelectedPaths}
               colorTags={colorTags}
               density={density}
+              isHoverPreviewEnabled={isHoverPreviewEnabled}
               onSelectItem={onSelectLeftItem}
               onOpenItem={onOpenLeftItem}
               onContextMenu={onContextMenu}
               onDropItems={onDropItems}
               onSpringOpenFolder={onNavigateLeft}
+              onHoverStart={onHoverStart}
+              onHoverEnd={onHoverEnd}
             />
           )}
         </div>
@@ -302,11 +314,14 @@ export const DualPaneSplitView: React.FC<DualPaneSplitViewProps> = ({
               selectedPath={rightSelectedPath}
               selectedPaths={rightSelectedPaths}
               colorTags={colorTags}
+              isHoverPreviewEnabled={isHoverPreviewEnabled}
               onSelectItem={onSelectRightItem}
               onOpenItem={onOpenRightItem}
               onContextMenu={onContextMenu}
               onDropItems={onDropItems}
               onSpringOpenFolder={onNavigateRight}
+              onHoverStart={onHoverStart}
+              onHoverEnd={onHoverEnd}
             />
           ) : (
             <ExplorerGrid
@@ -315,11 +330,14 @@ export const DualPaneSplitView: React.FC<DualPaneSplitViewProps> = ({
               selectedPaths={rightSelectedPaths}
               colorTags={colorTags}
               density={density}
+              isHoverPreviewEnabled={isHoverPreviewEnabled}
               onSelectItem={onSelectRightItem}
               onOpenItem={onOpenRightItem}
               onContextMenu={onContextMenu}
               onDropItems={onDropItems}
               onSpringOpenFolder={onNavigateRight}
+              onHoverStart={onHoverStart}
+              onHoverEnd={onHoverEnd}
             />
           )}
         </div>

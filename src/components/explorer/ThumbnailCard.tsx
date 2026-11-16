@@ -27,6 +27,7 @@ interface ThumbnailCardProps {
   isRenaming?: boolean;
   colorTag?: string | null;
   density?: 'compact' | 'normal' | 'broad';
+  isHoverPreviewEnabled?: boolean;
   onClick: (e: React.MouseEvent) => void;
   onOpen: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -34,6 +35,8 @@ interface ThumbnailCardProps {
   onCancelRename?: () => void;
   onDropItems?: (targetDir: string, items: string[], op: 'copy' | 'move') => void;
   onSpringOpen?: (targetDir: string) => void;
+  onHoverStart?: (item: FsItem, rect: DOMRect) => void;
+  onHoverEnd?: () => void;
 }
 
 function getFolderType(name: string): 'generic' | 'desktop' | 'downloads' | 'pictures' | 'videos' | 'documents' | 'home' {
@@ -55,13 +58,16 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   isRenaming = false,
   colorTag = null,
   density = 'normal',
+  isHoverPreviewEnabled = true,
   onClick,
   onOpen,
   onContextMenu,
   onCommitRename,
   onCancelRename,
   onDropItems,
-  onSpringOpen
+  onSpringOpen,
+  onHoverStart,
+  onHoverEnd
 }) => {
   const isRaw = isRawExtension(item.ext);
   const isVideo = isVideoExtension(item.ext);
@@ -72,7 +78,11 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
 
   const [renameVal, setRenameVal] = useState(item.name);
   const [isSpringTarget, setIsSpringTarget] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoScrubRef = useRef<HTMLVideoElement>(null);
   const springTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -251,6 +261,39 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
     }
   };
 
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    if (isHoverPreviewEnabled && onHoverStart) {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = setTimeout(() => {
+        if (cardRef.current) {
+          onHoverStart(item, cardRef.current.getBoundingClientRect());
+        }
+      }, 280);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    setScrubTime(null);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    onHoverEnd?.();
+  };
+
+  const handleThumbnailMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isVideo || !duration || duration <= 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const targetTime = ratio * duration;
+    setScrubTime(targetTime);
+    if (videoScrubRef.current && Number.isFinite(targetTime)) {
+      videoScrubRef.current.currentTime = targetTime;
+    }
+  };
+
   return (
     <div
       ref={cardRef}
@@ -260,6 +303,8 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       onClick={onClick}
       onDoubleClick={onOpen}
       onContextMenu={onContextMenu}
@@ -362,9 +407,21 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
             />
           </div>
         ) : isVideo ? (
-          /* Video Thumbnail */
-          <div className="relative w-full h-full p-1 flex items-center justify-center">
-            {thumb ? (
+          /* Video Thumbnail with Hover Scrubbing */
+          <div
+            onMouseMove={handleThumbnailMouseMove}
+            className="relative w-full h-full p-1 flex items-center justify-center group/vidthumb"
+          >
+            {isHovered ? (
+              <video
+                ref={videoScrubRef}
+                src={mediaService.toLocalResourceUrl(item.fullPath)}
+                muted
+                playsInline
+                preload="metadata"
+                className="max-h-full max-w-full object-cover rounded-lg shadow-sm border border-purple-500/40 group-hover:scale-105 transition-transform duration-200"
+              />
+            ) : thumb ? (
               <img
                 src={thumb}
                 alt={item.name}
@@ -375,12 +432,23 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
                 <Film className="w-10 h-10 opacity-60 animate-pulse" />
               </div>
             )}
-            {/* Video Duration / Timelapse Badge */}
+
+            {/* Video Duration / Scrubbing Timecode Badge */}
             {duration > 0 && (
-              <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md text-amber-300 border border-amber-400/40 text-[9.5px] font-bold px-1.5 py-0.5 rounded shadow flex items-center gap-1 tracking-wide pointer-events-none">
+              <span className="absolute bottom-2 right-2 bg-black/85 backdrop-blur-md text-amber-300 border border-amber-400/40 text-[9.5px] font-bold px-1.5 py-0.5 rounded shadow flex items-center gap-1 tracking-wide pointer-events-none">
                 <Clock className="w-2.5 h-2.5 text-amber-400" />
-                <span>{formatTimelapse(duration)}</span>
+                <span>{scrubTime !== null ? formatTimelapse(scrubTime) : formatTimelapse(duration)}</span>
               </span>
+            )}
+
+            {/* Scrub Progress Bar Indicator on Thumbnail */}
+            {isHovered && scrubTime !== null && duration > 0 && (
+              <div className="absolute bottom-1 left-2 right-2 h-1 bg-white/20 rounded-full overflow-hidden pointer-events-none">
+                <div
+                  style={{ width: `${(scrubTime / duration) * 100}%` }}
+                  className="h-full bg-gradient-to-r from-purple-500 to-sky-400 rounded-full"
+                />
+              </div>
             )}
           </div>
         ) : isAudio && thumb && !thumb.startsWith('data:image/svg') ? (

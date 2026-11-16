@@ -84,6 +84,8 @@ interface ExplorerToolbarProps {
   isDualPane?: boolean;
   onToggleDualPane?: () => void;
   onOpenBatchRename?: () => void;
+  isHoverPreviewEnabled?: boolean;
+  onToggleHoverPreview?: () => void;
 }
 
 export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
@@ -130,7 +132,9 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
   onOpenJumpPalette,
   isDualPane = false,
   onToggleDualPane,
-  onOpenBatchRename
+  onOpenBatchRename,
+  isHoverPreviewEnabled = true,
+  onToggleHoverPreview
 }) => {
   const { actualTheme, setTheme } = useTheme();
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -680,6 +684,22 @@ export const ExplorerToolbar: React.FC<ExplorerToolbarProps> = ({
             </button>
           )}
         </div>
+
+        {/* Hover Preview Toggle Button */}
+        {onToggleHoverPreview && (
+          <button
+            onClick={onToggleHoverPreview}
+            className={`p-1.5 h-8 px-2 flex items-center gap-1.5 rounded-lg border text-xs font-medium transition-all ${
+              isHoverPreviewEnabled
+                ? 'bg-purple-600/20 text-purple-300 border-purple-500/40 shadow-xs'
+                : 'border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.06] text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)]'
+            }`}
+            title={isHoverPreviewEnabled ? 'Hover Preview: Active (Hover over any media to preview)' : 'Hover Preview: Off (Click to enable)'}
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isHoverPreviewEnabled ? 'text-purple-400' : ''}`} />
+            <span className="hidden xl:inline text-[11px]">Hover Preview</span>
+          </button>
+        )}
 
         {/* macOS Info / Inspector Toggle Button */}
         <button
