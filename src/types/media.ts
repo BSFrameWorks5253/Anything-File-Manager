@@ -57,6 +57,8 @@ export interface MediaViewerAPI {
   checkDefaultStatus: () => Promise<{ isVideoDefault: boolean; isPhotoDefault: boolean }>;
   unregisterDefaultViewer: () => Promise<{ ok: boolean; error?: string }>;
   openWindowsDefaultAppsSettings: () => Promise<boolean>;
+  parsePsd?: (filePath: string) => Promise<any>;
+  parsePrproj?: (filePath: string) => Promise<any>;
   minimizeWindow?: () => void;
   maximizeWindow?: () => void;
   closeWindow?: () => void;
@@ -83,6 +85,7 @@ export interface MediaViewerAPI {
   getSiblingMediaFiles?: (filePath: string) => Promise<{ ok: boolean; items: FsItem[]; error?: string }>;
   quickLook?: (filePath: string) => Promise<{ ok: boolean; method?: string; error?: string }>;
   isQuickLookAvailable?: () => Promise<boolean>;
+  getVideoDuration?: (filePath: string) => Promise<number>;
   deleteItems?: (filePaths: string[], permanent?: boolean) => Promise<{ ok: boolean; deletedCount: number; errors?: string[] }>;
   clipboardPaste?: (targetDir: string, sourcePaths: string[], operation: 'copy' | 'move') => Promise<{ ok: boolean; pastedCount: number; errors?: string[] }>;
   duplicateItem?: (sourcePath: string) => Promise<{ ok: boolean; newPath?: string; name?: string; error?: string }>;

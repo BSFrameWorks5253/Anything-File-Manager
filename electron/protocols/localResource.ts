@@ -17,15 +17,29 @@ export function registerLocalResourceProtocol(): void {
         standard: true,
         supportFetchAPI: true,
         stream: true,
-        corsEnabled: true
+        corsEnabled: true,
+        bypassCSP: true
       }
     }
   ]);
 }
 
 export function handleLocalResourceProtocol(): void {
-  protocol.handle('local-resource', (request) => {
+  protocol.handle('local-resource', async (request) => {
     try {
+      // Handle CORS preflight
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Max-Age': '86400'
+          }
+        });
+      }
+
       const parsedUrl = new URL(request.url);
       let s = decodeURIComponent(parsedUrl.pathname);
       s = s.replace(/^\/+/, '');
@@ -46,7 +60,10 @@ export function handleLocalResourceProtocol(): void {
       // Security hardening: disallow access to system directory / sensitive files
       const sensitivePattern = /\\(windows|system32|system volume information|\.ssh|\.git|\.env|sam|security|software|system)\b/i;
       if (sensitivePattern.test(rawPath)) {
-        return new Response('Access Denied', { status: 403 });
+        return new Response('Access Denied', {
+          status: 403,
+          headers: { 'Access-Control-Allow-Origin': '*' }
+        });
       }
 
       // Allowed media/preview extensions check
@@ -59,17 +76,26 @@ export function handleLocalResourceProtocol(): void {
         '.pdf', '.docx', '.xlsx', '.csv', '.tsv', '.txt', '.md', '.json', '.prproj', '.xml'
       ]);
       if (!ALLOWED_EXTS.has(ext)) {
-        return new Response('Forbidden resource type', { status: 403 });
+        return new Response('Forbidden resource type', {
+          status: 403,
+          headers: { 'Access-Control-Allow-Origin': '*' }
+        });
       }
 
       if (!fs.existsSync(rawPath)) {
-        return new Response('File not found', { status: 404 });
+        return new Response('File not found', {
+          status: 404,
+          headers: { 'Access-Control-Allow-Origin': '*' }
+        });
       }
 
       // Security check: ensure target is an actual file, not a directory or device
       const stat = fs.statSync(rawPath);
       if (!stat.isFile()) {
-        return new Response('Target is not a file', { status: 400 });
+        return new Response('Target is not a file', {
+          status: 400,
+          headers: { 'Access-Control-Allow-Origin': '*' }
+        });
       }
 
       // MIME types dictionary for accurate streaming and playback
@@ -119,57 +145,87 @@ export function handleLocalResourceProtocol(): void {
       };
       const mimeType = MIME_MAP[ext] || 'application/octet-stream';
 
-      // ── Handle HTTP 206 Partial Content & Range requests for smooth video scrubbing ──
-      const rangeHeader = request.headers.get('range');
-      if (rangeHeader) {
-        const parts = rangeHeader.replace(/bytes=/, '').split('-');
-        let start = parseInt(parts[0], 10);
-        let end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+      // Use net.fetch with file:// URL for native Chromium performance & range streaming
+      try {
+        const fileUrl = pathToFileURL(rawPath).toString();
+        const res = await net.fetch(fileUrl, {
+          headers: request.headers,
+          method: request.method
+        });
 
-        if (isNaN(start)) start = 0;
-        if (isNaN(end) || end >= stat.size) end = stat.size - 1;
+        const headers = new Headers(res.headers);
+        headers.set('Access-Control-Allow-Origin', '*');
+        headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        headers.set('Access-Control-Allow-Headers', '*');
+        if (mimeType && (!headers.get('content-type') || headers.get('content-type') === 'application/octet-stream')) {
+          headers.set('Content-Type', mimeType);
+        }
 
-        const chunkSize = end - start + 1;
-        const stream = fs.createReadStream(rawPath, { start, end, highWaterMark: 128 * 1024 });
+        return new Response(res.body, {
+          status: res.status,
+          statusText: res.statusText,
+          headers
+        });
+      } catch (fetchErr) {
+        // Fallback to manual stream if net.fetch has an edge case
+        const rangeHeader = request.headers.get('range');
+        if (rangeHeader) {
+          const parts = rangeHeader.replace(/bytes=/, '').split('-');
+          let start = parseInt(parts[0], 10);
+          let end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
 
-        // Cleanly terminate file stream on request abort
+          if (isNaN(start)) start = 0;
+          if (isNaN(end) || end >= stat.size) end = stat.size - 1;
+
+          const chunkSize = end - start + 1;
+          const stream = fs.createReadStream(rawPath, { start, end, highWaterMark: 128 * 1024 });
+
+          if (request.signal) {
+            request.signal.addEventListener('abort', () => stream.destroy());
+          }
+
+          const webStream = Readable.toWeb(stream) as unknown as ReadableStream;
+
+          return new Response(webStream, {
+            status: 206,
+            statusText: 'Partial Content',
+            headers: {
+              'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': String(chunkSize),
+              'Content-Type': mimeType,
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+              'Access-Control-Allow-Headers': '*',
+              'Cache-Control': 'no-cache'
+            }
+          });
+        }
+
+        const stream = fs.createReadStream(rawPath, { highWaterMark: 128 * 1024 });
         if (request.signal) {
           request.signal.addEventListener('abort', () => stream.destroy());
         }
-
         const webStream = Readable.toWeb(stream) as unknown as ReadableStream;
 
         return new Response(webStream, {
-          status: 206,
-          statusText: 'Partial Content',
+          status: 200,
           headers: {
-            'Content-Range': `bytes ${start}-${end}/${stat.size}`,
             'Accept-Ranges': 'bytes',
-            'Content-Length': String(chunkSize),
+            'Content-Length': String(stat.size),
             'Content-Type': mimeType,
-            'Cache-Control': 'no-cache'
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+            'Access-Control-Allow-Headers': '*'
           }
         });
       }
-
-      // Stream entire file with Accept-Ranges enabled
-      const stream = fs.createReadStream(rawPath, { highWaterMark: 128 * 1024 });
-      if (request.signal) {
-        request.signal.addEventListener('abort', () => stream.destroy());
-      }
-      const webStream = Readable.toWeb(stream) as unknown as ReadableStream;
-
-      return new Response(webStream, {
-        status: 200,
-        headers: {
-          'Accept-Ranges': 'bytes',
-          'Content-Length': String(stat.size),
-          'Content-Type': mimeType
-        }
-      });
     } catch (err: any) {
       console.error('[local-resource] Error fetching:', err);
-      return new Response('Error loading resource', { status: 500 });
+      return new Response('Error loading resource', {
+        status: 500,
+        headers: { 'Access-Control-Allow-Origin': '*' }
+      });
     }
   });
 }

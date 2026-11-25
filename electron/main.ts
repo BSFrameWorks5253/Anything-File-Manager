@@ -7,6 +7,7 @@ import { registerMediaIPC } from './ipc/media.ipc';
 import { registerShellIntegrationIPC } from './ipc/shellIntegration.ipc';
 import { registerAfmIPC } from './ipc/afm.ipc';
 import { registerPrprojIPC } from './ipc/prproj.ipc';
+import { registerAdobeIPC } from './ipc/adobe.ipc';
 import { resolveChildAppLoaderConfig, showChildAppSplash, closeChildAppSplash } from './splash/splash';
 
 // Windows Taskbar & Action Center Model ID
@@ -50,16 +51,37 @@ const MEDIA_EXTS = new Set([
 function extractMediaFromArgv(argv: string[]): string | null {
   for (let i = argv.length - 1; i >= 1; i--) {
     const arg = argv[i];
-    if (arg.startsWith('--')) continue;
+    if (!arg || arg.startsWith('--')) continue;
     const clean = arg.replace(/^["']|["']$/g, '');
+    const norm = clean.replace(/\\/g, '/').toLowerCase();
+
+    // Ignore internal electron scripts and entrypoints
+    if (
+      clean === '.' ||
+      norm.endsWith('main.js') ||
+      norm.endsWith('main.ts') ||
+      norm.endsWith('index.js') ||
+      norm.includes('dist-electron') ||
+      norm.includes('node_modules')
+    ) {
+      continue;
+    }
+
     try {
       if (fs.existsSync(clean)) {
-        return clean;
+        const stat = fs.statSync(clean);
+        if (stat.isDirectory()) {
+          return clean;
+        }
+        const ext = path.extname(clean).toLowerCase();
+        if (MEDIA_EXTS.has(ext)) {
+          return clean;
+        }
       }
     } catch {}
-    const lower = clean.toLowerCase();
-    const dot = lower.lastIndexOf('.');
-    if (dot !== -1 && MEDIA_EXTS.has(lower.slice(dot))) {
+
+    const ext = path.extname(clean).toLowerCase();
+    if (MEDIA_EXTS.has(ext)) {
       return clean;
     }
   }
@@ -245,8 +267,10 @@ function createWindow(showImmediately = false) {
       }, 550);
     }
     if (initialFileToOpen && mainWindow) {
+      const fileToSend = initialFileToOpen;
+      initialFileToOpen = null;
       setTimeout(() => {
-        mainWindow?.webContents.send('media:openTarget', initialFileToOpen);
+        mainWindow?.webContents.send('media:openTarget', fileToSend);
       }, 500);
     }
   });
@@ -280,10 +304,15 @@ function createWindow(showImmediately = false) {
 }
 
 // ── Register Modular Subsystem IPC Handlers ──────────────────
-registerMediaIPC(() => mainWindow, () => initialFileToOpen);
+registerMediaIPC(() => mainWindow, () => {
+  const f = initialFileToOpen;
+  initialFileToOpen = null;
+  return f;
+});
 registerShellIntegrationIPC();
 registerAfmIPC();
 registerPrprojIPC();
+registerAdobeIPC();
 ipcMain.handle('afm:getInitialDualSync', () => initialDualSync);
 ipcMain.handle('afm:clearInitialDualSync', () => { initialDualSync = null; return true; });
 

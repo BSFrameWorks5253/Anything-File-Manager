@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { FsItem, QuickAccessItem, DriveInfo, FilterCategory } from '../../types';
+import { mediaService } from '../../services';
 import { formatBytes } from '../../utils';
 import { MacFolderIcon } from '../common/MacIcons';
 

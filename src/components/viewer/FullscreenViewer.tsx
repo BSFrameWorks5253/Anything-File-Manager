@@ -299,7 +299,17 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
           />
-        ) : null}
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-4 text-gray-400 p-8 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+            <span className="text-sm font-medium text-gray-300">No media preview available for <code className="text-amber-400 font-mono">{item.name}</code></span>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:scale-105"
+            >
+              Close Viewer (Esc)
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Video Interactive Controls Bar */}

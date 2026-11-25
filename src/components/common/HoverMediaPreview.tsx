@@ -11,7 +11,12 @@ import {
   Sparkles,
   Play,
   Pause,
-  X
+  X,
+  FileCode,
+  Table,
+  FileText,
+  Terminal,
+  Archive
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import {
@@ -19,6 +24,8 @@ import {
   isPhotoExtension,
   isRawExtension,
   isAudioExtension,
+  isCodeOrTextExtension,
+  isArchiveExtension,
   formatBytes,
   formatTimelapse
 } from '../../utils';
@@ -53,20 +60,32 @@ export const HoverMediaPreview: React.FC<HoverMediaPreviewProps> = ({
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [rawThumb, setRawThumb] = useState<string | null>(null);
+  const [videoThumb, setVideoThumb] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState(false);
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [folderItems, setFolderItems] = useState<FsItem[] | null>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  const isVideo = item ? isVideoExtension(item.ext) : false;
-  const isRaw = item ? isRawExtension(item.ext) : false;
-  const isPhoto = item ? isPhotoExtension(item.ext) && !isRaw : false;
-  const isAudio = item ? isAudioExtension(item.ext) : false;
+  const ext = (item?.ext || '').toLowerCase();
+  const isVideo = item ? isVideoExtension(ext) : false;
+  const isRaw = item ? isRawExtension(ext) : false;
+  const isPhoto = item ? isPhotoExtension(ext) && !isRaw : false;
+  const isAudio = item ? isAudioExtension(ext) : false;
+  const isCodeOrText = item ? !item.isDir && (isCodeOrTextExtension(ext) || ['txt', 'md', 'json', 'log', 'env', 'yml', 'yaml', 'xml', 'sql', 'bat', 'cmd', 'ps1', 'sh', 'ini', 'toml', 'cfg'].includes(ext)) : false;
+  const isCsv = !item?.isDir && (ext === 'csv' || ext === 'tsv');
+  const isPdf = ext === 'pdf';
+  const isApp = ['exe', 'msi', 'bat', 'cmd'].includes(ext);
+  const isArchive = item ? !item.isDir && isArchiveExtension(ext) : false;
 
-  // Load RAW thumbnail if raw
+  // Load preview data dynamically based on format
   useEffect(() => {
-    if (item && isRaw) {
+    if (!item) return;
+
+    if (isRaw) {
       mediaService.readImageBase64(item.fullPath).then(res => {
         if (res.ok && res.dataUrl) {
           setRawThumb(res.dataUrl);
@@ -75,7 +94,41 @@ export const HoverMediaPreview: React.FC<HoverMediaPreviewProps> = ({
     } else {
       setRawThumb(null);
     }
-  }, [item?.fullPath, isRaw]);
+
+    if (isVideo) {
+      setVideoError(false);
+      const cached = thumbnailService.getCached(item.fullPath);
+      if (cached?.thumb) {
+        setVideoThumb(cached.thumb);
+      } else {
+        thumbnailService.extractVideoThumbnail(item.fullPath).then(res => {
+          if (res?.thumb) setVideoThumb(res.thumb);
+        });
+      }
+    } else {
+      setVideoThumb(null);
+    }
+
+    if (isCodeOrText || isCsv) {
+      mediaService.readTextFile(item.fullPath, 4096).then(res => {
+        if (res.ok && res.content) {
+          setTextContent(res.content);
+        } else {
+          setTextContent(null);
+        }
+      }).catch(() => setTextContent(null));
+    } else {
+      setTextContent(null);
+    }
+
+    if (item.isDir) {
+      mediaService.listDir(item.fullPath).then(res => {
+        if (res) setFolderItems(res.slice(0, 6));
+      }).catch(() => setFolderItems(null));
+    } else {
+      setFolderItems(null);
+    }
+  }, [item?.fullPath, isRaw, isVideo, isCodeOrText, isCsv, item?.isDir]);
 
   // Reset audio & video state on item change
   useEffect(() => {
@@ -84,6 +137,11 @@ export const HoverMediaPreview: React.FC<HoverMediaPreviewProps> = ({
     setImageDimensions(null);
     setIsPlayingAudio(false);
     setAudioProgress(0);
+    setVideoError(false);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(() => {});
+    }
   }, [item?.fullPath]);
 
   if (!isOpen || !item || !anchorRect) {
@@ -94,7 +152,7 @@ export const HoverMediaPreview: React.FC<HoverMediaPreviewProps> = ({
 
   // Position calculation: smart placement near anchor element
   const popoverWidth = 330;
-  const popoverHeight = isVideo || isPhoto || isRaw ? 340 : 200;
+  const popoverHeight = isVideo || isPhoto || isRaw || isCodeOrText || isCsv || isPdf ? 340 : item.isDir ? 250 : 200;
   const margin = 12;
 
   let left = anchorRect.right + margin;
@@ -185,67 +243,86 @@ export const HoverMediaPreview: React.FC<HoverMediaPreviewProps> = ({
       <div className="relative w-full bg-black/60 flex items-center justify-center overflow-hidden">
         {isVideo ? (
           <div className="relative w-full h-48 bg-black flex items-center justify-center group/video">
-            <video
-              ref={videoRef}
-              src={mediaUrl}
-              autoPlay
-              muted={isMuted}
-              loop
-              playsInline
-              onLoadedMetadata={e => {
-                const target = e.currentTarget;
-                setVideoDuration(target.duration || 0);
-                setVideoDimensions({
-                  width: target.videoWidth,
-                  height: target.videoHeight
-                });
-              }}
-              onTimeUpdate={e => {
-                setVideoCurrentTime(e.currentTarget.currentTime);
-              }}
-              className="w-full h-full object-contain"
-            />
-
-            {/* Top Info Overlay: Dimensions & Audio Toggle */}
-            <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
-              {videoDimensions && (
-                <span className="bg-black/75 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-mono text-neutral-200 border border-white/15">
-                  {videoDimensions.width}×{videoDimensions.height}{' '}
-                  {videoDimensions.width >= 3840 ? '4K' : videoDimensions.width >= 1920 ? '1080p' : ''}
+            {videoError ? (
+              <div className="relative w-full h-full flex flex-col items-center justify-center bg-black/90 p-4 text-center">
+                {videoThumb ? (
+                  <img src={videoThumb} alt={item.name} className="max-w-full max-h-36 object-contain rounded filter brightness-75 mb-2" />
+                ) : (
+                  <Film className="w-12 h-12 text-purple-400/50 mb-2" />
+                )}
+                <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                  Hardware-Accelerated Codec ({item.ext.toUpperCase()})
                 </span>
-              )}
-              <button
-                onClick={() => setIsMuted(m => !m)}
-                className="pointer-events-auto p-1.5 rounded-full bg-black/70 hover:bg-black/90 backdrop-blur-md text-white border border-white/20 transition-all hover:scale-105"
-                title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
-              >
-                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
-              </button>
-            </div>
-
-            {/* Bottom Scrubber Bar on Video Hover */}
-            <div
-              onClick={handleVideoScrub}
-              onMouseMove={handleVideoScrub}
-              className="absolute bottom-0 left-0 right-0 h-4 group-hover/video:h-5 bg-gradient-to-t from-black/80 to-transparent flex items-end cursor-ew-resize transition-all"
-            >
-              <div className="w-full h-1.5 group-hover/video:h-2 bg-white/20 relative">
-                <div
-                  style={{
-                    width: videoDuration > 0 ? `${(videoCurrentTime / videoDuration) * 100}%` : '0%'
+                <span className="text-[10px] text-gray-400 mt-1">Press Space for Full Quick Look</span>
+              </div>
+            ) : (
+              <>
+                <video
+                  ref={videoRef}
+                  src={mediaUrl}
+                  autoPlay
+                  muted={isMuted}
+                  loop
+                  playsInline
+                  preload="auto"
+                  onError={() => setVideoError(true)}
+                  onLoadedMetadata={e => {
+                    const target = e.currentTarget;
+                    setVideoDuration(target.duration || 0);
+                    setVideoDimensions({
+                      width: target.videoWidth,
+                      height: target.videoHeight
+                    });
+                    target.play().catch(() => {});
                   }}
-                  className="h-full bg-gradient-to-r from-purple-500 to-sky-400 relative"
-                >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-md transform scale-0 group-hover/video:scale-100 transition-transform" />
-                </div>
-              </div>
-            </div>
+                  onTimeUpdate={e => {
+                    setVideoCurrentTime(e.currentTarget.currentTime);
+                  }}
+                  className="w-full h-full object-contain"
+                />
 
-            {/* Floating Timecode Pill */}
-            {videoDuration > 0 && (
-              <div className="absolute bottom-3 left-2 pointer-events-none bg-black/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold text-amber-300 border border-amber-500/30">
-                {formatTimelapse(videoCurrentTime)} / {formatTimelapse(videoDuration)}
-              </div>
+                {/* Top Info Overlay: Dimensions & Audio Toggle */}
+                <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+                  {videoDimensions && (
+                    <span className="bg-black/75 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-mono text-neutral-200 border border-white/15">
+                      {videoDimensions.width}×{videoDimensions.height}{' '}
+                      {videoDimensions.width >= 3840 ? '4K' : videoDimensions.width >= 1920 ? '1080p' : ''}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setIsMuted(m => !m)}
+                    className="pointer-events-auto p-1.5 rounded-full bg-black/70 hover:bg-black/90 backdrop-blur-md text-white border border-white/20 transition-all hover:scale-105"
+                    title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+                  >
+                    {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
+                  </button>
+                </div>
+
+                {/* Bottom Scrubber Bar on Video Hover */}
+                <div
+                  onClick={handleVideoScrub}
+                  onMouseMove={handleVideoScrub}
+                  className="absolute bottom-0 left-0 right-0 h-4 group-hover/video:h-5 bg-gradient-to-t from-black/80 to-transparent flex items-end cursor-ew-resize transition-all"
+                >
+                  <div className="w-full h-1.5 group-hover/video:h-2 bg-white/20 relative">
+                    <div
+                      style={{
+                        width: videoDuration > 0 ? `${(videoCurrentTime / videoDuration) * 100}%` : '0%'
+                      }}
+                      className="h-full bg-gradient-to-r from-purple-500 to-sky-400 relative"
+                    >
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-md transform scale-0 group-hover/video:scale-100 transition-transform" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Floating Timecode Pill */}
+                {videoDuration > 0 && (
+                  <div className="absolute bottom-3 left-2 pointer-events-none bg-black/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold text-amber-300 border border-amber-500/30">
+                    {formatTimelapse(videoCurrentTime)} / {formatTimelapse(videoDuration)}
+                  </div>
+                )}
+              </>
             )}
           </div>
         ) : isPhoto || isRaw ? (
@@ -318,15 +395,111 @@ export const HoverMediaPreview: React.FC<HoverMediaPreviewProps> = ({
               )}
             </div>
           </div>
-        ) : item.isDir ? (
-          <div className="w-full p-4 flex items-center gap-3">
-            <MacFolderIcon size={44} />
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-white">{item.name}</span>
-              <span className="text-xs text-neutral-400">
-                {item.childCount !== undefined ? `${item.childCount} items` : 'Directory'}
+        ) : isCodeOrText ? (
+          <div className="w-full h-48 bg-[#0a0c14] flex flex-col font-mono text-[11px] overflow-hidden select-text">
+            <div className="px-3 py-1.5 bg-white/5 border-b border-white/5 flex items-center justify-between text-[10px] text-gray-400">
+              <span className="flex items-center gap-1.5 text-indigo-300 font-semibold">
+                <FileCode className="w-3.5 h-3.5" />
+                <span>Text / Code Preview</span>
               </span>
+              <span>{textContent ? `${textContent.split('\n').length} lines` : 'Reading...'}</span>
             </div>
+            <div className="p-2.5 overflow-hidden leading-relaxed text-gray-300 font-mono text-[10.5px]">
+              {textContent ? (
+                textContent.split('\n').slice(0, 9).map((line, idx) => (
+                  <div key={idx} className="flex gap-2.5 truncate">
+                    <span className="text-gray-600 select-none w-4 text-right shrink-0">{idx + 1}</span>
+                    <span className="truncate text-gray-200">{line || ' '}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500 text-xs">
+                  Loading text preview...
+                </div>
+              )}
+            </div>
+          </div>
+        ) : isCsv ? (
+          <div className="w-full h-48 bg-[#0a0c14] flex flex-col font-mono text-[10px] overflow-hidden">
+            <div className="px-3 py-1.5 bg-white/5 border-b border-white/5 flex items-center justify-between text-gray-400">
+              <span className="flex items-center gap-1.5 text-emerald-300 font-semibold">
+                <Table className="w-3.5 h-3.5" />
+                <span>Table Data Preview</span>
+              </span>
+              <span className="uppercase text-[9px] text-gray-500">{item.ext}</span>
+            </div>
+            <div className="p-2 overflow-hidden">
+              {textContent ? (
+                <table className="w-full border-collapse">
+                  <tbody>
+                    {textContent.split(/\r?\n/).slice(0, 6).map((line, rIdx) => (
+                      <tr key={rIdx} className={rIdx === 0 ? 'bg-white/10 font-bold text-indigo-300' : 'border-b border-white/5 text-gray-300'}>
+                        {line.split(item.ext.toLowerCase() === 'tsv' ? '\t' : ',').slice(0, 4).map((cell, cIdx) => (
+                          <td key={cIdx} className="px-1.5 py-0.5 truncate max-w-[80px]">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500 text-xs">Loading table...</div>
+              )}
+            </div>
+          </div>
+        ) : isPdf ? (
+          <div className="w-full h-48 bg-[#10121d] flex flex-col items-center justify-center p-4 text-center">
+            <div className="w-16 h-20 bg-rose-600/20 border border-rose-500/40 rounded-lg flex flex-col items-center justify-center shadow-lg mb-2">
+              <FileText className="w-8 h-8 text-rose-400 mb-1" />
+              <span className="text-[9px] font-black uppercase text-rose-300">PDF</span>
+            </div>
+            <span className="text-xs font-bold text-white max-w-[240px] truncate">{item.name}</span>
+            <span className="text-[10px] text-gray-400 font-mono mt-0.5">{formatBytes(item.size)}</span>
+            <span className="text-[9.5px] text-indigo-400 font-semibold mt-2">Spacebar to read full PDF</span>
+          </div>
+        ) : isApp ? (
+          <div className="w-full p-4 bg-[#0d101a] flex flex-col items-center justify-center text-center">
+            <div className="w-12 h-12 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center mb-2">
+              <Terminal className="w-6 h-6 text-sky-400" />
+            </div>
+            <span className="text-xs font-bold text-white truncate max-w-[240px]">{item.name}</span>
+            <span className="text-[10px] text-sky-300 font-mono uppercase mt-0.5">{item.ext} Executable Application</span>
+            <span className="text-[10px] text-gray-400 font-mono mt-1">{formatBytes(item.size)}</span>
+          </div>
+        ) : isArchive ? (
+          <div className="w-full p-4 bg-[#0d101a] flex flex-col items-center justify-center text-center">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center mb-2">
+              <Archive className="w-6 h-6 text-amber-400" />
+            </div>
+            <span className="text-xs font-bold text-white truncate max-w-[240px]">{item.name}</span>
+            <span className="text-[10px] text-amber-300 font-mono uppercase mt-0.5">{item.ext} Compressed Archive</span>
+            <span className="text-[10px] text-gray-400 font-mono mt-1">{formatBytes(item.size)}</span>
+          </div>
+        ) : item.isDir ? (
+          <div className="w-full p-3 bg-black/40 flex flex-col gap-2">
+            <div className="flex items-center gap-2.5">
+              <MacFolderIcon size={36} />
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-bold text-white truncate block">{item.name}</span>
+                <span className="text-[10px] text-emerald-400 font-mono">
+                  {folderItems ? `${folderItems.length} items previewed` : (item.childCount !== undefined ? `${item.childCount} items` : 'Directory')}
+                </span>
+              </div>
+            </div>
+            {folderItems && folderItems.length > 0 && (
+              <div className="bg-white/5 rounded-lg p-1.5 text-[10px] flex flex-col gap-1 max-h-24 overflow-hidden border border-white/5">
+                {folderItems.slice(0, 4).map(child => (
+                  <div key={child.fullPath} className="flex items-center gap-1.5 text-gray-300 truncate">
+                    {child.isDir ? <MacFolderIcon size={12} /> : <MacDocumentIcon size={12} ext={child.ext} />}
+                    <span className="truncate">{child.name}</span>
+                    <span className="ml-auto text-[9px] text-gray-500 font-mono shrink-0">
+                      {child.isDir ? 'folder' : formatBytes(child.size ?? 0)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="w-full p-4 flex items-center gap-3">

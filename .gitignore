@@ -6,3 +6,4 @@ release
 *.log
 .live/
 .agent/
+.agents/

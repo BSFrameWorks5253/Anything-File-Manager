@@ -3,7 +3,12 @@ export const RAW_EXTENSIONS = new Set([
 ]);
 
 export const STANDARD_PHOTO_EXTENSIONS = new Set([
-  'jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp', 'ico', 'avif', 'tiff', 'tif', 'heic', 'heif'
+  'jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp', 'ico', 'avif', 'tiff', 'tif', 'heic', 'heif',
+  'psd', 'psb'
+]);
+
+export const ADOBE_EXTENSIONS = new Set([
+  'psd', 'psb', 'prproj', 'aep', 'ai', 'indd'
 ]);
 
 export const PHOTO_EXTENSIONS = new Set([
@@ -12,7 +17,8 @@ export const PHOTO_EXTENSIONS = new Set([
 ]);
 
 export const VIDEO_EXTENSIONS = new Set([
-  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'wmv', 'flv', 'm2ts', 'mts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv'
+  'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'wmv', 'flv', 'm2ts', 'mts', 'mpg', 'mpeg', '3gp', 'vob', 'ogv',
+  'ts', 'braw', 'crm', 'r3d'
 ]);
 
 export const AUDIO_EXTENSIONS = new Set([
@@ -60,6 +66,19 @@ export function isAudioExtension(ext: string): boolean {
 
 export function isDocExtension(ext: string): boolean {
   return DOC_EXTENSIONS.has(ext.toLowerCase());
+}
+
+export function isAdobeExtension(ext: string): boolean {
+  return ADOBE_EXTENSIONS.has(ext.toLowerCase());
+}
+
+export function isPsdExtension(ext: string): boolean {
+  const lower = ext.toLowerCase();
+  return lower === 'psd' || lower === 'psb';
+}
+
+export function isPremiereExtension(ext: string): boolean {
+  return ext.toLowerCase() === 'prproj';
 }
 
 export function isMediaExtension(ext: string): boolean {

@@ -20,6 +20,8 @@ export interface MediaViewerAPI {
   checkDefaultStatus: () => Promise<{ isVideoDefault: boolean; isPhotoDefault: boolean }>;
   unregisterDefaultViewer: () => Promise<{ ok: boolean; error?: string }>;
   openWindowsDefaultAppsSettings: () => Promise<boolean>;
+  parsePsd?: (filePath: string) => Promise<any>;
+  parsePrproj?: (filePath: string) => Promise<any>;
   minimizeWindow?: () => void;
   maximizeWindow?: () => void;
   closeWindow?: () => void;
@@ -145,6 +147,8 @@ const api: any = {
   checkDefaultStatus: () => ipcRenderer.invoke('shell:checkDefaultStatus'),
   unregisterDefaultViewer: () => ipcRenderer.invoke('shell:unregisterDefaultViewer'),
   openWindowsDefaultAppsSettings: () => ipcRenderer.invoke('shell:openWindowsDefaultAppsSettings'),
+  parsePsd: (filePath: string) => ipcRenderer.invoke('adobe:parsePsd', filePath),
+  parsePrproj: (filePath: string) => ipcRenderer.invoke('adobe:parsePrproj', filePath),
   userProfile: {
     load: () => ipcRenderer.invoke('userProfile:load'),
   },

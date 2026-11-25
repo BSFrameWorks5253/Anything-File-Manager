@@ -168,21 +168,19 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
             </button>
           )}
 
-          {!item.isDir && (
-            <button
-              onClick={() => {
-                onQuickLook(item);
-                onClose();
-              }}
-              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
-            >
-              <div className="flex items-center gap-2">
-                <Eye className="w-3.5 h-3.5 text-sky-500 group-hover:text-white" />
-                <span>Quick Look</span>
-              </div>
-              <span className="text-[10px] opacity-60">Space</span>
-            </button>
-          )}
+          <button
+            onClick={() => {
+              onQuickLook(item);
+              onClose();
+            }}
+            className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--mac-accent)] hover:text-white transition-colors group"
+          >
+            <div className="flex items-center gap-2">
+              <Eye className="w-3.5 h-3.5 text-sky-500 group-hover:text-white" />
+              <span>Quick Look</span>
+            </div>
+            <span className="text-[10px] opacity-60">Space</span>
+          </button>
 
           {item.isDir && (
             <>

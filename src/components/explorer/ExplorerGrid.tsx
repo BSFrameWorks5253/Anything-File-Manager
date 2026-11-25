@@ -13,6 +13,7 @@ interface ExplorerGridProps {
   isHoverPreviewEnabled?: boolean;
   onSelectItem: (item: FsItem, e?: React.MouseEvent) => void;
   onOpenItem: (item: FsItem) => void;
+  onQuickLook?: (item: FsItem) => void;
   onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
   onCommitRename?: (item: FsItem, newName: string) => void;
   onCancelRename?: () => void;
@@ -35,6 +36,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   isHoverPreviewEnabled = true,
   onSelectItem,
   onOpenItem,
+  onQuickLook,
   onContextMenu,
   onCommitRename,
   onCancelRename,

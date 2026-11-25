@@ -9,7 +9,8 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Camera
+  Camera,
+  Eye
 } from 'lucide-react';
 import { FsItem } from '../../types';
 import {
@@ -27,6 +28,7 @@ interface ExplorerGalleryProps {
   selectedItem: FsItem | null;
   onSelectItem: (item: FsItem) => void;
   onOpenViewer: (item: FsItem) => void;
+  onQuickLook?: (item: FsItem) => void;
   onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
 }
 
@@ -35,6 +37,7 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
   selectedItem,
   onSelectItem,
   onOpenViewer,
+  onQuickLook,
   onContextMenu
 }) => {
   const mediaItems = items.filter(i => isPhotoExtension(i.ext) || isVideoExtension(i.ext));
@@ -247,6 +250,15 @@ export const ExplorerGallery: React.FC<ExplorerGalleryProps> = ({
               title="Snapshot Frame"
             >
               <Camera className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onQuickLook && (
+            <button
+              onClick={() => onQuickLook(activeItem)}
+              className="p-1 rounded hover:bg-white/10 text-sky-400 hover:text-white ml-1"
+              title="Quick Look (Space)"
+            >
+              <Eye className="w-3.5 h-3.5" />
             </button>
           )}
           <button

@@ -38,6 +38,8 @@ import {
   isAudioExtension,
   isCodeOrTextExtension,
   isArchiveExtension,
+  isPsdExtension,
+  isPremiereExtension,
   formatBytes,
   formatDate,
   formatTimelapse
@@ -49,6 +51,8 @@ import { LutSelectorPill } from '../common/LutSelectorPill';
 import { getLutFilterStyle } from '../../utils/lutFilters';
 import { AudioWaveformBar } from '../common/AudioWaveformBar';
 import { NleShuttleBadge } from '../common/NleShuttleBadge';
+import { PsdQuickLook } from '../adobe/PsdQuickLook';
+import { PremiereProjectQuickLook } from '../adobe/PremiereProjectQuickLook';
 
 interface QuickLookModalProps {
   item: FsItem | null;
@@ -95,9 +99,11 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
 
   // File type categorizations
   const ext = (currentItem?.ext || '').toLowerCase();
+  const isPsd = currentItem ? isPsdExtension(ext) : false;
+  const isPremiere = currentItem ? isPremiereExtension(ext) : false;
   const isVid = currentItem ? isVideoExtension(ext) : false;
   const isRaw = currentItem ? isRawExtension(ext) : false;
-  const isPhoto = currentItem ? isPhotoExtension(ext) && !isRaw : false;
+  const isPhoto = currentItem ? isPhotoExtension(ext) && !isRaw && !isPsd : false;
   const isAudio = currentItem ? isAudioExtension(ext) : false;
   const isPdf = ext === 'pdf';
   const isCsv = ext === 'csv' || ext === 'tsv';
@@ -150,45 +156,57 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
 
       if (e.code === 'Space' || e.key === 'Escape') {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         onClose();
       } else if (e.key === 'Tab') {
         e.preventDefault();
-        e.stopPropagation();
-        if (e.shiftKey) {
+        e.stopImmediatePropagation();
+        if (currentItem?.isDir) {
+          window.dispatchEvent(new CustomEvent('quicklook:cycle-folder-tab', { detail: { shift: e.shiftKey } }));
+        } else if (e.shiftKey) {
           goPrev();
         } else {
           goNext();
         }
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         goPrev();
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         goNext();
       } else if (e.key === 'k' || e.key === 'K') {
         e.preventDefault();
+        e.stopImmediatePropagation();
         window.dispatchEvent(new CustomEvent('quicklook:toggle-play'));
       } else if (e.key === 'j' || e.key === 'J') {
         e.preventDefault();
+        e.stopImmediatePropagation();
         window.dispatchEvent(new CustomEvent('quicklook:shuttle-back'));
       } else if (e.key === 'l' || e.key === 'L') {
         e.preventDefault();
+        e.stopImmediatePropagation();
         window.dispatchEvent(new CustomEvent('quicklook:shuttle-fwd'));
       } else if (e.key === '[' || (e.altKey && e.key === 'ArrowLeft')) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         window.dispatchEvent(new CustomEvent('quicklook:jog-frame', { detail: e.shiftKey ? -10 : -1 }));
       } else if (e.key === ']' || (e.altKey && e.key === 'ArrowRight')) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         window.dispatchEvent(new CustomEvent('quicklook:jog-frame', { detail: e.shiftKey ? 10 : 1 }));
       } else if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         window.dispatchEvent(new CustomEvent('quicklook:mark-in'));
       } else if (e.key === 'o' || e.key === 'O') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         window.dispatchEvent(new CustomEvent('quicklook:mark-out'));
       } else if (e.key === 'Enter' && currentItem) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         onClose();
         if (currentItem.isDir) {
           if (onNavigate) onNavigate(currentItem);
@@ -290,7 +308,7 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
               className="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--mac-accent)] hover:opacity-90 text-white rounded-md text-xs font-medium shadow-sm transition-all"
             >
               <ExternalLink className="w-3 h-3" />
-              <span>{isVid || isPhoto || isRaw ? 'Open in Player Window' : 'Open in App'}</span>
+              <span>{isVid || isPhoto || isRaw || isPsd || isPremiere ? 'Open in Player Window' : 'Open in App'}</span>
             </button>
 
             {/* Quick Premiere Pro Generator from Quick Look */}
@@ -329,35 +347,41 @@ export const QuickLookModal: React.FC<QuickLookModalProps> = ({
           {currentItem.isDir ? (
             /* 0. Folder / Directory Quick Look */
             <FolderQuickLook item={currentItem} onClose={onClose} onNavigate={onNavigate} />
+          ) : isPremiere ? (
+            /* 1. Adobe Premiere Pro (.prproj) Multi-track Timeline & Program Monitor */
+            <PremiereProjectQuickLook item={currentItem} />
+          ) : isPsd ? (
+            /* 2. Adobe Photoshop (.psd, .psb) Layer Studio & Canvas */
+            <PsdQuickLook item={currentItem} />
           ) : isVid ? (
-            /* 1. Adobe Premiere Pro / Timeline Video Preview */
+            /* 3. Adobe Premiere Pro / Timeline Video Preview */
             <AdobePremiereQuickLook item={currentItem} />
           ) : isRaw ? (
-            /* 2. Camera RAW Photo (.CR3, .CR2, .NEF, etc.) */
+            /* 4. Camera RAW Photo (.CR3, .CR2, .NEF, etc.) */
             <CameraRawQuickLook item={currentItem} />
           ) : isPhoto ? (
-            /* 3. Standard Photos (JPG, PNG, WEBP, GIF, SVG) */
+            /* 5. Standard Photos (JPG, PNG, WEBP, GIF, SVG) */
             <StandardPhotoQuickLook item={currentItem} />
           ) : isAudio ? (
-            /* 4. Audio Files (MP3, WAV, FLAC, M4A) */
+            /* 6. Audio Files (MP3, WAV, FLAC, M4A) */
             <AudioQuickLook item={currentItem} />
           ) : isPdf ? (
-            /* 5. PDF Documents */
+            /* 7. PDF Documents */
             <PdfQuickLook item={currentItem} />
           ) : isCsv ? (
-            /* 6. CSV / TSV Data Table */
+            /* 8. CSV / TSV Data Table */
             <CsvQuickLook item={currentItem} />
           ) : isCodeOrText ? (
-            /* 7. Code & Text Files */
+            /* 9. Code & Text Files */
             <CodeTextQuickLook item={currentItem} />
           ) : isApp ? (
-            /* 8. Executable / App Files */
+            /* 10. Executable / App Files */
             <AppQuickLook item={currentItem} />
           ) : isArchive ? (
-            /* 9. Archives (.zip, .rar, .7z) */
+            /* 11. Archives (.zip, .rar, .7z) */
             <ArchiveQuickLook item={currentItem} />
           ) : (
-            /* 10. Generic Universal File Inspector */
+            /* 12. Generic Universal File Inspector */
             <GenericFileQuickLook item={currentItem} />
           )}
         </div>
@@ -967,10 +991,14 @@ function CameraRawQuickLook({ item }: { item: FsItem }) {
       setLoading(false);
     }
     mediaService.readImageBase64(item.fullPath).then(res => {
-      if (isCurrent && res.ok && res.dataUrl) {
-        setThumb(res.dataUrl);
+      if (isCurrent) {
+        if (res.ok && res.dataUrl) {
+          setThumb(res.dataUrl);
+        }
         setLoading(false);
       }
+    }).catch(() => {
+      if (isCurrent) setLoading(false);
     });
     return () => {
       isCurrent = false;
@@ -989,10 +1017,24 @@ function CameraRawQuickLook({ item }: { item: FsItem }) {
           }}
           className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
         />
-      ) : (
+      ) : loading ? (
         <div className="flex flex-col items-center justify-center text-rose-400">
           <div className="w-10 h-10 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mb-3" />
           <span className="text-sm font-semibold">Extracting Camera RAW Embedded JPEG...</span>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center text-rose-400 p-6 text-center">
+          <Camera className="w-12 h-12 text-rose-500/50 mb-3" />
+          <p className="text-sm font-semibold text-white mb-1">RAW Preview Not Available</p>
+          <p className="text-xs text-gray-400 max-w-sm mb-4">
+            Could not extract embedded JPEG preview from this {item.ext.toUpperCase()} file.
+          </p>
+          <button
+            onClick={() => mediaService.openSeparatePlayer(item.fullPath)}
+            className="px-4 py-2 bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 rounded-xl text-xs font-semibold transition-all"
+          >
+            Open in Dedicated Player
+          </button>
         </div>
       )}
       {zoom > 1 && (
@@ -1015,12 +1057,14 @@ function CameraRawQuickLook({ item }: { item: FsItem }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function StandardPhotoQuickLook({ item }: { item: FsItem }) {
   const [fallback, setFallback] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
   const [zoom, setZoom] = useState(1);
   const mediaUrl = mediaService.toLocalResourceUrl(item.fullPath);
 
   useEffect(() => {
     setZoom(1);
     setFallback(null);
+    setHasError(false);
   }, [item.fullPath]);
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -1032,21 +1076,42 @@ function StandardPhotoQuickLook({ item }: { item: FsItem }) {
 
   return (
     <div onWheel={handleWheel} className="flex-1 flex items-center justify-center p-4 bg-black relative overflow-hidden select-none">
-      <img
-        src={fallback || mediaUrl}
-        alt={item.name}
-        onError={() => {
-          mediaService.readImageBase64(item.fullPath).then(res => {
-            if (res.ok && res.dataUrl) setFallback(res.dataUrl);
-          });
-        }}
-        style={{
-          transform: `scale(${zoom})`,
-          transition: 'transform 0.1s ease-out'
-        }}
-        className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
-      />
-      {zoom > 1 && (
+      {hasError ? (
+        <div className="flex flex-col items-center justify-center text-amber-400 p-6 text-center">
+          <AlertCircle className="w-12 h-12 text-amber-500/50 mb-3" />
+          <p className="text-sm font-semibold text-white mb-1">Image Preview Failed</p>
+          <p className="text-xs text-gray-400 max-w-sm mb-4">
+            Could not render {item.name} directly.
+          </p>
+          <button
+            onClick={() => mediaService.openExternal(item.fullPath)}
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold transition-all"
+          >
+            Open in Default App
+          </button>
+        </div>
+      ) : (
+        <img
+          src={fallback || mediaUrl}
+          alt={item.name}
+          onError={() => {
+            if (!fallback) {
+              mediaService.readImageBase64(item.fullPath).then(res => {
+                if (res.ok && res.dataUrl) setFallback(res.dataUrl);
+                else setHasError(true);
+              }).catch(() => setHasError(true));
+            } else {
+              setHasError(true);
+            }
+          }}
+          style={{
+            transform: `scale(${zoom})`,
+            transition: 'transform 0.1s ease-out'
+          }}
+          className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
+        />
+      )}
+      {zoom > 1 && !hasError && (
         <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-md text-sky-300 font-mono text-xs flex items-center gap-2 border border-sky-500/30 z-20">
           <span>Zoom: {zoom}x</span>
           <button onClick={() => setZoom(1)} className="text-[10px] text-gray-300 hover:text-white underline ml-1">
@@ -1135,6 +1200,8 @@ function CsvQuickLook({ item }: { item: FsItem }) {
         const parsed = lines.slice(0, 100).map(line => line.split(delimiter));
         setRows(parsed);
       }
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
   }, [item.fullPath, item.ext]);
@@ -1514,19 +1581,23 @@ function FolderQuickLook({
 
   // Tab key cycles through folder filters
   useEffect(() => {
-    const handleFolderTab = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        e.stopPropagation();
-        setFilterMode(prev => {
+    const handleFolderTab = (e: Event) => {
+      const custom = e as CustomEvent;
+      const shift = custom.detail?.shift;
+      setFilterMode(prev => {
+        if (shift) {
+          if (prev === 'all') return 'subfolders';
+          if (prev === 'subfolders') return 'files';
+          return 'all';
+        } else {
           if (prev === 'all') return 'files';
           if (prev === 'files') return 'subfolders';
           return 'all';
-        });
-      }
+        }
+      });
     };
-    window.addEventListener('keydown', handleFolderTab);
-    return () => window.removeEventListener('keydown', handleFolderTab);
+    window.addEventListener('quicklook:cycle-folder-tab', handleFolderTab);
+    return () => window.removeEventListener('quicklook:cycle-folder-tab', handleFolderTab);
   }, []);
 
   const handleCopyPath = () => {

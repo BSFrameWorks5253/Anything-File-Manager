@@ -268,15 +268,15 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
       </div>
 
       {/* Primary Action Buttons */}
-      {(isPhoto || isVideo) && (
-        <div className="p-3 border-b border-white/5 flex flex-col gap-2">
-          <button
-            onClick={() => onQuickLook?.(item)}
-            className="w-full py-2 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-white/10 hover:border-indigo-500/50 transition-all"
-          >
-            <Eye className="w-4 h-4 text-indigo-400" />
-            <span>Quick Look Preview (Space)</span>
-          </button>
+      <div className="p-3 border-b border-white/5 flex flex-col gap-2">
+        <button
+          onClick={() => onQuickLook?.(item)}
+          className="w-full py-2 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-white/10 hover:border-indigo-500/50 transition-all"
+        >
+          <Eye className="w-4 h-4 text-indigo-400" />
+          <span>Quick Look Preview (Space)</span>
+        </button>
+        {(isPhoto || isVideo) && (
           <button
             onClick={() => onOpenViewer(item)}
             className="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -284,8 +284,8 @@ export const ExplorerInspector: React.FC<ExplorerInspectorProps> = ({
             <Maximize2 className="w-4 h-4" />
             <span>Open HD Inspection & Zoom</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* File Metadata Details List */}
       <div className="p-4 space-y-3 flex-1 text-xs">

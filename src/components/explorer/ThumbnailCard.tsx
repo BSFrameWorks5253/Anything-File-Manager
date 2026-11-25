@@ -79,6 +79,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   const [renameVal, setRenameVal] = useState(item.name);
   const [isSpringTarget, setIsSpringTarget] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [videoPlayError, setVideoPlayError] = useState(false);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,19 +264,25 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
 
   const handleMouseEnter = () => {
     setIsHovered(true);
+    setVideoPlayError(false);
     if (isHoverPreviewEnabled && onHoverStart) {
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = setTimeout(() => {
         if (cardRef.current) {
           onHoverStart(item, cardRef.current.getBoundingClientRect());
         }
-      }, 280);
+      }, 250);
     }
   };
 
   const handleMouseLeave = () => {
     setIsHovered(false);
     setScrubTime(null);
+    if (videoScrubRef.current) {
+      try {
+        videoScrubRef.current.pause();
+      } catch {}
+    }
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
@@ -390,21 +397,33 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
         ) : isDirectBrowserPhoto ? (
           /* Standard Photo (JPG, PNG, WEBP, GIF, etc.) */
           <div className="relative w-full h-full p-1 flex items-center justify-center">
-            <img
-              src={imgError && thumb ? thumb : (directPhotoUrl || '')}
-              alt={item.name}
-              loading="lazy"
-              onError={() => {
-                setImgError(true);
-                mediaService.readImageBase64(item.fullPath).then(res => {
-                  if (res.ok && res.dataUrl) {
-                    setThumb(res.dataUrl);
-                    setImgError(false);
+            {imgError && !thumb ? (
+              <div className="flex flex-col items-center justify-center text-gray-400">
+                <ImageIcon className="w-8 h-8 opacity-40" />
+                <span className="text-[9px] text-gray-500 mt-1 uppercase font-mono font-bold">{item.ext.replace('.', '')}</span>
+              </div>
+            ) : (
+              <img
+                src={thumb || directPhotoUrl || ''}
+                alt={item.name}
+                loading="lazy"
+                onError={() => {
+                  if (!thumb) {
+                    mediaService.readImageBase64(item.fullPath).then(res => {
+                      if (res.ok && res.dataUrl) {
+                        setThumb(res.dataUrl);
+                        setImgError(false);
+                      } else {
+                        setImgError(true);
+                      }
+                    }).catch(() => setImgError(true));
+                  } else {
+                    setImgError(true);
                   }
-                });
-              }}
-              className="max-h-full max-w-full object-cover rounded-lg shadow-sm border border-black/10 dark:border-white/10 group-hover:scale-105 transition-transform duration-200"
-            />
+                }}
+                className="max-h-full max-w-full object-cover rounded-lg shadow-sm border border-black/10 dark:border-white/10 group-hover:scale-105 transition-transform duration-200"
+              />
+            )}
           </div>
         ) : isVideo ? (
           /* Video Thumbnail with Hover Scrubbing */
@@ -412,13 +431,16 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
             onMouseMove={handleThumbnailMouseMove}
             className="relative w-full h-full p-1 flex items-center justify-center group/vidthumb"
           >
-            {isHovered ? (
+            {isHovered && !videoPlayError ? (
               <video
                 ref={videoScrubRef}
                 src={mediaService.toLocalResourceUrl(item.fullPath)}
+                autoPlay
+                loop
                 muted
                 playsInline
-                preload="metadata"
+                preload="auto"
+                onError={() => setVideoPlayError(true)}
                 className="max-h-full max-w-full object-cover rounded-lg shadow-sm border border-purple-500/40 group-hover:scale-105 transition-transform duration-200"
               />
             ) : thumb ? (

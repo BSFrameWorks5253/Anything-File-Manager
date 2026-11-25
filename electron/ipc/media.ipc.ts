@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import net from 'net';
 import { exec, execFile, execSync, spawn } from 'child_process';
 import { promisify } from 'util';
+import { extractPsdEmbeddedJpeg } from './adobe.ipc';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -33,20 +34,29 @@ function sendQuickLookNamedPipe(filePath: string): Promise<boolean> {
     if (!sid) return resolve(false);
     const pipePath = `\\\\.\\pipe\\QuickLook.App.Pipe.${sid}`;
 
+    let resolved = false;
+    const finish = (result: boolean) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(result);
+      }
+    };
+
     const client = net.connect(pipePath, () => {
       client.write(`QuickLook.App.PipeMessages.Toggle|${filePath}\r\n`, () => {
-        client.end();
-        resolve(true);
+        try { client.end(); } catch {}
+        finish(true);
       });
     });
 
     client.on('error', () => {
-      resolve(false);
+      try { client.destroy(); } catch {}
+      finish(false);
     });
 
-    client.setTimeout(350, () => {
+    client.setTimeout(250, () => {
       try { client.destroy(); } catch {}
-      resolve(false);
+      finish(false);
     });
   });
 }
@@ -637,6 +647,15 @@ export function registerMediaIPC(
         }
       }
 
+      // Adobe Photoshop files (.PSD, .PSB): Extract embedded high-res JPEG preview
+      if (ext === 'psd' || ext === 'psb') {
+        const fileBuf = fs.readFileSync(filePath);
+        const psdJpeg = extractPsdEmbeddedJpeg(fileBuf);
+        if (psdJpeg) {
+          return { ok: true, dataUrl: psdJpeg };
+        }
+      }
+
       const MIME_MAP: Record<string, string> = {
         jpg: 'image/jpeg',
         jpeg: 'image/jpeg',
@@ -797,6 +816,16 @@ export function registerMediaIPC(
           const dataUrl = `data:image/jpeg;base64,${rawBuf.toString('base64')}`;
           memThumbCache.set(cacheKey, { thumb: dataUrl, duration: 0 });
           return { ok: true, duration: 0, thumb: dataUrl };
+        }
+      }
+
+      // Adobe Photoshop files (.PSD, .PSB): Extract embedded preview thumbnail
+      if (ext === 'psd' || ext === 'psb') {
+        const fileBuf = fs.readFileSync(filePath);
+        const psdJpeg = extractPsdEmbeddedJpeg(fileBuf);
+        if (psdJpeg) {
+          memThumbCache.set(cacheKey, { thumb: psdJpeg, duration: 0 });
+          return { ok: true, duration: 0, thumb: psdJpeg };
         }
       }
 

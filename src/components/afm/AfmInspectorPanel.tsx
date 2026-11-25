@@ -129,7 +129,7 @@ export const AfmInspectorPanel: React.FC<AfmInspectorPanelProps> = ({
             </span>
           </div>
           <button
-            onClick={fetchAnalytics}
+            onClick={() => fetchAnalytics(true)}
             className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--mac-text-muted)] hover:text-[var(--mac-text-primary)] transition-colors"
             title="Recalculate Metrics"
           >

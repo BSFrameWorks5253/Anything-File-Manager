@@ -16,7 +16,27 @@ import { execFile, execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import zlib from 'zlib'
-import * as XLSX from 'xlsx'
+let _xlsxModule: any = null;
+function getXLSX(): any {
+  if (!_xlsxModule) {
+    try {
+      _xlsxModule = require('xlsx');
+    } catch (err: any) {
+      console.error('[prproj.ipc] Failed to load xlsx module:', err);
+      throw new Error(`Excel generation module (xlsx) is not available: ${err.message || String(err)}`);
+    }
+  }
+  return _xlsxModule;
+}
+
+const XLSX = {
+  get utils() {
+    return getXLSX().utils;
+  },
+  writeFile(...args: any[]) {
+    return getXLSX().writeFile(...args);
+  }
+};
 function findFfprobeBinary(): string {
   const candidates = [
     'C:\\Users\\Burhanuddin\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffprobe.exe',

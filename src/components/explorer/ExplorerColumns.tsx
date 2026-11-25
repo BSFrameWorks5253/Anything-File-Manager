@@ -37,6 +37,8 @@ interface ExplorerColumnsProps {
   onOpenItem: (item: FsItem) => void;
   onQuickLook?: (item: FsItem) => void;
   onContextMenu?: (e: React.MouseEvent, item: FsItem | null) => void;
+  onHoverStart?: (item: FsItem, rect: DOMRect) => void;
+  onHoverEnd?: () => void;
 }
 
 function ColumnVideoDuration({ item, isSelected }: { item: FsItem; isSelected: boolean }) {
@@ -88,7 +90,9 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
   onSelectItem,
   onOpenItem,
   onQuickLook,
-  onContextMenu
+  onContextMenu,
+  onHoverStart,
+  onHoverEnd
 }) => {
   const [columns, setColumns] = useState<ColumnLevel[]>([]);
   const [previewItem, setPreviewItem] = useState<FsItem | null>(null);
@@ -246,6 +250,8 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
                       key={item.fullPath}
                       onClick={() => handleColumnClick(colIdx, item)}
                       onDoubleClick={() => onOpenItem(item)}
+                      onMouseEnter={e => onHoverStart?.(item, e.currentTarget.getBoundingClientRect())}
+                      onMouseLeave={() => onHoverEnd?.()}
                       onContextMenu={e => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -295,19 +301,17 @@ export const ExplorerColumns: React.FC<ExplorerColumnsProps> = ({
                         )}
 
                         {/* Quick Look button on hover */}
-                        {!item.isDir && (
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleColumnClick(colIdx, item);
-                              onQuickLook?.(item);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded text-gray-300 hover:text-white transition-opacity ml-1"
-                            title="Quick Look (Space)"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            handleColumnClick(colIdx, item);
+                            onQuickLook?.(item);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded text-gray-300 hover:text-white transition-opacity ml-1"
+                          title="Quick Look (Space)"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Film, RefreshCw, X, Tag } from 'lucide-react';
 import { FsItem, FilterCategory, ViewMode, SortField, SortOrder } from './types';
 import { isPhotoExtension, isVideoExtension, isRawExtension, isAudioExtension } from './utils';
@@ -511,7 +511,7 @@ export function MainFileManagerApp() {
     const res = await mediaService.quickLook(item.fullPath);
     if (!res.ok) {
       // 2. Fall back to built-in AFM Quick Look modal
-      setIsQuickLookOpen(prev => !prev);
+      setIsQuickLookOpen(true);
     }
   }, []);
 
@@ -753,7 +753,7 @@ export function MainFileManagerApp() {
           await navigate(clean);
           return;
         } else {
-          // It's a file! Navigate to parent directory, select item, open viewer
+          // It's a file! Navigate to parent directory, select item, open viewer only if media
           const lastSlash = Math.max(clean.lastIndexOf('\\'), clean.lastIndexOf('/'));
           const parentDir = lastSlash !== -1 ? clean.substring(0, lastSlash) : clean;
           if (parentDir && parentDir !== clean) {
@@ -762,7 +762,12 @@ export function MainFileManagerApp() {
           setSelectedPath(clean);
           setSelectedPaths(new Set([clean]));
           setSelectedItemState(item);
-          setActiveItem(item);
+          const isMedia = isVideoExtension(item.ext) || isPhotoExtension(item.ext) || isRawExtension(item.ext);
+          if (isMedia) {
+            setActiveItem(item);
+          } else {
+            setActiveItem(null);
+          }
           return;
         }
       }
@@ -802,13 +807,18 @@ export function MainFileManagerApp() {
     }
   }, [navigate]);
 
+  const initialFileConsumedRef = useRef(false);
+
   useEffect(() => {
-    mediaService.getInitialFile().then(target => {
-      if (target) handleOpenTarget(target);
-    });
+    if (!initialFileConsumedRef.current) {
+      initialFileConsumedRef.current = true;
+      mediaService.getInitialFile().then(target => {
+        if (target) handleOpenTarget(target);
+      });
+    }
 
     const unsubscribe = mediaService.onOpenTarget(target => {
-      handleOpenTarget(target);
+      if (target) handleOpenTarget(target);
     });
 
     return () => unsubscribe();
@@ -892,6 +902,15 @@ export function MainFileManagerApp() {
 
       // When Jump Palette is open, let it capture input
       if (isJumpPaletteOpen) return;
+
+      // When Quick Look is open, delegate hotkeys to QuickLookModal and allow Space/Escape to dismiss
+      if (isQuickLookOpen) {
+        if (e.code === 'Space' || e.key === 'Escape') {
+          e.preventDefault();
+          setIsQuickLookOpen(false);
+        }
+        return;
+      }
 
       // Spacebar -> QL-Win QuickLook (https://github.com/QL-Win/QuickLook.git) or AFM Quick Look
       if (e.code === 'Space') {
@@ -1421,6 +1440,8 @@ export function MainFileManagerApp() {
                 onOpenItem={handleItemOpen}
                 onQuickLook={handleQuickLook}
                 onContextMenu={handleContextMenu}
+                onHoverStart={handleHoverStart}
+                onHoverEnd={handleHoverEnd}
               />
             </div>
           ) : (

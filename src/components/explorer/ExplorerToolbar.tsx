@@ -30,7 +30,8 @@ import {
   MoreHorizontal,
   Info,
   Film,
-  Split
+  Split,
+  Sparkles
 } from 'lucide-react';
 import { ViewMode, SortField, SortOrder } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
