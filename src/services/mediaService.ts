@@ -128,7 +128,8 @@ export const mediaService = {
       return api.toLocalResourceUrl(filePath);
     }
     const f = filePath.replace(/\\/g, '/');
-    return `local-resource:///${encodeURI(f).replace(/^\//, '')}`;
+    const encoded = encodeURI(f).replace(/#/g, '%23').replace(/\?/g, '%3F');
+    return `local-resource:///${encoded.replace(/^\//, '')}`;
   },
 
   minimizeWindow(): void {

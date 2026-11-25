@@ -1,12 +1,10 @@
-import { protocol, net } from 'electron';
+import { protocol } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { pathToFileURL } from 'url';
 import { Readable } from 'stream';
 
 /**
- * Registers and handles the privileged 'local-resource' protocol for high-performance
- * media streaming (including 206 Partial Content for video seeking and Range requests)
+ * Registers the privileged 'local-resource' scheme with streaming, standard, and fetch capabilities
  */
 export function registerLocalResourceProtocol(): void {
   protocol.registerSchemesAsPrivileged([
@@ -24,10 +22,39 @@ export function registerLocalResourceProtocol(): void {
   ]);
 }
 
+/**
+ * Extracts a normalized, canonical Windows/OS filesystem path from a local-resource URL.
+ * Accurately handles:
+ * - local-resource:///C:/Users/...
+ * - local-resource://C:/Users/...
+ * - local-resource://localhost/C:/...
+ * - URL percent-encoding (%20, %23, %3F, UTF-8 unicode)
+ */
+function extractLocalPath(requestUrl: string): string {
+  let raw = requestUrl.replace(/^local-resource:\/\//i, '');
+  raw = raw.replace(/^localhost[\/\\]/i, '');
+  raw = raw.replace(/^\/+/, '');
+  raw = decodeURIComponent(raw);
+  raw = raw.replace(/\0/g, ''); // strip null bytes
+
+  // Restore drive colon if lost by Chromium URL normalization (e.g. "c/Users/..." -> "c:/Users/...")
+  if (/^[a-zA-Z][\\\/]/.test(raw)) {
+    raw = raw[0] + ':' + raw.slice(1);
+  } else if (/^\/?[a-zA-Z]:[\\\/]/.test(raw)) {
+    raw = raw.replace(/^\//, '');
+  }
+
+  return path.normalize(raw.replace(/\//g, '\\'));
+}
+
+/**
+ * Handles the 'local-resource' protocol with full HTTP 206 Partial Content Range streaming
+ * required for HTML5 video playback, seeking, scrubbing, and audio streaming in Chromium.
+ */
 export function handleLocalResourceProtocol(): void {
   protocol.handle('local-resource', async (request) => {
     try {
-      // Handle CORS preflight
+      // 1. Handle CORS preflight
       if (request.method === 'OPTIONS') {
         return new Response(null, {
           status: 204,
@@ -40,22 +67,8 @@ export function handleLocalResourceProtocol(): void {
         });
       }
 
-      const parsedUrl = new URL(request.url);
-      let s = decodeURIComponent(parsedUrl.pathname);
-      s = s.replace(/^\/+/, '');
-
-      // Security hardening: strip null bytes to prevent null byte poison injection
-      s = s.replace(/\0/g, '');
-
-      // Restore drive colon if lost by Chromium URL normalization (e.g. "c/Users/..." -> "c:/Users/...")
-      if (/^[a-zA-Z][\\\/]/.test(s)) {
-        s = s[0] + ':' + s.slice(1);
-      } else if (/^\/?[a-zA-Z]:[\\\/]/.test(s)) {
-        s = s.replace(/^\//, '');
-      }
-
-      // Normalize path to canonical OS separator and resolve fully
-      const rawPath = path.resolve(path.normalize(s.replace(/\//g, '\\')));
+      // 2. Decode canonical file path
+      const rawPath = extractLocalPath(request.url);
 
       // Security hardening: disallow access to system directory / sensitive files
       const sensitivePattern = /\\(windows|system32|system volume information|\.ssh|\.git|\.env|sam|security|software|system)\b/i;
@@ -66,15 +79,23 @@ export function handleLocalResourceProtocol(): void {
         });
       }
 
-      // Allowed media/preview extensions check
+      // 3. Allowed media/preview extensions check
       const ext = path.extname(rawPath).toLowerCase();
       const ALLOWED_EXTS = new Set([
+        // Photos
         '.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.svg', '.ico', '.avif', '.tiff', '.tif', '.heic', '.heif',
-        '.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf', '.raw', '.orf', '.rw2',
-        '.mp4', '.mov', '.mkv', '.avi', '.webm', '.m4v', '.ts', '.wmv', '.flv', '.m2ts', '.mts', '.mxf', '.mpg', '.mpeg', '.3gp', '.braw',
-        '.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.aiff', '.aif',
-        '.pdf', '.docx', '.xlsx', '.csv', '.tsv', '.txt', '.md', '.json', '.prproj', '.xml'
+        // RAW Photos
+        '.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf', '.raw', '.orf', '.rw2', '.pef', '.sr2', '.srf',
+        // Videos
+        '.mp4', '.mov', '.mkv', '.avi', '.webm', '.m4v', '.ts', '.wmv', '.flv', '.m2ts', '.mts', '.mxf', '.mpg', '.mpeg', '.3gp', '.braw', '.vob', '.ogv', '.crm', '.r3d',
+        // Audio
+        '.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.opus', '.aiff', '.aif', '.alac', '.mid', '.midi', '.wma',
+        // Documents & Data
+        '.pdf', '.docx', '.xlsx', '.csv', '.tsv', '.txt', '.md', '.json', '.xml',
+        // Adobe Formats
+        '.prproj', '.psd', '.psb', '.ai', '.aep'
       ]);
+
       if (!ALLOWED_EXTS.has(ext)) {
         return new Response('Forbidden resource type', {
           status: 403,
@@ -89,7 +110,6 @@ export function handleLocalResourceProtocol(): void {
         });
       }
 
-      // Security check: ensure target is an actual file, not a directory or device
       const stat = fs.statSync(rawPath);
       if (!stat.isFile()) {
         return new Response('Target is not a file', {
@@ -98,7 +118,7 @@ export function handleLocalResourceProtocol(): void {
         });
       }
 
-      // MIME types dictionary for accurate streaming and playback
+      // 4. Accurate MIME map
       const MIME_MAP: Record<string, string> = {
         '.mp4': 'video/mp4',
         '.mov': 'video/quicktime',
@@ -115,12 +135,15 @@ export function handleLocalResourceProtocol(): void {
         '.wmv': 'video/x-ms-wmv',
         '.flv': 'video/x-flv',
         '.3gp': 'video/3gpp',
+        '.ogv': 'video/ogg',
+        '.vob': 'video/x-ms-vob',
         '.mp3': 'audio/mpeg',
         '.wav': 'audio/wav',
         '.flac': 'audio/flac',
         '.m4a': 'audio/mp4',
         '.aac': 'audio/aac',
         '.ogg': 'audio/ogg',
+        '.opus': 'audio/opus',
         '.aiff': 'audio/aiff',
         '.aif': 'audio/aiff',
         '.jpg': 'image/jpeg',
@@ -136,6 +159,8 @@ export function handleLocalResourceProtocol(): void {
         '.tif': 'image/tiff',
         '.heic': 'image/heic',
         '.heif': 'image/heif',
+        '.psd': 'image/vnd.adobe.photoshop',
+        '.psb': 'image/vnd.adobe.photoshop',
         '.pdf': 'application/pdf',
         '.csv': 'text/csv; charset=utf-8',
         '.tsv': 'text/tab-separated-values; charset=utf-8',
@@ -145,70 +170,9 @@ export function handleLocalResourceProtocol(): void {
       };
       const mimeType = MIME_MAP[ext] || 'application/octet-stream';
 
-      // Use net.fetch with file:// URL for native Chromium performance & range streaming
-      try {
-        const fileUrl = pathToFileURL(rawPath).toString();
-        const res = await net.fetch(fileUrl, {
-          headers: request.headers,
-          method: request.method
-        });
-
-        const headers = new Headers(res.headers);
-        headers.set('Access-Control-Allow-Origin', '*');
-        headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-        headers.set('Access-Control-Allow-Headers', '*');
-        if (mimeType && (!headers.get('content-type') || headers.get('content-type') === 'application/octet-stream')) {
-          headers.set('Content-Type', mimeType);
-        }
-
-        return new Response(res.body, {
-          status: res.status,
-          statusText: res.statusText,
-          headers
-        });
-      } catch (fetchErr) {
-        // Fallback to manual stream if net.fetch has an edge case
-        const rangeHeader = request.headers.get('range');
-        if (rangeHeader) {
-          const parts = rangeHeader.replace(/bytes=/, '').split('-');
-          let start = parseInt(parts[0], 10);
-          let end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
-
-          if (isNaN(start)) start = 0;
-          if (isNaN(end) || end >= stat.size) end = stat.size - 1;
-
-          const chunkSize = end - start + 1;
-          const stream = fs.createReadStream(rawPath, { start, end, highWaterMark: 128 * 1024 });
-
-          if (request.signal) {
-            request.signal.addEventListener('abort', () => stream.destroy());
-          }
-
-          const webStream = Readable.toWeb(stream) as unknown as ReadableStream;
-
-          return new Response(webStream, {
-            status: 206,
-            statusText: 'Partial Content',
-            headers: {
-              'Content-Range': `bytes ${start}-${end}/${stat.size}`,
-              'Accept-Ranges': 'bytes',
-              'Content-Length': String(chunkSize),
-              'Content-Type': mimeType,
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-              'Access-Control-Allow-Headers': '*',
-              'Cache-Control': 'no-cache'
-            }
-          });
-        }
-
-        const stream = fs.createReadStream(rawPath, { highWaterMark: 128 * 1024 });
-        if (request.signal) {
-          request.signal.addEventListener('abort', () => stream.destroy());
-        }
-        const webStream = Readable.toWeb(stream) as unknown as ReadableStream;
-
-        return new Response(webStream, {
+      // 5. Handle HTTP HEAD request (for video metadata probing)
+      if (request.method === 'HEAD') {
+        return new Response(null, {
           status: 200,
           headers: {
             'Accept-Ranges': 'bytes',
@@ -220,6 +184,78 @@ export function handleLocalResourceProtocol(): void {
           }
         });
       }
+
+      // 6. Handle HTTP 206 Partial Content (Range requests) — ESSENTIAL for video playback & seeking
+      const rangeHeader = request.headers.get('range');
+      if (rangeHeader) {
+        const parts = rangeHeader.replace(/bytes=/, '').trim().split('-');
+        let start = parseInt(parts[0], 10);
+        let end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+
+        if (isNaN(start)) {
+          start = Math.max(0, stat.size - (parseInt(parts[1], 10) || 0));
+          end = stat.size - 1;
+        }
+        if (isNaN(end) || end >= stat.size) {
+          end = stat.size - 1;
+        }
+
+        if (start > end || start >= stat.size) {
+          return new Response(null, {
+            status: 416,
+            statusText: 'Range Not Satisfiable',
+            headers: {
+              'Content-Range': `bytes */${stat.size}`,
+              'Accept-Ranges': 'bytes',
+              'Access-Control-Allow-Origin': '*'
+            }
+          });
+        }
+
+        const chunkSize = end - start + 1;
+        const stream = fs.createReadStream(rawPath, { start, end, highWaterMark: 256 * 1024 });
+
+        // Terminate read stream on client abort
+        if (request.signal) {
+          request.signal.addEventListener('abort', () => stream.destroy());
+        }
+
+        const webStream = Readable.toWeb(stream) as unknown as ReadableStream;
+
+        return new Response(webStream, {
+          status: 206,
+          statusText: 'Partial Content',
+          headers: {
+            'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': String(chunkSize),
+            'Content-Type': mimeType,
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+            'Cache-Control': 'no-cache'
+          }
+        });
+      }
+
+      // 7. Full file stream (HTTP 200 OK with Accept-Ranges)
+      const stream = fs.createReadStream(rawPath, { highWaterMark: 256 * 1024 });
+      if (request.signal) {
+        request.signal.addEventListener('abort', () => stream.destroy());
+      }
+      const webStream = Readable.toWeb(stream) as unknown as ReadableStream;
+
+      return new Response(webStream, {
+        status: 200,
+        headers: {
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(stat.size),
+          'Content-Type': mimeType,
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': '*'
+        }
+      });
     } catch (err: any) {
       console.error('[local-resource] Error fetching:', err);
       return new Response('Error loading resource', {
