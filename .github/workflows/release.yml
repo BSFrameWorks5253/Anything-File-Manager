@@ -36,13 +36,21 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Anything-File-Manager-Setup
-          path: release/*.exe
+          path: |
+            release/*.exe
+            C:/temp/afm-release/*.exe
+            C:/temp/afm-release/*.blockmap
+            C:/temp/afm-release/latest.yml
 
       - name: Create Release and Upload Asset
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*.exe
+          files: |
+            release/*.exe
+            C:/temp/afm-release/*.exe
+            C:/temp/afm-release/*.blockmap
+            C:/temp/afm-release/latest.yml
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
